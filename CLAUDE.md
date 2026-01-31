@@ -19,16 +19,20 @@ This is a homelab repository for documenting, configuring, and automating a home
 
 ## Network Architecture
 
-The network is segmented into four VLANs:
+Router: R18 UGC Max (UniFi)
 
-| VLAN | Name    | Purpose                          | Inter-VLAN Access |
-|------|---------|----------------------------------|-------------------|
-| 10   | Trusted | PCs, phones, trusted devices     | Can access Media + IoT |
-| 20   | Media   | TVs, speakers, media devices     | Isolated |
-| 30   | IoT     | Lights, sensors, smart devices   | Isolated |
-| 40   | Guest   | Visitors                         | Isolated |
+| VLAN | Subnet            | Hosts | IPv6                        | Purpose                      |
+|------|-------------------|-------|-----------------------------|------------------------------|
+| 1    | 192.168.1.0/27    | 29    | 2001:2042:37b0:1c00::/64    | UniFi management             |
+| 10   | 192.168.10.0/27   | 29    | 2001:2042:37b0:1c02::/64    | Trusted (PCs, phones)        |
+| 20   | 192.168.20.0/27   | 29    | 2001:2042:37b0:1c01::/64    | Media (TVs, speakers)        |
+| 30   | 192.168.30.0/26   | 61    | -                           | IoT (lights, sensors)        |
+| 40   | 192.168.40.0/28   | 13    | -                           | Guest                        |
 
-All VLANs have internet access. Only the Trusted VLAN can communicate with other VLANs.
+- Gateway at .1 in each VLAN
+- Only Trusted (VLAN 10) can access Media + IoT; all others isolated
+- IoT and Guest have no IPv6 (simpler, more secure for those device types)
+- DNS fallback: Quad9 (9.9.9.9, 149.112.112.112)
 
 ## Current Services
 
