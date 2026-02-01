@@ -11,6 +11,7 @@ This is a homelab repository for documenting, configuring, and automating a home
 - **Ask before assuming**: When requirements are ambiguous or unclear, ask clarifying questions before starting work. It's better to clarify upfront than waste effort on incorrect assumptions.
 - **Target environment**: Linux (Pop_OS!) unless otherwise specified.
 - **User context**: Seasoned developer comfortable with code, learning networking specifics and advanced features.
+- **No git operations**: Do not commit, push, or perform other git operations unless explicitly asked. The user prefers to review all changes and commit themselves.
 
 ## Repository Structure
 
@@ -37,6 +38,15 @@ Router: R18 UGC Max (UniFi)
 ## Current Services
 
 - **Pi-hole** on Raspberry Pi 5: Network-wide DNS resolver for ad/malware blocking
+
+## MCP Access Policy
+
+Claude has MCP access to Pi-hole and UniFi for **read-only purposes**:
+
+- **DO NOT** make any changes directly to Pi-hole or UniFi
+- **DO** query and display current configurations, rules, clients, etc.
+- **DO** provide guidance and commands/steps for the user to apply changes manually
+- The user wants to learn by applying changes themselves
 
 ## Planned Expansions
 

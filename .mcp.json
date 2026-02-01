@@ -1,0 +1,28 @@
+{
+  "mcpServers": {
+    "homelab-pihole": {
+      "command": "ssh",
+      "args": [
+        "me@pi.hole",
+        "docker",
+        "exec",
+        "-i",
+        "homelab-mcp",
+        "python",
+        "pihole_mcp.py"
+      ]
+    },
+    "homelab-unifi": {
+      "command": "ssh",
+      "args": [
+        "me@pi.hole",
+        "docker",
+        "exec",
+        "-i",
+        "homelab-mcp",
+        "python",
+        "unifi_mcp_optimized.py"
+      ]
+    }
+  }
+}

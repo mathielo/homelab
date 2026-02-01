@@ -1,0 +1,10 @@
+services:
+  homelab-mcp:
+    image: bjeans/homelab-mcp:latest
+    container_name: homelab-mcp
+    network_mode: host
+    stdin_open: true
+    tty: true
+    env_file:
+      - .env
+    restart: unless-stopped
