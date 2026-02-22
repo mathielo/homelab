@@ -16,7 +16,7 @@ This is a homelab repository for documenting, configuring, and automating a home
 ## Domain
 
 - **Domain:** `mathielo.com` (managed in Cloudflare)
-- **Homelab services:** exposed under `*.hl.mathielo.com` via Cloudflare Tunnel (no open ports)
+- **Homelab services:** exposed as `*.mathielo.com` via Cloudflare Tunnel (no open ports)
 
 ## Repository Structure
 
@@ -45,7 +45,7 @@ Router: R18 UGC Max (UniFi)
 
 - **Pi-hole** on Raspberry Pi 5: Network-wide DNS resolver for ad/malware blocking
 - **k3s cluster** on Lenovo ThinkCentre M715Q: Single-node Kubernetes running Prometheus, Grafana, Alertmanager
-- **Cloudflare Tunnel**: Exposes k3s services at `*.hl.mathielo.com` without opening ports
+- **Cloudflare Tunnel**: Exposes k3s services as `*.mathielo.com` without opening ports
 
 ## MCP Access Policy
 

@@ -70,7 +70,7 @@ This will:
 
 ### Accessing Grafana
 
-- **URL:** `https://grafana.hl.mathielo.com`
+- **URL:** `https://grafana.mathielo.com`
 - **Username:** `admin`
 - **Password:** `admin` (change on first login)
 
@@ -85,14 +85,14 @@ The Helm values are in `ansible/files/monitoring-values.yml`. Key settings:
 
 ## Cloudflare Tunnel
 
-Exposes k3s services at `*.hl.mathielo.com` via [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) — no open ports needed on the home network.
+Exposes k3s services as `*.mathielo.com` via [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) — no open ports needed on the home network.
 
 ### Prerequisites
 
 1. In the [Cloudflare Zero Trust dashboard](https://one.dash.cloudflare.com/), go to **Networks > Tunnels** and create a new tunnel
 2. Base64-encode the tunnel token and set it in `ansible/files/cloudflared/secret.yml`
 3. In the tunnel configuration on Cloudflare, add a public hostname:
-   - **Subdomain:** `grafana.hl` | **Domain:** `mathielo.com`
+   - **Subdomain:** `grafana` | **Domain:** `mathielo.com`
    - **Service:** `http://kube-prometheus-stack-grafana.monitoring:80`
 
 ### Deploy
@@ -109,4 +109,4 @@ To expose additional services, add more public hostnames in the Cloudflare tunne
 
 1. `kubectl -n cloudflared get pods` — cloudflared pod should be Running
 2. Cloudflare dashboard shows the tunnel as **Healthy**
-3. `https://grafana.hl.mathielo.com` loads Grafana
+3. `https://grafana.mathielo.com` loads Grafana
