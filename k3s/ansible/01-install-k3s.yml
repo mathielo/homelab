@@ -1,0 +1,45 @@
+---
+- name: Install k3s
+  hosts: k3s_servers
+  become: true
+
+  tasks:
+    - name: Install k3s using official install script
+      shell:
+        cmd: curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik" sh -
+        creates: /usr/local/bin/k3s
+
+    - name: Wait for k3s to be ready
+      command: k3s kubectl get nodes
+      register: k3s_ready
+      retries: 10
+      delay: 5
+      until: k3s_ready.rc == 0
+      changed_when: false
+
+    - name: Read kubeconfig from server
+      slurp:
+        src: /etc/rancher/k3s/k3s.yaml
+      register: kubeconfig_raw
+
+    - name: Ensure local ~/.kube directory exists
+      become: false
+      delegate_to: localhost
+      file:
+        path: "{{ lookup('env', 'HOME') }}/.kube"
+        state: directory
+        mode: "0700"
+
+    - name: Write kubeconfig to local machine
+      become: false
+      delegate_to: localhost
+      copy:
+        content: "{{ kubeconfig_raw.content | b64decode | regex_replace('127.0.0.1', ansible_host) }}"
+        dest: "{{ lookup('env', 'HOME') }}/.kube/config-k3s"
+        mode: "0600"
+
+    - name: Remind user to set KUBECONFIG
+      debug:
+        msg: >-
+          Kubeconfig written to ~/.kube/config-k3s.
+          Export it with: export KUBECONFIG=~/.kube/config-k3s

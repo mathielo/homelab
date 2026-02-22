@@ -1,0 +1,60 @@
+---
+- name: Deploy monitoring stack
+  hosts: k3s_servers
+  become: true
+
+  tasks:
+    - name: Install Helm
+      shell:
+        cmd: curl -sfL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+        creates: /usr/local/bin/helm
+
+    - name: Add prometheus-community Helm repo
+      command: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+      register: helm_repo
+      changed_when: "'has been added' in helm_repo.stdout"
+      failed_when: helm_repo.rc != 0 and 'already exists' not in helm_repo.stderr
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Update Helm repos
+      command: helm repo update
+      changed_when: false
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Create monitoring namespace
+      command: k3s kubectl create namespace monitoring
+      register: ns_create
+      changed_when: ns_create.rc == 0
+      failed_when: ns_create.rc != 0 and 'already exists' not in ns_create.stderr
+
+    - name: Copy monitoring values file
+      copy:
+        src: files/monitoring-values.yml
+        dest: /tmp/monitoring-values.yml
+        mode: "0644"
+
+    - name: Deploy kube-prometheus-stack
+      command: >
+        helm upgrade --install kube-prometheus-stack
+        prometheus-community/kube-prometheus-stack
+        --namespace monitoring
+        --values /tmp/monitoring-values.yml
+        --wait
+        --timeout 10m
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Clean up values file
+      file:
+        path: /tmp/monitoring-values.yml
+        state: absent
+
+    - name: Show Grafana access info
+      debug:
+        msg: >-
+          Monitoring stack deployed! Grafana is available at
+          http://{{ ansible_host }}:30080
+          (username: admin, password: admin).
+          Change the password on first login.

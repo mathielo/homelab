@@ -1,5 +1,11 @@
 # k3s Cluster
 
+## Nodes
+
+| Host         | Hardware                           | CPU            | RAM       | Storage        | IP           |
+| ------------ | ---------------------------------- | -------------- | --------- | -------------- | ------------ |
+| k3s-server-1 | Lenovo ThinkCentre M715Q (2nd Gen) | Ryzen 3 2200GE | 32GB DDR4 | 256GB NVMe SSD | 192.168.10.3 |
+
 ## Prerequisites
 
 1. Install **Ubuntu Server** on the target machine
@@ -22,13 +28,57 @@ First run (password auth still enabled):
 
 ```bash
 cd k3s/ansible
-ansible-playbook bootstrap.yml --ask-pass --ask-become-pass
+ansible-playbook 00-bootstrap.yml --ask-pass --ask-become-pass
 ```
 
-After bootstrap, password prompts are no longer needed:
+> :bulb: After bootstrap, password prompts are no longer needed.
+
+> :warning: Once password SSH is disabled, losing your private key means you'll need physical/console access to recover. Keep a backup of your key.
+
+## Install k3s
+
+Installs k3s in single-server mode with Traefik disabled:
 
 ```bash
-ansible-playbook some-playbook.yml
+ansible-playbook 01-install-k3s.yml
 ```
 
-> **Note:** Once password SSH is disabled, losing your private key means you'll need physical/console access to recover. Keep a backup of your key.
+This will:
+- Install k3s using the official install script
+- Wait for the node to become Ready
+- Fetch the kubeconfig to `~/.kube/config-k3s` on your local machine
+
+To use kubectl locally:
+
+```bash
+export KUBECONFIG=~/.kube/config-k3s
+kubectl get nodes
+```
+
+## Monitoring Stack
+
+Deploys [kube-prometheus-stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack) (Prometheus, Grafana, Alertmanager) into the `monitoring` namespace:
+
+```bash
+ansible-playbook 02-monitoring.yml
+```
+
+This will:
+- Install Helm on the k3s server
+- Deploy the full kube-prometheus-stack via Helm
+- Expose Grafana on NodePort 30080
+
+### Accessing Grafana
+
+- **URL:** `http://192.168.10.3:30080`
+- **Username:** `admin`
+- **Password:** `admin` (change on first login)
+
+Grafana comes with pre-built dashboards for Kubernetes cluster metrics, node resources, and pod-level monitoring.
+
+### Configuration
+
+The Helm values are in `ansible/files/monitoring-values.yml`. Key settings:
+- **Retention:** 7 days of Prometheus data
+- **Storage:** Persistent volumes via k3s local-path-provisioner (10Gi Prometheus, 2Gi Grafana, 2Gi Alertmanager)
+- **Resources:** Sized for a Mini PC/NUC
