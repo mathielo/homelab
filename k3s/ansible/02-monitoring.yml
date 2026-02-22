@@ -50,11 +50,3 @@
       file:
         path: /tmp/monitoring-values.yml
         state: absent
-
-    - name: Show Grafana access info
-      debug:
-        msg: >-
-          Monitoring stack deployed! Grafana is available at
-          http://{{ ansible_host }}:30080
-          (username: admin, password: admin).
-          Change the password on first login.

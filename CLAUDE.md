@@ -13,10 +13,16 @@ This is a homelab repository for documenting, configuring, and automating a home
 - **User context**: Seasoned developer comfortable with code, learning networking specifics and advanced features.
 - **No git operations**: Do not commit, push, or perform other git operations unless explicitly asked. The user prefers to review all changes and commit themselves.
 
+## Domain
+
+- **Domain:** `mathielo.com` (managed in Cloudflare)
+- **Homelab services:** exposed under `*.hl.mathielo.com` via Cloudflare Tunnel (no open ports)
+
 ## Repository Structure
 
 - `network/` - Network architecture documentation including VLAN segmentation
 - `services/` - Individual service setup guides and configurations (e.g., Pi-hole)
+- `k3s/` - Kubernetes cluster setup, manifests, and Ansible playbooks
 
 ## Network Architecture
 
@@ -38,6 +44,8 @@ Router: R18 UGC Max (UniFi)
 ## Current Services
 
 - **Pi-hole** on Raspberry Pi 5: Network-wide DNS resolver for ad/malware blocking
+- **k3s cluster** on Lenovo ThinkCentre M715Q: Single-node Kubernetes running Prometheus, Grafana, Alertmanager
+- **Cloudflare Tunnel**: Exposes k3s services at `*.hl.mathielo.com` without opening ports
 
 ## MCP Access Policy
 

@@ -66,11 +66,11 @@ ansible-playbook 02-monitoring.yml
 This will:
 - Install Helm on the k3s server
 - Deploy the full kube-prometheus-stack via Helm
-- Expose Grafana on NodePort 30080
+- Expose Grafana as a ClusterIP service (accessed via Cloudflare Tunnel)
 
 ### Accessing Grafana
 
-- **URL:** `http://192.168.10.3:30080`
+- **URL:** `https://grafana.hl.mathielo.com`
 - **Username:** `admin`
 - **Password:** `admin` (change on first login)
 
@@ -82,3 +82,31 @@ The Helm values are in `ansible/files/monitoring-values.yml`. Key settings:
 - **Retention:** 7 days of Prometheus data
 - **Storage:** Persistent volumes via k3s local-path-provisioner (10Gi Prometheus, 2Gi Grafana, 2Gi Alertmanager)
 - **Resources:** Sized for a Mini PC/NUC
+
+## Cloudflare Tunnel
+
+Exposes k3s services at `*.hl.mathielo.com` via [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) — no open ports needed on the home network.
+
+### Prerequisites
+
+1. In the [Cloudflare Zero Trust dashboard](https://one.dash.cloudflare.com/), go to **Networks > Tunnels** and create a new tunnel
+2. Base64-encode the tunnel token and set it in `ansible/files/cloudflared/secret.yml`
+3. In the tunnel configuration on Cloudflare, add a public hostname:
+   - **Subdomain:** `grafana.hl` | **Domain:** `mathielo.com`
+   - **Service:** `http://kube-prometheus-stack-grafana.monitoring:80`
+
+### Deploy
+
+```bash
+ansible-playbook 03-cloudflared.yml
+```
+
+### Adding more services
+
+To expose additional services, add more public hostnames in the Cloudflare tunnel configuration pointing to the in-cluster service (e.g., `http://service-name.namespace:port`). No changes to the cloudflared deployment are needed.
+
+### Verification
+
+1. `kubectl -n cloudflared get pods` — cloudflared pod should be Running
+2. Cloudflare dashboard shows the tunnel as **Healthy**
+3. `https://grafana.hl.mathielo.com` loads Grafana

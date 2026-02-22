@@ -1,0 +1,51 @@
+---
+- name: Deploy Cloudflare Tunnel
+  hosts: k3s_servers
+  become: true
+
+  tasks:
+    - name: Create cloudflared namespace
+      command: k3s kubectl create namespace cloudflared
+      register: ns_create
+      changed_when: ns_create.rc == 0
+      failed_when: ns_create.rc != 0 and 'already exists' not in ns_create.stderr
+
+    - name: Copy cloudflared manifests
+      copy:
+        src: "files/cloudflared/{{ item }}"
+        dest: "/tmp/cloudflared-{{ item }}"
+        mode: "0644"
+      loop:
+        - namespace.yml
+        - secret.yml
+        - deployment.yml
+
+    - name: Apply cloudflared manifests
+      command: "k3s kubectl apply -f /tmp/cloudflared-{{ item }}"
+      loop:
+        - namespace.yml
+        - secret.yml
+        - deployment.yml
+
+    - name: Clean up manifest files
+      file:
+        path: "/tmp/cloudflared-{{ item }}"
+        state: absent
+      loop:
+        - namespace.yml
+        - secret.yml
+        - deployment.yml
+
+    - name: Wait for cloudflared pod to be ready
+      command: >
+        k3s kubectl wait --namespace cloudflared
+        --for=condition=Available
+        deployment/cloudflared
+        --timeout=60s
+      changed_when: false
+
+    - name: Show tunnel status
+      debug:
+        msg: >-
+          Cloudflare Tunnel deployed! Check the Cloudflare Zero Trust dashboard
+          to verify the tunnel shows as "Healthy".

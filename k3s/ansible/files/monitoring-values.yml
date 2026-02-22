@@ -1,8 +1,7 @@
 grafana:
   adminPassword: "admin"
   service:
-    type: NodePort
-    nodePort: 30080
+    type: ClusterIP
   resources:
     requests:
       cpu: 100m
