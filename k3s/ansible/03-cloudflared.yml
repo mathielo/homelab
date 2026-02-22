@@ -9,16 +9,10 @@
       private: true
 
   tasks:
-    - name: Create cloudflared namespace
-      command: k3s kubectl create namespace cloudflared
-      register: ns_create
-      changed_when: ns_create.rc == 0
-      failed_when: ns_create.rc != 0 and 'already exists' not in ns_create.stderr
-
     - name: Create or update tunnel token secret
       command: >
         k3s kubectl create secret generic cloudflared-token
-        --namespace cloudflared
+        --namespace kube-extra
         --from-literal=TUNNEL_TOKEN={{ tunnel_token }}
         --dry-run=client -o yaml
       register: secret_manifest
@@ -31,32 +25,23 @@
         stdin: "{{ secret_manifest.stdout }}"
       no_log: true
 
-    - name: Copy cloudflared manifests
+    - name: Copy cloudflared deployment manifest
       copy:
-        src: "files/cloudflared/{{ item }}"
-        dest: "/tmp/cloudflared-{{ item }}"
+        src: files/cloudflared/deployment.yml
+        dest: /tmp/cloudflared-deployment.yml
         mode: "0644"
-      loop:
-        - namespace.yml
-        - deployment.yml
 
-    - name: Apply cloudflared manifests
-      command: "k3s kubectl apply -f /tmp/cloudflared-{{ item }}"
-      loop:
-        - namespace.yml
-        - deployment.yml
+    - name: Apply cloudflared deployment
+      command: k3s kubectl apply -f /tmp/cloudflared-deployment.yml
 
-    - name: Clean up manifest files
+    - name: Clean up manifest file
       file:
-        path: "/tmp/cloudflared-{{ item }}"
+        path: /tmp/cloudflared-deployment.yml
         state: absent
-      loop:
-        - namespace.yml
-        - deployment.yml
 
     - name: Wait for cloudflared pod to be ready
       command: >
-        k3s kubectl wait --namespace cloudflared
+        k3s kubectl wait --namespace kube-extra
         --for=condition=Available
         deployment/cloudflared
         --timeout=60s
