@@ -4,8 +4,11 @@
   become: true
 
   tasks:
-    - name: Add prometheus-community Helm repo
-      command: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+    - name: Add Helm repos
+      command: helm repo add {{ item.name }} {{ item.url }}
+      loop:
+        - { name: prometheus-community, url: "https://prometheus-community.github.io/helm-charts" }
+        - { name: grafana, url: "https://grafana.github.io/helm-charts" }
       register: helm_repo
       changed_when: "'has been added' in helm_repo.stdout"
       failed_when: helm_repo.rc != 0 and 'already exists' not in helm_repo.stderr
@@ -18,24 +21,63 @@
       environment:
         KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
-    - name: Copy monitoring values file
+    - name: Copy values files
       copy:
-        src: files/monitoring-values.yml
-        dest: /tmp/monitoring-values.yml
+        src: "files/monitoring/{{ item }}"
+        dest: "/tmp/{{ item }}"
         mode: "0644"
+      loop:
+        - prometheus-values.yml
+        - loki-values.yml
+        - promtail-values.yml
+        - grafana-values.yml
 
-    - name: Deploy kube-prometheus-stack
+    - name: Deploy Prometheus
       command: >
-        helm upgrade --install kube-prometheus-stack
-        prometheus-community/kube-prometheus-stack
+        helm upgrade --install prometheus
+        prometheus-community/prometheus
         --namespace kube-extra
-        --values /tmp/monitoring-values.yml
-        --wait
-        --timeout 10m
+        --values /tmp/prometheus-values.yml
+        --wait --timeout 5m
       environment:
         KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
-    - name: Clean up values file
+    - name: Deploy Loki
+      command: >
+        helm upgrade --install loki
+        grafana/loki
+        --namespace kube-extra
+        --values /tmp/loki-values.yml
+        --wait --timeout 5m
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Deploy Promtail
+      command: >
+        helm upgrade --install promtail
+        grafana/promtail
+        --namespace kube-extra
+        --values /tmp/promtail-values.yml
+        --wait --timeout 5m
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Deploy Grafana
+      command: >
+        helm upgrade --install grafana
+        grafana/grafana
+        --namespace kube-extra
+        --values /tmp/grafana-values.yml
+        --wait --timeout 5m
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Clean up values files
       file:
-        path: /tmp/monitoring-values.yml
+        path: "/tmp/{{ item }}"
         state: absent
+      loop:
+        - prometheus-values.yml
+        - loki-values.yml
+        - promtail-values.yml
+        - grafana-values.yml

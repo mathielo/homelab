@@ -6,6 +6,13 @@
 | ------------ | ---------------------------------- | -------------- | --------- | -------------- | ------------ |
 | k3s-server-1 | Lenovo ThinkCentre M715Q (2nd Gen) | Ryzen 3 2200GE | 32GB DDR4 | 256GB NVMe SSD | 192.168.10.3 |
 
+## Namespaces
+
+| Namespace   | Purpose                                      |
+| ----------- | -------------------------------------------- |
+| `kube-extra` | Cluster infrastructure (monitoring, tunnels) |
+| `prod`       | Deployed services                            |
+
 ## Prerequisites
 
 1. Install **Ubuntu Server** on the target machine
@@ -37,7 +44,7 @@ ansible-playbook 00-bootstrap.yml --ask-pass --ask-become-pass
 
 ## Install k3s
 
-Installs k3s in single-server mode with Traefik disabled:
+Installs k3s in single-server mode with Traefik disabled, then sets up cluster-level tooling:
 
 ```bash
 ansible-playbook 01-install-k3s.yml
@@ -46,6 +53,8 @@ ansible-playbook 01-install-k3s.yml
 This will:
 - Install k3s using the official install script
 - Wait for the node to become Ready
+- Install Helm
+- Create the `kube-extra` and `prod` namespaces
 - Fetch the kubeconfig to `~/.kube/config-k3s` on your local machine
 
 To use kubectl locally:
@@ -57,30 +66,49 @@ kubectl get nodes
 
 ## Monitoring Stack
 
-Deploys [kube-prometheus-stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack) (Prometheus, Grafana, Alertmanager) into the `monitoring` namespace:
+Deploys a lean observability stack into the `kube-extra` namespace:
+
+| Component  | Chart                              | Role                                  |
+| ---------- | ---------------------------------- | ------------------------------------- |
+| Prometheus | `prometheus-community/prometheus`  | Metrics collection and storage        |
+| Grafana    | `grafana/grafana`                  | Dashboards for metrics and logs       |
+| Loki       | `grafana/loki`                     | Log storage and query engine          |
+| Promtail   | `grafana/promtail`                 | Ships pod logs from nodes into Loki   |
 
 ```bash
 ansible-playbook 02-monitoring.yml
 ```
 
-This will:
-- Install Helm on the k3s server
-- Deploy the full kube-prometheus-stack via Helm
-- Expose Grafana as a ClusterIP service (accessed via Cloudflare Tunnel)
-
 ### Accessing Grafana
 
 - **URL:** `https://grafana.mathielo.com`
 - **Username:** `admin`
-- **Password:** `admin` (change on first login)
+- **Password:** set in `ansible/files/monitoring/grafana-values.yml` (change before deploying or via the Grafana UI)
 
-Grafana comes with pre-built dashboards for Kubernetes cluster metrics, node resources, and pod-level monitoring.
+Both Prometheus and Loki datasources are pre-configured — no manual setup needed.
+
+#### Recommended community dashboards to import
+
+| Dashboard | ID |
+| --------- | -- |
+| Node Exporter Full | `1860` |
+| Kubernetes cluster overview | `6417` |
+| Loki log explorer | `13639` |
 
 ### Configuration
 
-The Helm values are in `ansible/files/monitoring-values.yml`. Key settings:
-- **Retention:** 7 days of Prometheus data
-- **Storage:** Persistent volumes via k3s local-path-provisioner (10Gi Prometheus, 2Gi Grafana, 2Gi Alertmanager)
+Helm values live in `ansible/files/monitoring/`:
+
+| File | Chart |
+| ---- | ----- |
+| `prometheus-values.yml` | Prometheus (server, node-exporter, kube-state-metrics) |
+| `loki-values.yml` | Loki in SingleBinary mode |
+| `promtail-values.yml` | Promtail DaemonSet |
+| `grafana-values.yml` | Grafana with pre-wired datasources |
+
+Key settings:
+- **Retention:** 30 days for both Prometheus and Loki
+- **Storage:** Persistent volumes via k3s local-path-provisioner (10Gi Prometheus, 10Gi Loki, 2Gi Grafana)
 - **Resources:** Sized for a Mini PC/NUC
 
 ## Cloudflare Tunnel
@@ -91,9 +119,9 @@ Exposes k3s services as `*.mathielo.com` via [Cloudflare Tunnel](https://develop
 
 1. In the [Cloudflare Zero Trust dashboard](https://one.dash.cloudflare.com/), go to **Networks > Tunnels** and create a new tunnel
 2. Copy the tunnel token (the playbook will prompt for it at runtime)
-3. In the tunnel configuration on Cloudflare, add a public hostname:
+3. In the tunnel configuration on Cloudflare, add a public hostname for each service to expose:
    - **Subdomain:** `grafana` | **Domain:** `mathielo.com`
-   - **Service:** `http://kube-prometheus-stack-grafana.monitoring:80`
+   - **Service:** `http://grafana.kube-extra:80`
 
 ### Deploy
 
@@ -107,6 +135,6 @@ To expose additional services, add more public hostnames in the Cloudflare tunne
 
 ### Verification
 
-1. `kubectl -n cloudflared get pods` — cloudflared pod should be Running
+1. `kubectl -n kube-extra get pods` — cloudflared pod should be Running
 2. Cloudflare dashboard shows the tunnel as **Healthy**
 3. `https://grafana.mathielo.com` loads Grafana

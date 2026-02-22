@@ -1,0 +1,37 @@
+alertmanager:
+  enabled: false
+
+pushgateway:
+  enabled: false
+
+server:
+  retention: 30d
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  persistentVolume:
+    enabled: true
+    storageClass: local-path
+    size: 10Gi
+
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
