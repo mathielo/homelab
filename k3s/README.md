@@ -90,7 +90,7 @@ Exposes k3s services as `*.mathielo.com` via [Cloudflare Tunnel](https://develop
 ### Prerequisites
 
 1. In the [Cloudflare Zero Trust dashboard](https://one.dash.cloudflare.com/), go to **Networks > Tunnels** and create a new tunnel
-2. Base64-encode the tunnel token and set it in `ansible/files/cloudflared/secret.yml`
+2. Copy the tunnel token (the playbook will prompt for it at runtime)
 3. In the tunnel configuration on Cloudflare, add a public hostname:
    - **Subdomain:** `grafana` | **Domain:** `mathielo.com`
    - **Service:** `http://kube-prometheus-stack-grafana.monitoring:80`

@@ -3,12 +3,33 @@
   hosts: k3s_servers
   become: true
 
+  vars_prompt:
+    - name: tunnel_token
+      prompt: "Enter your Cloudflare Tunnel token"
+      private: true
+
   tasks:
     - name: Create cloudflared namespace
       command: k3s kubectl create namespace cloudflared
       register: ns_create
       changed_when: ns_create.rc == 0
       failed_when: ns_create.rc != 0 and 'already exists' not in ns_create.stderr
+
+    - name: Create or update tunnel token secret
+      command: >
+        k3s kubectl create secret generic cloudflared-token
+        --namespace cloudflared
+        --from-literal=TUNNEL_TOKEN={{ tunnel_token }}
+        --dry-run=client -o yaml
+      register: secret_manifest
+      changed_when: false
+      no_log: true
+
+    - name: Apply tunnel token secret
+      command: k3s kubectl apply -f -
+      args:
+        stdin: "{{ secret_manifest.stdout }}"
+      no_log: true
 
     - name: Copy cloudflared manifests
       copy:
@@ -17,14 +38,12 @@
         mode: "0644"
       loop:
         - namespace.yml
-        - secret.yml
         - deployment.yml
 
     - name: Apply cloudflared manifests
       command: "k3s kubectl apply -f /tmp/cloudflared-{{ item }}"
       loop:
         - namespace.yml
-        - secret.yml
         - deployment.yml
 
     - name: Clean up manifest files
@@ -33,7 +52,6 @@
         state: absent
       loop:
         - namespace.yml
-        - secret.yml
         - deployment.yml
 
     - name: Wait for cloudflared pod to be ready
