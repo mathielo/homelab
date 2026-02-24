@@ -2,6 +2,8 @@
 - name: Deploy monitoring stack
   hosts: k3s_servers
   become: true
+  environment:
+    KUBECONFIG: /etc/k3s/k3s.yaml
 
   tasks:
     - name: Add Helm repos
@@ -12,14 +14,10 @@
       register: helm_repo
       changed_when: "'has been added' in helm_repo.stdout"
       failed_when: helm_repo.rc != 0 and 'already exists' not in helm_repo.stderr
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
     - name: Update Helm repos
       command: helm repo update
       changed_when: false
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
     - name: Copy values files
       copy:
@@ -39,8 +37,6 @@
         --namespace kube-extra
         --values /tmp/prometheus-values.yml
         --wait --timeout 5m
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
     - name: Deploy Loki
       command: >
@@ -49,8 +45,6 @@
         --namespace kube-extra
         --values /tmp/loki-values.yml
         --wait --timeout 5m
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
     - name: Deploy Promtail
       command: >
@@ -59,8 +53,6 @@
         --namespace kube-extra
         --values /tmp/promtail-values.yml
         --wait --timeout 5m
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
     - name: Deploy Grafana
       command: >
@@ -69,8 +61,6 @@
         --namespace kube-extra
         --values /tmp/grafana-values.yml
         --wait --timeout 5m
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
     - name: Clean up values files
       file:

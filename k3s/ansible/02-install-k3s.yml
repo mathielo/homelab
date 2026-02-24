@@ -2,11 +2,13 @@
 - name: Install k3s
   hosts: k3s_servers
   become: true
+  environment:
+    KUBECONFIG: /etc/k3s/k3s.yaml
 
   tasks:
     - name: Install k3s using official install script
       shell:
-        cmd: curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik" sh -
+        cmd: curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --data-dir=/var/lib/k3s --write-kubeconfig=/etc/k3s/k3s.yaml --write-kubeconfig-mode=0640" sh -
         creates: /usr/local/bin/k3s
 
     - name: Wait for k3s to be ready
@@ -36,14 +38,10 @@
       register: helm_repo
       changed_when: "'has been added' in helm_repo.stdout"
       failed_when: helm_repo.rc != 0 and 'already exists' not in helm_repo.stderr
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
     - name: Update Helm repos
       command: helm repo update
       changed_when: false
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
     - name: Copy ingress-nginx values file
       copy:
@@ -58,8 +56,6 @@
         --namespace kube-extra
         --values /tmp/ingress-values.yml
         --wait --timeout 5m
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
     - name: Clean up ingress values file
       file:
@@ -68,7 +64,7 @@
 
     - name: Read kubeconfig from server
       slurp:
-        src: /etc/rancher/k3s/k3s.yaml
+        src: /etc/k3s/k3s.yaml
       register: kubeconfig_raw
 
     - name: Ensure local ~/.kube directory exists
