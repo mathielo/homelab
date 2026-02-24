@@ -31,6 +31,41 @@
       changed_when: ns_create.rc == 0
       failed_when: ns_create.rc != 0 and 'already exists' not in ns_create.stderr
 
+    - name: Add ingress-nginx Helm repo
+      command: helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+      register: helm_repo
+      changed_when: "'has been added' in helm_repo.stdout"
+      failed_when: helm_repo.rc != 0 and 'already exists' not in helm_repo.stderr
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Update Helm repos
+      command: helm repo update
+      changed_when: false
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Copy ingress-nginx values file
+      copy:
+        src: files/ingress-values.yml
+        dest: /tmp/ingress-values.yml
+        mode: "0644"
+
+    - name: Deploy ingress-nginx
+      command: >
+        helm upgrade --install ingress-nginx
+        ingress-nginx/ingress-nginx
+        --namespace kube-extra
+        --values /tmp/ingress-values.yml
+        --wait --timeout 5m
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Clean up ingress values file
+      file:
+        path: /tmp/ingress-values.yml
+        state: absent
+
     - name: Read kubeconfig from server
       slurp:
         src: /etc/rancher/k3s/k3s.yaml

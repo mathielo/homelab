@@ -1,0 +1,45 @@
+---
+- name: Install Tailscale
+  hosts: k3s_servers
+  become: true
+
+  vars_prompt:
+    - name: tailscale_auth_key
+      prompt: "Enter your Tailscale auth key (from https://login.tailscale.com/admin/settings/keys)"
+      private: true
+
+  tasks:
+    - name: Install Tailscale using official install script
+      shell:
+        cmd: curl -fsSL https://tailscale.com/install.sh | sh
+        creates: /usr/bin/tailscale
+
+    - name: Enable and start tailscaled
+      systemd:
+        name: tailscaled
+        enabled: true
+        state: started
+
+    - name: Check Tailscale status
+      command: tailscale status --json
+      register: tailscale_status
+      changed_when: false
+      failed_when: false
+
+    - name: Connect to Tailscale
+      command: tailscale up --auth-key={{ tailscale_auth_key }}
+      no_log: true
+      when: >
+        tailscale_status.rc != 0 or
+        (tailscale_status.stdout | from_json).BackendState != 'Running'
+
+    - name: Get Tailscale IP
+      command: tailscale ip --4
+      register: tailscale_ip
+      changed_when: false
+
+    - name: Show Tailscale IP
+      debug:
+        msg: >-
+          Tailscale is up! Node IP: {{ tailscale_ip.stdout }}.
+          Add a wildcard DNS record in Pi-hole: *.homelab → {{ tailscale_ip.stdout }}

@@ -29,3 +29,9 @@ persistence:
   enabled: true
   storageClassName: local-path
   size: 2Gi
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - grafana.homelab

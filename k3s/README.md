@@ -8,9 +8,9 @@
 
 ## Namespaces
 
-| Namespace   | Purpose                                      |
-| ----------- | -------------------------------------------- |
-| `kube-extra` | Cluster infrastructure (monitoring, tunnels) |
+| Namespace    | Purpose                                      |
+| ------------ | -------------------------------------------- |
+| `kube-extra` | Cluster infrastructure (monitoring, ingress) |
 | `prod`       | Deployed services                            |
 
 ## Prerequisites
@@ -42,19 +42,45 @@ ansible-playbook 00-bootstrap.yml --ask-pass --ask-become-pass
 
 > :warning: Once password SSH is disabled, losing your private key means you'll need physical/console access to recover. Keep a backup of your key.
 
-## Install k3s
+## Tailscale
 
-Installs k3s in single-server mode with Traefik disabled, then sets up cluster-level tooling:
+Installs Tailscale on the k3s node for private network access — no ports exposed to the internet.
+
+### Prerequisites
+
+Generate a reusable auth key at [login.tailscale.com/admin/settings/keys](https://login.tailscale.com/admin/settings/keys).
+
+### Deploy
 
 ```bash
-ansible-playbook 01-install-k3s.yml
+ansible-playbook 01-tailscale.yml
+```
+
+The playbook will prompt for the auth key, connect the node to your tailnet, and print the node's Tailscale IP.
+
+### DNS setup (Pi-hole)
+
+Add a wildcard DNS record in Pi-hole pointing `*.homelab` to the Tailscale IP printed by the playbook:
+
+1. Pi-hole admin → **Local DNS → DNS Records**
+2. Add record: `*.homelab` → `<tailscale-ip>`
+
+All `*.homelab` hostnames will now resolve to the k3s node on any device in your tailnet.
+
+## Install k3s
+
+Installs k3s and sets up all cluster-level infrastructure:
+
+```bash
+ansible-playbook 02-install-k3s.yml
 ```
 
 This will:
-- Install k3s using the official install script
+- Install k3s (Traefik disabled)
 - Wait for the node to become Ready
 - Install Helm
 - Create the `kube-extra` and `prod` namespaces
+- Deploy the nginx ingress controller into `kube-extra`
 - Fetch the kubeconfig to `~/.kube/config-k3s` on your local machine
 
 To use kubectl locally:
@@ -68,20 +94,20 @@ kubectl get nodes
 
 Deploys a lean observability stack into the `kube-extra` namespace:
 
-| Component  | Chart                              | Role                                  |
-| ---------- | ---------------------------------- | ------------------------------------- |
-| Prometheus | `prometheus-community/prometheus`  | Metrics collection and storage        |
-| Grafana    | `grafana/grafana`                  | Dashboards for metrics and logs       |
-| Loki       | `grafana/loki`                     | Log storage and query engine          |
-| Promtail   | `grafana/promtail`                 | Ships pod logs from nodes into Loki   |
+| Component  | Chart                             | Role                                |
+| ---------- | --------------------------------- | ----------------------------------- |
+| Prometheus | `prometheus-community/prometheus` | Metrics collection and storage      |
+| Grafana    | `grafana/grafana`                 | Dashboards for metrics and logs     |
+| Loki       | `grafana/loki`                    | Log storage and query engine        |
+| Promtail   | `grafana/promtail`                | Ships pod logs from nodes into Loki |
 
 ```bash
-ansible-playbook 02-monitoring.yml
+ansible-playbook 03-monitoring.yml
 ```
 
 ### Accessing Grafana
 
-- **URL:** `https://grafana.mathielo.com`
+- **URL:** `http://grafana.homelab` (requires Tailscale + Pi-hole DNS record, see below)
 - **Username:** `admin`
 - **Password:** set in `ansible/files/monitoring/grafana-values.yml` (change before deploying or via the Grafana UI)
 
@@ -89,52 +115,51 @@ Both Prometheus and Loki datasources are pre-configured — no manual setup need
 
 #### Recommended community dashboards to import
 
-| Dashboard | ID |
-| --------- | -- |
-| Node Exporter Full | `1860` |
+| Dashboard                  | ID     |
+| -------------------------- | ------ |
+| Node Exporter Full         | `1860` |
 | Kubernetes cluster overview | `6417` |
-| Loki log explorer | `13639` |
+| Loki log explorer          | `13639` |
 
 ### Configuration
 
 Helm values live in `ansible/files/monitoring/`:
 
-| File | Chart |
-| ---- | ----- |
+| File                    | Chart                                                  |
+| ----------------------- | ------------------------------------------------------ |
 | `prometheus-values.yml` | Prometheus (server, node-exporter, kube-state-metrics) |
-| `loki-values.yml` | Loki in SingleBinary mode |
-| `promtail-values.yml` | Promtail DaemonSet |
-| `grafana-values.yml` | Grafana with pre-wired datasources |
+| `loki-values.yml`       | Loki in SingleBinary mode                              |
+| `promtail-values.yml`   | Promtail DaemonSet                                     |
+| `grafana-values.yml`    | Grafana with pre-wired datasources and ingress         |
 
 Key settings:
 - **Retention:** 30 days for both Prometheus and Loki
 - **Storage:** Persistent volumes via k3s local-path-provisioner (10Gi Prometheus, 10Gi Loki, 2Gi Grafana)
 - **Resources:** Sized for a Mini PC/NUC
 
-## Cloudflare Tunnel
-
-Exposes k3s services as `*.mathielo.com` via [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) — no open ports needed on the home network.
-
-### Prerequisites
-
-1. In the [Cloudflare Zero Trust dashboard](https://one.dash.cloudflare.com/), go to **Networks > Tunnels** and create a new tunnel
-2. Copy the tunnel token (the playbook will prompt for it at runtime)
-3. In the tunnel configuration on Cloudflare, add a public hostname for each service to expose:
-   - **Subdomain:** `grafana` | **Domain:** `mathielo.com`
-   - **Service:** `http://grafana.kube-extra:80`
-
-### Deploy
-
-```bash
-ansible-playbook 03-cloudflared.yml
-```
-
 ### Adding more services
 
-To expose additional services, add more public hostnames in the Cloudflare tunnel configuration pointing to the in-cluster service (e.g., `http://service-name.namespace:port`). No changes to the cloudflared deployment are needed.
+To expose a new service at `myapp.homelab`, add an Ingress manifest in the `prod` namespace:
 
-### Verification
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: myapp
+  namespace: prod
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: myapp.homelab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: myapp
+                port:
+                  number: 80
+```
 
-1. `kubectl -n kube-extra get pods` — cloudflared pod should be Running
-2. Cloudflare dashboard shows the tunnel as **Healthy**
-3. `https://grafana.mathielo.com` loads Grafana
+No DNS changes needed — the wildcard record covers it automatically.
