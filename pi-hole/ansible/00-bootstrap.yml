@@ -1,0 +1,56 @@
+---
+- name: Bootstrap Pi-hole host
+  hosts: pihole
+  become: true
+  vars:
+    ssh_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBIY4u7RdDHfGYM/f+yjXbz4KUq3kfI4sAwC+f4JHLA8"
+
+  tasks:
+    - name: Ensure me user has passwordless sudo
+      copy:
+        dest: /etc/sudoers.d/me
+        content: "me ALL=(ALL) NOPASSWD:ALL\n"
+        mode: "0440"
+        validate: "visudo -cf %s"
+
+    - name: Ensure .ssh directory exists
+      file:
+        path: /home/me/.ssh
+        state: directory
+        owner: me
+        group: me
+        mode: "0700"
+
+    - name: Set authorized SSH key
+      authorized_key:
+        user: me
+        key: "{{ ssh_public_key }}"
+        state: present
+        exclusive: true
+
+    - name: Disable password authentication in sshd
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^#?\\s*PasswordAuthentication"
+        line: "PasswordAuthentication no"
+      notify: Restart sshd
+
+    - name: Find sshd drop-in configs
+      find:
+        paths: /etc/ssh/sshd_config.d
+        patterns: "*.conf"
+      register: sshd_dropin_configs
+
+    - name: Disable password authentication in sshd drop-in configs
+      lineinfile:
+        path: "{{ item.path }}"
+        regexp: "^#?\\s*PasswordAuthentication"
+        line: "PasswordAuthentication no"
+      loop: "{{ sshd_dropin_configs.files }}"
+      notify: Restart sshd
+
+  handlers:
+    - name: Restart sshd
+      systemd:
+        name: ssh
+        state: restarted
