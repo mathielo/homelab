@@ -33,6 +33,9 @@ SOPS_VERSION=$(curl -s https://api.github.com/repos/getsops/sops/releases/latest
 curl -LO "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.amd64"
 sudo install -m 755 "sops-${SOPS_VERSION}.linux.amd64" /usr/local/bin/sops
 rm "sops-${SOPS_VERSION}.linux.amd64"
+
+# Ansible community SOPS collection
+ansible-galaxy collection install community.sops
 ```
 
 # Secrets

@@ -42,17 +42,13 @@ ansible-playbook 00-bootstrap.yaml --ask-pass --ask-become-pass
 
 Installs Tailscale on the k3s node for private network access — no ports exposed to the internet.
 
-### Prerequisites
-
-Generate a reusable auth key at [login.tailscale.com/admin/settings/keys](https://login.tailscale.com/admin/settings/keys).
-
 ### Deploy
 
 ```bash
 ansible-playbook 01-tailscale.yaml
 ```
 
-The playbook will prompt for the auth key, connect the node to your tailnet, and print the node's Tailscale IP.
+The playbook decrypts the secrets file, connects the node to your tailnet, and prints the node's Tailscale IP.
 
 ### DNS setup (Pi-hole)
 
@@ -121,8 +117,8 @@ Both Prometheus and Loki datasources are pre-configured — no manual setup need
 
 Helm values live in `ansible/files/monitoring/`:
 
-| File                    | Chart                                                  |
-| ----------------------- | ------------------------------------------------------ |
+| File                     | Chart                                                  |
+| ------------------------ | ------------------------------------------------------ |
 | `prometheus-values.yaml` | Prometheus (server, node-exporter, kube-state-metrics) |
 | `loki-values.yaml`       | Loki in SingleBinary mode                              |
 | `promtail-values.yaml`   | Promtail DaemonSet                                     |
