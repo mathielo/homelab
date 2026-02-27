@@ -1,10 +1,8 @@
 {
   "mcpServers": {
     "homelab-pihole": {
-      "command": "ssh",
+      "command": "docker",
       "args": [
-        "me@pi.hole",
-        "docker",
         "exec",
         "-i",
         "homelab-mcp",
@@ -13,10 +11,8 @@
       ]
     },
     "homelab-unifi": {
-      "command": "ssh",
+      "command": "docker",
       "args": [
-        "me@pi.hole",
-        "docker",
         "exec",
         "-i",
         "homelab-mcp",

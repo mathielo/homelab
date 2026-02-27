@@ -4,35 +4,23 @@ MCP (Model Context Protocol) server providing Claude Code access to Pi-hole and 
 
 Uses [bjeans/homelab-mcp](https://github.com/bjeans/homelab-mcp) Docker image.
 
-## Setup on Raspberry Pi
+# Setup
 
-### 1. Create directory and files
-
-```bash
-mkdir -p ~/homelab-mcp && cd ~/homelab-mcp
-```
-
-Copy `docker-compose.yaml` and `.env.example` from this directory to the Pi.
-
-Edit `.env` with your actual credentials:
-
-### 3. Start the container
+## 1. Fill in env vars
 
 ```bash
-docker-compose up -d
+cp .env.example .env
 ```
 
-## Setup on Client (Linux PC)
+Edit `.env` with your actual credentials
 
-### 1. Ensure passwordless SSH to the Pi
+## 2. Start the container
 
 ```bash
-# Assuming "pi.hole" is a hostname that resolves to the Pi-hole IP address
-ssh-copy-id me@pi.hole
-ssh me@pi.hole "echo connected"  # Should work without password prompt
+docker compose up -d && docker compose logs -f
 ```
 
-### 2. Configure Claude Code MCP
+## 3. Configure Claude Code MCP
 
 Create/edit `.mcp.json` in your project root (or `~/.claude/mcp.json` for global):
 
@@ -40,18 +28,16 @@ Create/edit `.mcp.json` in your project root (or `~/.claude/mcp.json` for global
 {
   "mcpServers": {
     "homelab-pihole": {
-      "command": "ssh",
+      "command": "docker",
       "args": [
-        "me@pi.hole",
-        "docker", "exec", "-i", "homelab-mcp",
+        "exec", "-i", "homelab-mcp",
         "python", "pihole_mcp.py"
       ]
     },
     "homelab-unifi": {
-      "command": "ssh",
+      "command": "docker",
       "args": [
-        "me@pi.hole",
-        "docker", "exec", "-i", "homelab-mcp",
+        "exec", "-i", "homelab-mcp",
         "python", "unifi_mcp_optimized.py"
       ]
     }
