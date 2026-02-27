@@ -45,8 +45,8 @@
 
     - name: Copy ingress-nginx values file
       copy:
-        src: files/ingress-values.yml
-        dest: /tmp/ingress-values.yml
+        src: files/ingress-values.yaml
+        dest: /tmp/ingress-values.yaml
         mode: "0644"
 
     - name: Deploy ingress-nginx
@@ -54,12 +54,12 @@
         helm upgrade --install ingress-nginx
         ingress-nginx/ingress-nginx
         --namespace kube-extra
-        --values /tmp/ingress-values.yml
+        --values /tmp/ingress-values.yaml
         --wait --timeout 5m
 
     - name: Clean up ingress values file
       file:
-        path: /tmp/ingress-values.yml
+        path: /tmp/ingress-values.yaml
         state: absent
 
     - name: Read kubeconfig from server

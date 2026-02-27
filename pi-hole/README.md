@@ -55,7 +55,7 @@ First run (password auth still enabled):
 
 ```bash
 cd pi-hole/ansible
-ansible-playbook 00-bootstrap.yml --ask-pass --ask-become-pass
+ansible-playbook 00-bootstrap.yaml --ask-pass --ask-become-pass
 ```
 
 > :bulb: After bootstrap, password prompts are no longer needed.
@@ -67,7 +67,7 @@ ansible-playbook 00-bootstrap.yml --ask-pass --ask-become-pass
 Installs Pi-hole using the official installer in unattended mode:
 
 ```bash
-ansible-playbook 01-pihole.yml
+ansible-playbook 01-pihole.yaml
 ```
 
 This will:
