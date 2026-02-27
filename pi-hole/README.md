@@ -44,13 +44,6 @@ sudo nmcli connection up "netplan-eth0"
 
 > :bulb: After this, the Pi is reachable at `192.168.10.9` — which is what the Ansible inventory uses.
 
-### 3. Install Ansible on your local machine
-
-```bash
-sudo add-apt-repository --yes --update ppa:ansible/ansible
-sudo apt install ansible
-```
-
 ## Bootstrap
 
 The bootstrap playbook configures the host for remote management:

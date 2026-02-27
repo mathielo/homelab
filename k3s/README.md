@@ -18,11 +18,7 @@
 1. Install **Ubuntu Server** on the target machine
    - During install, create user: `k3s`
    - Enable OpenSSH server when prompted
-2. Install Ansible and sshpass on your local machine:
-   ```bash
-   sudo add-apt-repository --yes --update ppa:ansible/ansible
-   sudo apt install ansible sshpass
-   ```
+
 
 ## Bootstrap
 
@@ -115,11 +111,11 @@ Both Prometheus and Loki datasources are pre-configured — no manual setup need
 
 #### Recommended community dashboards to import
 
-| Dashboard                  | ID     |
-| -------------------------- | ------ |
-| Node Exporter Full         | `1860` |
-| Kubernetes cluster overview | `6417` |
-| Loki log explorer          | `13639` |
+| Dashboard                   | ID      |
+| --------------------------- | ------- |
+| Node Exporter Full          | `1860`  |
+| Kubernetes cluster overview | `6417`  |
+| Loki log explorer           | `13639` |
 
 ### Configuration
 
