@@ -1,0 +1,13 @@
+# mozilla/sops config file
+#
+# To add/remove keys update list in key_groups below and run:
+# $ find . -iname '*?.sops.yaml' | xargs -n1 sops updatekeys -y
+#
+# When keys been removed, make sure to rotate data key to remove access
+# to secrets from old keys to future secrets.
+# $ find . -iname '*?.sops.yaml' | xargs -n1 sops --rotate --in-place
+creation_rules:
+  - key_groups:
+      - age:
+        # Mathielo's age key
+        - age1gyywmz5ypukdr265ltj45s3vtnckyvd7qn5ddr8qepj8ktdzsers20cz6t
