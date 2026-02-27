@@ -3,11 +3,6 @@
   hosts: pihole
   become: true
 
-  vars_prompt:
-    - name: pihole_password
-      prompt: "Enter Pi-hole admin password"
-      private: true
-
   vars:
     pihole_interface: eth0
     pihole_ipv4_address: "192.168.10.9/27"

@@ -1,29 +1,29 @@
 ---
-- name: Bootstrap Pi-hole host
-  hosts: pihole
+- name: Bootstrap host
+  hosts: all
   become: true
   vars:
     ssh_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBIY4u7RdDHfGYM/f+yjXbz4KUq3kfI4sAwC+f4JHLA8"
 
   tasks:
-    - name: Ensure me user has passwordless sudo
+    - name: Ensure {{ ansible_user }} has passwordless sudo
       copy:
-        dest: /etc/sudoers.d/me
-        content: "me ALL=(ALL) NOPASSWD:ALL\n"
+        dest: /etc/sudoers.d/{{ ansible_user }}
+        content: "{{ ansible_user }} ALL=(ALL) NOPASSWD:ALL\n"
         mode: "0440"
         validate: "visudo -cf %s"
 
     - name: Ensure .ssh directory exists
       file:
-        path: /home/me/.ssh
+        path: /home/{{ ansible_user }}/.ssh
         state: directory
-        owner: me
-        group: me
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
         mode: "0700"
 
     - name: Set authorized SSH key
       authorized_key:
-        user: me
+        user: "{{ ansible_user }}"
         key: "{{ ssh_public_key }}"
         state: present
         exclusive: true

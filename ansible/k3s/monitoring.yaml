@@ -25,17 +25,17 @@
         dest: "/tmp/{{ item }}"
         mode: "0644"
       loop:
-        - prometheus-values.yaml
-        - loki-values.yaml
-        - promtail-values.yaml
-        - grafana-values.yaml
+        - prometheus.values.yaml
+        - loki.values.yaml
+        - promtail.values.yaml
+        - grafana.values.yaml
 
     - name: Deploy Prometheus
       command: >
         helm upgrade --install prometheus
         prometheus-community/prometheus
         --namespace kube-extra
-        --values /tmp/prometheus-values.yaml
+        --values /tmp/prometheus.values.yaml
         --wait --timeout 5m
 
     - name: Deploy Loki
@@ -43,7 +43,7 @@
         helm upgrade --install loki
         grafana/loki
         --namespace kube-extra
-        --values /tmp/loki-values.yaml
+        --values /tmp/loki.values.yaml
         --wait --timeout 5m
 
     - name: Deploy Promtail
@@ -51,7 +51,7 @@
         helm upgrade --install promtail
         grafana/promtail
         --namespace kube-extra
-        --values /tmp/promtail-values.yaml
+        --values /tmp/promtail.values.yaml
         --wait --timeout 5m
 
     - name: Deploy Grafana
@@ -59,7 +59,7 @@
         helm upgrade --install grafana
         grafana/grafana
         --namespace kube-extra
-        --values /tmp/grafana-values.yaml
+        --values /tmp/grafana.values.yaml
         --wait --timeout 5m
 
     - name: Clean up values files
@@ -67,7 +67,7 @@
         path: "/tmp/{{ item }}"
         state: absent
       loop:
-        - prometheus-values.yaml
-        - loki-values.yaml
-        - promtail-values.yaml
-        - grafana-values.yaml
+        - prometheus.values.yaml
+        - loki.values.yaml
+        - promtail.values.yaml
+        - grafana.values.yaml

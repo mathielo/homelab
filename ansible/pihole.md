@@ -1,6 +1,6 @@
 # Pi-hole (AdBlocker)
 
-Using a Raspberry Pi 5 as the host for [Pi-hole](https://docs.pi-hole.net/) as the network's default DNS Resolver. All network traffic is meant to go through it to block unwanted ads, malware or any other type of blacklisted domains.
+Using a Raspberry Pi as the host for [Pi-hole](https://docs.pi-hole.net/) as the network's default DNS Resolver. All network traffic is meant to go through it to block unwanted ads, malware or any other type of blacklisted domains.
 
 | Host   | Hardware       | IP           |
 | ------ | -------------- | ------------ |
@@ -54,8 +54,8 @@ The bootstrap playbook configures the host for remote management:
 First run (password auth still enabled):
 
 ```bash
-cd pi-hole/ansible
-ansible-playbook 00-bootstrap.yaml --ask-pass --ask-become-pass
+cd ansible
+ansible-playbook bootstrap.yaml --limit pihole --ask-pass --ask-become-pass
 ```
 
 > :bulb: After bootstrap, password prompts are no longer needed.
@@ -64,16 +64,16 @@ ansible-playbook 00-bootstrap.yaml --ask-pass --ask-become-pass
 
 ## Install Pi-hole
 
-Installs Pi-hole using the official installer in unattended mode:
+Install Pi-hole using the official installer in unattended mode:
 
 ```bash
-ansible-playbook 01-pihole.yaml
+ansible-playbook pihole/pihole.yaml
 ```
 
 This will:
 - Write `/etc/pihole/setupVars.conf` with the network and DNS configuration
 - Install Pi-hole (Quad9 as upstream DNS, query logging enabled)
-- Set the admin password you enter at the prompt
+- Set the admin password from the secrets file
 
 The admin panel is available at `http://192.168.10.9/admin` after installation.
 

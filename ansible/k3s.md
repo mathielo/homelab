@@ -30,8 +30,8 @@ The bootstrap playbook configures the server for remote management:
 First run (password auth still enabled):
 
 ```bash
-cd k3s/ansible
-ansible-playbook 00-bootstrap.yaml --ask-pass --ask-become-pass
+cd ansible
+ansible-playbook bootstrap.yaml --limit k3s_servers --ask-pass --ask-become-pass
 ```
 
 > :bulb: After bootstrap, password prompts are no longer needed.
@@ -42,10 +42,14 @@ ansible-playbook 00-bootstrap.yaml --ask-pass --ask-become-pass
 
 Installs Tailscale on the k3s node for private network access — no ports exposed to the internet.
 
+### Prerequisites
+
+Generate a reusable auth key at [login.tailscale.com/admin/settings/keys](https://login.tailscale.com/admin/settings/keys) and add it to `ansible/group_vars/all/secrets.sops.yaml`.
+
 ### Deploy
 
 ```bash
-ansible-playbook 01-tailscale.yaml
+ansible-playbook tailscale.yaml --limit k3s_servers
 ```
 
 The playbook decrypts the secrets file, connects the node to your tailnet, and prints the node's Tailscale IP.
@@ -64,7 +68,7 @@ All `*.homelab` hostnames will now resolve to the k3s node on any device in your
 Installs k3s and sets up all cluster-level infrastructure:
 
 ```bash
-ansible-playbook 02-install-k3s.yaml
+ansible-playbook k3s/install-k3s.yaml
 ```
 
 This will:
@@ -80,7 +84,7 @@ To use kubectl locally:
 ```bash
 export KUBECONFIG=~/.kube/config-k3s
 kubectl get nodes
-```
+```e
 
 ## Monitoring Stack
 
@@ -94,14 +98,14 @@ Deploys a lean observability stack into the `kube-extra` namespace:
 | Promtail   | `grafana/promtail`                | Ships pod logs from nodes into Loki |
 
 ```bash
-ansible-playbook 03-monitoring.yaml
+ansible-playbook k3s/monitoring.yaml
 ```
 
 ### Accessing Grafana
 
 - **URL:** `http://grafana.homelab` (requires Tailscale + Pi-hole DNS record, see below)
 - **Username:** `admin`
-- **Password:** set in `ansible/files/monitoring/grafana-values.yaml` (change before deploying or via the Grafana UI)
+- **Password:** set in `ansible/k3s/files/monitoring/grafana.values.yaml` (change before deploying or via the Grafana UI)
 
 Both Prometheus and Loki datasources are pre-configured — no manual setup needed.
 
@@ -115,14 +119,14 @@ Both Prometheus and Loki datasources are pre-configured — no manual setup need
 
 ### Configuration
 
-Helm values live in `ansible/files/monitoring/`:
+Helm values live in `ansible/k3s/files/monitoring/`:
 
 | File                     | Chart                                                  |
 | ------------------------ | ------------------------------------------------------ |
-| `prometheus-values.yaml` | Prometheus (server, node-exporter, kube-state-metrics) |
-| `loki-values.yaml`       | Loki in SingleBinary mode                              |
-| `promtail-values.yaml`   | Promtail DaemonSet                                     |
-| `grafana-values.yaml`    | Grafana with pre-wired datasources and ingress         |
+| `prometheus.values.yaml` | Prometheus (server, node-exporter, kube-state-metrics) |
+| `loki.values.yaml`       | Loki in SingleBinary mode                              |
+| `promtail.values.yaml`   | Promtail DaemonSet                                     |
+| `grafana.values.yaml`    | Grafana with pre-wired datasources and ingress         |
 
 Key settings:
 - **Retention:** 30 days for both Prometheus and Loki

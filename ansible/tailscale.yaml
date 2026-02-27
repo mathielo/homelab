@@ -1,14 +1,9 @@
 ---
 - name: Install Tailscale
-  hosts: k3s_servers
+  hosts: all
   become: true
 
   tasks:
-    - name: Load secrets
-      community.sops.load_vars:
-        file: secrets.sops.yaml
-      no_log: true
-
     - name: Install Tailscale using official install script
       shell:
         cmd: curl -fsSL https://tailscale.com/install.sh | sh
@@ -27,7 +22,7 @@
       failed_when: false
 
     - name: Connect to Tailscale
-      command: tailscale up --auth-key={{ TAILSCALE_AUTH_KEY }}
+      command: tailscale up --auth-key={{ tailscale_auth_key }}
       no_log: true
       when: >
         tailscale_status.rc != 0 or
