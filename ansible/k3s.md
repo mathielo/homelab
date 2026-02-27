@@ -16,25 +16,25 @@
 ## Prerequisites
 
 1. Install **Ubuntu Server** on the target machine
-   - During install, create user: `k3s`
+   - During install, create user: `m8hl`
    - Enable OpenSSH server when prompted
 
 
 ## Bootstrap
 
 The bootstrap playbook configures the server for remote management:
-- Passwordless sudo for the `k3s` user
+- Passwordless sudo for the `m8hl` user
 - SSH public key authentication (only the key in the playbook is authorized)
 - Password-based SSH disabled
 
-First run (password auth still enabled):
+First run (password auth still enabled, credentials loaded from secrets):
 
 ```bash
 cd ansible
-ansible-playbook bootstrap.yaml --limit k3s_servers --ask-pass --ask-become-pass
+ansible-playbook bootstrap.yaml --limit k3s_servers
 ```
 
-> :bulb: After bootstrap, password prompts are no longer needed.
+> :bulb: After bootstrap, SSH key auth is used for all subsequent playbooks.
 
 > :warning: Once password SSH is disabled, losing your private key means you'll need physical/console access to recover. Keep a backup of your key.
 

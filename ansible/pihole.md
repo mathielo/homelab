@@ -15,7 +15,7 @@ These steps are one-time manual steps that must be completed before running the 
 Use the official [Raspberry Pi Imager](https://www.raspberrypi.com/software/) to flash **Raspberry Pi OS Lite (64-bit)** to the SD card. In the imager's advanced settings:
 
 - Set hostname: `pihole`
-- Set username: `me`
+- Set username: `m8hl`
 - Enable SSH with password authentication (will be disabled by the bootstrap playbook)
 
 ### 2. Set a static IP
@@ -47,18 +47,18 @@ sudo nmcli connection up "netplan-eth0"
 ## Bootstrap
 
 The bootstrap playbook configures the host for remote management:
-- Passwordless sudo for the `me` user
+- Passwordless sudo for the `m8hl` user
 - SSH public key authentication (only the key in the playbook is authorized)
 - Password-based SSH disabled
 
-First run (password auth still enabled):
+First run (password auth still enabled, credentials loaded from secrets):
 
 ```bash
 cd ansible
-ansible-playbook bootstrap.yaml --limit pihole --ask-pass --ask-become-pass
+ansible-playbook bootstrap.yaml --limit pihole
 ```
 
-> :bulb: After bootstrap, password prompts are no longer needed.
+> :bulb: After bootstrap, SSH key auth is used for all subsequent playbooks.
 
 > :warning: Once password SSH is disabled, losing your private key means you'll need physical access to recover. Keep a backup of your key.
 
