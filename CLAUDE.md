@@ -46,6 +46,10 @@ Router: R18 UGC Max (UniFi)
 - **Pi-hole** on Raspberry Pi 5: Network-wide DNS resolver for ad/malware blocking
 - **k3s cluster** on Lenovo ThinkCentre M715Q: Single-node Kubernetes running Prometheus, Grafana, Alertmanager
 - **Cloudflare Tunnel**: Exposes k3s services as `*.mathielo.com` without opening ports
+- **Tailscale**: Private overlay network for internal access to k3s services
+  - Tailnet: `qilin-goby.ts.net`
+  - k3s node: `k3s.qilin-goby.ts.net` / `100.93.65.44`
+  - Pi-hole wildcard record: `*.hl → 100.93.65.44` (via `/etc/dnsmasq.d/20-k3s.conf`)
 
 ## MCP Access Policy
 

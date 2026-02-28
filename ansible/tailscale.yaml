@@ -35,6 +35,13 @@
 
     - name: Show Tailscale IP
       debug:
-        msg: >-
-          Tailscale is up! Node IP: {{ tailscale_ip.stdout }}.
-          Add a wildcard DNS record in Pi-hole: *.hl → {{ tailscale_ip.stdout }}
+        msg:
+          - "Tailscale is up! Node IP: {{ tailscale_ip.stdout }}"
+
+    - name: Show Pi-hole DNS setup
+      debug:
+        msg:
+          - "Pi-hole DNS setup — SSH into Pi-hole and run:"
+          - "  echo 'address=/.hl/{{ tailscale_ip.stdout }}' | sudo tee /etc/dnsmasq.d/20-k3s.conf && sudo pihole reloaddns"
+          - "See ansible/k3s.md for full instructions."
+      when: "'k3s_servers' in group_names"
