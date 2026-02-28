@@ -6,8 +6,6 @@
   vars:
     pihole_interface: eth0
     pihole_ipv4_address: "192.168.10.9/27"
-    pihole_dns_1: "9.9.9.9"
-    pihole_dns_2: "149.112.112.112"
 
   tasks:
     - name: Ensure /etc/pihole directory exists
@@ -30,8 +28,6 @@
           DNS_BOGUS_PRIV=true
           CACHE_SIZE=10000
           DNSMASQ_LISTENING=all
-          PIHOLE_DNS_1={{ pihole_dns_1 }}
-          PIHOLE_DNS_2={{ pihole_dns_2 }}
         mode: "0644"
 
     - name: Install Pi-hole using official install script
@@ -43,51 +39,64 @@
       command: pihole setpassword {{ pihole_password }}
       no_log: true
 
+    # --- Unbound (recursive resolver) ---
+
+    - name: Install Unbound
+      apt:
+        name:
+          - unbound
+          - dns-root-data
+        state: present
+        update_cache: true
+
+    - name: Write Unbound config for Pi-hole
+      copy:
+        dest: /etc/unbound/unbound.conf.d/zzz-pi-hole.conf
+        content: |
+          server:
+              verbosity: 0
+              interface: 127.0.0.1
+              port: 5335
+              do-ip4: yes
+              do-udp: yes
+              do-tcp: yes
+              do-ip6: no
+              root-hints: /usr/share/dns/root.hints
+              harden-glue: yes
+              harden-dnssec-stripped: yes
+              use-caps-for-id: no
+              edns-buffer-size: 1232
+              qname-minimisation: yes
+              prefetch: yes
+              num-threads: 1
+              access-control: 127.0.0.1/32 allow
+        mode: "0644"
+      notify: Restart unbound
+
+    - name: Enable and start Unbound
+      systemd:
+        name: unbound
+        enabled: true
+        state: started
+
+    # --- Pi-hole upstream ---
+
+    - name: Configure Pi-hole to use Unbound as upstream
+      command: >
+        pihole-FTL --config dns.upstreams '["127.0.0.1#5335"]'
+      notify: Restart pihole-FTL
+
     - name: Enable loading of /etc/dnsmasq.d/ config files (required for wildcard DNS)
       command: pihole-FTL --config misc.etc_dnsmasq_d true
       notify: Restart pihole-FTL
 
   handlers:
+    - name: Restart unbound
+      systemd:
+        name: unbound
+        state: restarted
+
     - name: Restart pihole-FTL
       systemd:
         name: pihole-FTL
         state: restarted
-
-    - name: Install UFW
-      apt:
-        name: ufw
-        state: present
-        update_cache: true
-
-    - name: Allow SSH through UFW
-      community.general.ufw:
-        rule: allow
-        port: "22"
-        proto: tcp
-
-    - name: Allow Pi-hole web UI from local network
-      community.general.ufw:
-        rule: allow
-        from_ip: 192.168.0.0/16
-        to_port: "443"
-        proto: tcp
-
-    - name: Allow DNS from local network
-      community.general.ufw:
-        rule: allow
-        from_ip: 192.168.0.0/16
-        to_port: "53"
-        proto: any
-
-    - name: Allow DNS from Tailscale CGNAT range
-      community.general.ufw:
-        rule: allow
-        from_ip: 100.64.0.0/10
-        to_port: "53"
-        proto: any
-
-    - name: Enable UFW with default incoming deny
-      community.general.ufw:
-        state: enabled
-        default: deny
-        direction: incoming
