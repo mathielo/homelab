@@ -2,9 +2,9 @@
 
 Using a Raspberry Pi as the host for [Pi-hole](https://docs.pi-hole.net/) as the network's default DNS Resolver. All network traffic is meant to go through it to block unwanted ads, malware or any other type of blacklisted domains.
 
-| Host   | Hardware       | IP           |
-| ------ | -------------- | ------------ |
-| pihole | Raspberry Pi 5 | 192.168.10.9 |
+| Host   | Hardware       | LAN IP         | Tailscale IP   |
+| ------ | -------------- | -------------- | -------------- |
+| pihole | Raspberry Pi 5 | 192.168.10.9   | 100.100.53.53  |
 
 ## Prerequisites
 
@@ -74,7 +74,44 @@ This will:
 - Write `/etc/pihole/setupVars.conf` with the network and DNS configuration
 - Install Pi-hole (Quad9 as upstream DNS, query logging enabled)
 - Set the admin password from the secrets file
+- Install and configure UFW:
+  - Allow SSH (port 22) from anywhere
+  - Allow DNS (port 53) from local network (`192.168.0.0/16`) and Tailscale CGNAT range (`100.64.0.0/10`)
+  - Allow Pi-hole web UI (port 80/443) from local network only
+  - Default deny all other incoming traffic
 
 The admin panel is available at `http://192.168.10.9/admin` after installation.
 
 > :bulb: This playbook targets Pi-hole v6. The `pihole setpassword` command is v6-specific — for v5, the equivalent is `pihole -a -p <password>`.
+
+## Tailscale
+
+Pi-hole is a member of the tailnet so it can serve DNS to all tailnet devices regardless of their physical location.
+
+### Setup
+
+1. Run the Tailscale playbook to join Pi-hole to the tailnet:
+
+```bash
+ansible-playbook tailscale.yaml --limit pihole
+```
+
+2. In the **Tailscale admin console**, assign Pi-hole a static Tailscale IP so the DNS config never needs updating:
+   - Go to the machine's settings → **Addresses** → set to `100.100.53.53`
+
+3. Configure Tailscale to use Pi-hole as the DNS resolver for all tailnet devices:
+   - Tailscale admin console → **Settings → DNS**
+   - Add a **Global nameserver**: `100.100.53.53`
+   - Enable **Override DNS servers**
+
+### How it works
+
+Pi-hole is configured with `DNSMASQ_LISTENING=all` so it accepts queries on all interfaces, including the Tailscale interface (`tailscale0`). UFW restricts port 53 access to only the local network and Tailscale CGNAT range (`100.64.0.0/10`), so it is not open to the world.
+
+```
+Home network device
+  → UniFi DHCP → Pi-hole (192.168.10.9)
+
+Tailnet device (any network)
+  → Tailscale DNS override → Pi-hole (100.100.53.53)
+```

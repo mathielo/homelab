@@ -29,7 +29,7 @@
           DNS_FQDN_REQUIRED=true
           DNS_BOGUS_PRIV=true
           CACHE_SIZE=10000
-          DNSMASQ_LISTENING=local
+          DNSMASQ_LISTENING=all
           PIHOLE_DNS_1={{ pihole_dns_1 }}
           PIHOLE_DNS_2={{ pihole_dns_2 }}
         mode: "0644"
@@ -42,3 +42,42 @@
     - name: Set Pi-hole admin password
       command: pihole setpassword {{ pihole_password }}
       no_log: true
+
+    - name: Install UFW
+      apt:
+        name: ufw
+        state: present
+        update_cache: true
+
+    - name: Allow SSH through UFW
+      community.general.ufw:
+        rule: allow
+        port: "22"
+        proto: tcp
+
+    - name: Allow Pi-hole web UI from local network
+      community.general.ufw:
+        rule: allow
+        from_ip: 192.168.0.0/16
+        to_port: "443"
+        proto: tcp
+
+    - name: Allow DNS from local network
+      community.general.ufw:
+        rule: allow
+        from_ip: 192.168.0.0/16
+        to_port: "53"
+        proto: any
+
+    - name: Allow DNS from Tailscale CGNAT range
+      community.general.ufw:
+        rule: allow
+        from_ip: 100.64.0.0/10
+        to_port: "53"
+        proto: any
+
+    - name: Enable UFW with default incoming deny
+      community.general.ufw:
+        state: enabled
+        default: deny
+        direction: incoming
