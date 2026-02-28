@@ -82,7 +82,12 @@ This will:
 
 The admin panel is available at `http://192.168.10.9/admin` after installation.
 
-> :bulb: This playbook targets Pi-hole v6. The `pihole setpassword` command is v6-specific — for v5, the equivalent is `pihole -a -p <password>`.
+> :bulb: This playbook targets **Pi-hole v6**. Key v6 differences:
+> - Main config: `/etc/pihole/pihole.toml` (replaces legacy dnsmasq conf files)
+> - DNS service: `pihole-FTL` — restart with `sudo systemctl restart pihole-FTL`
+> - Config CLI: `sudo pihole-FTL --config <key> <value>` (e.g. `sudo pihole-FTL --config misc.etc_dnsmasq_d true`)
+> - `/etc/dnsmasq.d/` is **ignored by default** (`misc.etc_dnsmasq_d = false`) — the playbook enables this to allow the `20-k3s.conf` wildcard record
+> - `pihole setpassword` replaces v5's `pihole -a -p <password>`
 
 ## Tailscale
 

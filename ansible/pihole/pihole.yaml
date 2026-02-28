@@ -43,6 +43,16 @@
       command: pihole setpassword {{ pihole_password }}
       no_log: true
 
+    - name: Enable loading of /etc/dnsmasq.d/ config files (required for wildcard DNS)
+      command: pihole-FTL --config misc.etc_dnsmasq_d true
+      notify: Restart pihole-FTL
+
+  handlers:
+    - name: Restart pihole-FTL
+      systemd:
+        name: pihole-FTL
+        state: restarted
+
     - name: Install UFW
       apt:
         name: ufw

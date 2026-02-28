@@ -43,7 +43,10 @@ Router: R18 UGC Max (UniFi)
 
 ## Current Services
 
-- **Pi-hole** on Raspberry Pi 5: Network-wide DNS resolver for ad/malware blocking (`192.168.10.9` / `100.100.53.53` on Tailscale)
+- **Pi-hole v6** on Raspberry Pi 5: Network-wide DNS resolver for ad/malware blocking (`192.168.10.9` / `100.100.53.53` on Tailscale)
+  - Config: `/etc/pihole/pihole.toml` (v6 uses TOML, not the legacy dnsmasq conf files)
+  - v6 ignores `/etc/dnsmasq.d/` by default (`misc.etc_dnsmasq_d = false`) — must be explicitly enabled
+  - DNS service: `pihole-FTL` (restart with `sudo systemctl restart pihole-FTL`)
 - **k3s cluster** on Lenovo ThinkCentre M715Q: Single-node Kubernetes running Prometheus, Grafana, Alertmanager
 - **Cloudflare Tunnel**: Exposes k3s services as `*.mathielo.com` without opening ports
 - **Tailscale**: Private overlay network for internal access to k3s services

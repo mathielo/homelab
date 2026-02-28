@@ -42,6 +42,6 @@
       debug:
         msg:
           - "Pi-hole DNS setup — SSH into Pi-hole and run:"
-          - "  echo 'address=/.hl/{{ tailscale_ip.stdout }}' | sudo tee /etc/dnsmasq.d/20-k3s.conf && sudo pihole reloaddns"
+          - "  echo 'address=/.hl/{{ tailscale_ip.stdout }}' | sudo tee /etc/dnsmasq.d/20-k3s.conf && sudo systemctl restart pihole-FTL"
           - "See ansible/k3s.md for full instructions."
       when: "'k3s_servers' in group_names"
