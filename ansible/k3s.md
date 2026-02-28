@@ -56,12 +56,12 @@ The playbook decrypts the secrets file, connects the node to your tailnet, and p
 
 ### DNS setup (Pi-hole)
 
-Add a wildcard DNS record in Pi-hole pointing `*.homelab` to the Tailscale IP printed by the playbook:
+Add a wildcard DNS record in Pi-hole pointing `*.hl` to the Tailscale IP printed by the playbook:
 
 1. Pi-hole admin → **Local DNS → DNS Records**
-2. Add record: `*.homelab` → `<tailscale-ip>`
+2. Add record: `*.hl` → `<tailscale-ip>`
 
-All `*.homelab` hostnames will now resolve to the k3s node on any device in your tailnet.
+All `*.hl` hostnames will now resolve to the k3s node on any device in your tailnet.
 
 ## Install k3s
 
@@ -103,7 +103,7 @@ ansible-playbook k3s/monitoring.yaml
 
 ### Accessing Grafana
 
-- **URL:** `http://grafana.homelab` (requires Tailscale + Pi-hole DNS record, see below)
+- **URL:** `http://grafana.hl` (requires Tailscale + Pi-hole DNS record, see below)
 - **Username:** `admin`
 - **Password:** set in `ansible/k3s/files/monitoring/grafana.values.yaml` (change before deploying or via the Grafana UI)
 
@@ -135,7 +135,7 @@ Key settings:
 
 ### Adding more services
 
-To expose a new service at `myapp.homelab`, add an Ingress manifest in the `prod` namespace:
+To expose a new service at `myapp.hl`, add an Ingress manifest in the `prod` namespace:
 
 ```yaml
 apiVersion: networking.k8s.io/v1
@@ -146,7 +146,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: myapp.homelab
+    - host: myapp.hl
       http:
         paths:
           - path: /

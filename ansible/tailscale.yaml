@@ -37,4 +37,4 @@
       debug:
         msg: >-
           Tailscale is up! Node IP: {{ tailscale_ip.stdout }}.
-          Add a wildcard DNS record in Pi-hole: *.homelab → {{ tailscale_ip.stdout }}
+          Add a wildcard DNS record in Pi-hole: *.hl → {{ tailscale_ip.stdout }}
