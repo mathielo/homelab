@@ -5,7 +5,7 @@
 
   vars:
     pihole_interface: eth0
-    pihole_ipv4_address: "192.168.10.9/27"
+    pihole_ipv4_address: "10.10.53.53/24"
 
   tasks:
     - name: Ensure /etc/pihole directory exists

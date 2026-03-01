@@ -2,9 +2,9 @@
 
 Using a Raspberry Pi as the host for [Pi-hole](https://docs.pi-hole.net/) as the network's default DNS Resolver. All network traffic is meant to go through it to block unwanted ads, malware or any other type of blacklisted domains.
 
-| Host   | Hardware       | LAN IP         | Tailscale IP   |
-| ------ | -------------- | -------------- | -------------- |
-| pihole | Raspberry Pi 5 | 192.168.10.9   | 100.100.53.53  |
+| Host   | Hardware       | LAN IP        | Tailscale IP   |
+| ------ | -------------- | ------------- | -------------- |
+| pihole | Raspberry Pi 5 | 10.10.53.53   | 100.100.53.53  |
 
 ## Prerequisites
 
@@ -29,9 +29,9 @@ nmcli connection show
 # Set static IPv4 (replace netplan-eth0 with your connection name)
 sudo nmcli connection modify "netplan-eth0" \
   ipv4.method manual \
-  ipv4.addresses 192.168.10.9/27 \
-  ipv4.gateway 192.168.10.1 \
-  ipv4.dns "9.9.9.9,149.112.112.112"
+  ipv4.addresses 10.10.53.53/24 \
+  ipv4.gateway 10.10.53.1 \
+  ipv4.dns "127.0.0.1"
 
 # Ensure IPv6 stays on auto (SLAAC)
 # If the ISP changes the IPv6 prefix, this will automatically update
@@ -42,7 +42,9 @@ sudo nmcli connection modify "netplan-eth0" \
 sudo nmcli connection up "netplan-eth0"
 ```
 
-> :bulb: After this, the Pi is reachable at `192.168.10.9` — which is what the Ansible inventory uses.
+> :bulb: DNS is set to `127.0.0.1` — the Pi resolves via its own Pi-hole → Unbound chain.
+
+> :bulb: After this, the Pi is reachable at `10.10.53.53` — which is what the Ansible inventory uses.
 
 ## Bootstrap
 
@@ -72,15 +74,13 @@ ansible-playbook pihole/pihole.yaml
 
 This will:
 - Write `/etc/pihole/setupVars.conf` with the network and DNS configuration
-- Install Pi-hole (Quad9 as upstream DNS, query logging enabled)
+- Install Pi-hole (query logging enabled)
 - Set the admin password from the secrets file
-- Install and configure UFW:
-  - Allow SSH (port 22) from anywhere
-  - Allow DNS (port 53) from local network (`192.168.0.0/16`) and Tailscale CGNAT range (`100.64.0.0/10`)
-  - Allow Pi-hole web UI (port 80/443) from local network only
-  - Default deny all other incoming traffic
+- Install and configure Unbound as a recursive resolver on `127.0.0.1:5335`
+- Configure Pi-hole to use Unbound as its upstream (`127.0.0.1#5335`)
+- Enable `/etc/dnsmasq.d/` loading for wildcard DNS records
 
-The admin panel is available at `http://192.168.10.9/admin` after installation.
+The admin panel is available at `http://10.10.53.53/admin` after installation.
 
 > :bulb: This playbook targets **Pi-hole v6**. Key v6 differences:
 > - Main config: `/etc/pihole/pihole.toml` (replaces legacy dnsmasq conf files)
@@ -111,11 +111,13 @@ ansible-playbook tailscale.yaml --limit pihole
 
 ### How it works
 
-Pi-hole is configured with `DNSMASQ_LISTENING=all` so it accepts queries on all interfaces, including the Tailscale interface (`tailscale0`). UFW restricts port 53 access to only the local network and Tailscale CGNAT range (`100.64.0.0/10`), so it is not open to the world.
+Pi-hole is configured with `DNSMASQ_LISTENING=all` so it accepts queries on all interfaces, including the Tailscale interface (`tailscale0`). Access to port 53 is controlled by UniFi firewall rules (all VLANs allowed) and Tailscale's network policy — it is not open to the internet.
+
+DNS chain: Device → Pi-hole (`:53`) → Unbound (`127.0.0.1:5335`) → root nameservers
 
 ```
 Home network device
-  → UniFi DHCP → Pi-hole (192.168.10.9)
+  → UniFi DHCP → Pi-hole (10.10.53.53)
 
 Tailnet device (any network)
   → Tailscale DNS override → Pi-hole (100.100.53.53)

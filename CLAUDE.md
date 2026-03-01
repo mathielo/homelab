@@ -28,31 +28,38 @@ This is a homelab repository for documenting, configuring, and automating a home
 
 Router: R18 UGC Max (UniFi)
 
-| VLAN | Subnet            | Hosts | IPv6                        | Purpose                      |
-|------|-------------------|-------|-----------------------------|------------------------------|
-| 1    | 192.168.1.0/27    | 29    | 2001:2042:37b0:1c00::/64    | UniFi management             |
-| 10   | 192.168.10.0/27   | 29    | 2001:2042:37b0:1c02::/64    | Trusted (PCs, phones)        |
-| 20   | 192.168.20.0/27   | 29    | 2001:2042:37b0:1c01::/64    | Media (TVs, speakers)        |
-| 30   | 192.168.30.0/26   | 61    | -                           | IoT (lights, sensors)        |
-| 40   | 192.168.40.0/28   | 13    | -                           | Guest                        |
+Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
 
-- Gateway at .1 in each VLAN
-- Only Trusted (VLAN 10) can access Media + IoT; all others isolated
-- IoT and Guest have no IPv6 (simpler, more secure for those device types)
+| VLAN | Subnet           | Hosts | IPv6                        | Purpose                      |
+|------|------------------|-------|-----------------------------|------------------------------|
+| 1    | 10.10.1.0/24     | 254   | 2001:2042:37b0:1c00::/64    | UniFi management             |
+| 10   | 10.10.10.0/24    | 254   | 2001:2042:37b0:1c02::/64    | Trusted (PCs, phones)        |
+| 40   | 10.10.40.0/24    | 254   | -                           | Guest                        |
+| 50   | 10.10.50.0/24    | 254   | -                           | Servers (k3s, future NAS)    |
+| 53   | 10.10.53.0/24    | 254   | -                           | DNS (Pi-hole)                |
+| 107  | 10.10.107.0/24   | 254   | -                           | IoT (lights, sensors)        |
+
+- Gateway at .1 in each VLAN (e.g. `10.10.10.1` for VLAN 10)
+- Only Trusted (VLAN 10) can access Servers + IoT; all others isolated
+- All VLANs can reach Pi-hole (`10.10.53.53`) on port 53 for DNS
+- Guest, Servers, DNS, and IoT have no IPv6 (simpler, more secure)
 - DNS fallback: Quad9 (9.9.9.9, 149.112.112.112)
 
 ## Current Services
 
-- **Pi-hole v6** on Raspberry Pi 5: Network-wide DNS resolver for ad/malware blocking (`192.168.10.9` / `100.100.53.53` on Tailscale)
+- **Pi-hole v6** on Raspberry Pi 5: Network-wide DNS resolver for ad/malware blocking (`10.10.53.53` / `100.100.53.53` on Tailscale)
   - Config: `/etc/pihole/pihole.toml` (v6 uses TOML, not the legacy dnsmasq conf files)
   - v6 ignores `/etc/dnsmasq.d/` by default (`misc.etc_dnsmasq_d = false`) — must be explicitly enabled
   - DNS service: `pihole-FTL` (restart with `sudo systemctl restart pihole-FTL`)
+  - **Unbound** runs as recursive resolver on `127.0.0.1:5335`; Pi-hole uses it as upstream instead of Quad9 directly
+  - DNS chain: Device → Pi-hole (`:53`) → Unbound (`127.0.0.1:5335`) → root nameservers
 - **k3s cluster** on Lenovo ThinkCentre M715Q: Single-node Kubernetes running Prometheus, Grafana, Alertmanager
 - **Cloudflare Tunnel**: Exposes k3s services as `*.mathielo.com` without opening ports
 - **Tailscale**: Private overlay network for internal access to k3s services
   - Tailnet: `qilin-goby.ts.net`
-  - k3s node: `k3s.qilin-goby.ts.net` / `100.93.65.44`
-  - Pi-hole wildcard record: `*.hl → 100.93.65.44` (via `/etc/dnsmasq.d/20-k3s.conf`)
+  - k3s node: `k3s.qilin-goby.ts.net` / `100.100.50.3` (mirrors local `10.10.50.3`)
+  - Pi-hole: `100.100.53.53` (mirrors local `10.10.53.53`)
+  - Pi-hole wildcard record: `*.hl → 100.100.50.3` (via `/etc/dnsmasq.d/20-k3s.conf`)
 
 ## MCP Access Policy
 

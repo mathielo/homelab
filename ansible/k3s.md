@@ -2,9 +2,9 @@
 
 ## Nodes
 
-| Host         | Hardware                           | CPU            | RAM       | Storage        | IP           |
-| ------------ | ---------------------------------- | -------------- | --------- | -------------- | ------------ |
-| k3s-server-1 | Lenovo ThinkCentre M715Q (2nd Gen) | Ryzen 3 2200GE | 32GB DDR4 | 256GB NVMe SSD | 192.168.10.3 |
+| Host       | Hardware                           | CPU            | RAM       | Storage        | IP         |
+| ---------- | ---------------------------------- | -------------- | --------- | -------------- | ---------- |
+| k3s-srv-01 | Lenovo ThinkCentre M715Q (2nd Gen) | Ryzen 3 2200GE | 32GB DDR4 | 256GB NVMe SSD | 10.10.50.3 |
 
 ## Namespaces
 
