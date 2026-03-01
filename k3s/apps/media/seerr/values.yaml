@@ -1,0 +1,50 @@
+# Jellyseerr — media request portal optimised for Jellyfin.
+# Post-deploy: connect to Jellyfin via http://jellyfin.media.svc.cluster.local:8096
+#              then add Sonarr (http://sonarr.media.svc.cluster.local:8989)
+#              and Radarr (http://radarr.media.svc.cluster.local:7878).
+app-template:
+  controllers:
+    seerr:
+      containers:
+        seerr:
+          image:
+            repository: ghcr.io/hotio/jellyseerr
+            tag: latest
+          env:
+            PUID: "1000"
+            PGID: "1000"
+            TZ: Europe/Amsterdam
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+  service:
+    seerr:
+      controller: seerr
+      ports:
+        http:
+          port: 5055
+
+  ingress:
+    seerr:
+      className: nginx
+      hosts:
+        - host: seerr.hl
+          paths:
+            - path: /
+              service:
+                identifier: seerr
+                port: http
+
+  persistence:
+    config:
+      type: persistentVolumeClaim
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      storageClass: local-path
+      globalMounts:
+        - path: /app/config

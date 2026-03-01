@@ -1,0 +1,55 @@
+app-template:
+  controllers:
+    jellyfin:
+      containers:
+        jellyfin:
+          image:
+            repository: ghcr.io/hotio/jellyfin
+            tag: latest
+          env:
+            PUID: "1000"
+            PGID: "1000"
+            TZ: Europe/Amsterdam
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+              # Uncomment to enable AMD GPU passthrough for hardware transcoding
+              # (ThinkCentre M715Q has Radeon Vega 8):
+              # amd.com/gpu: "1"
+
+  service:
+    jellyfin:
+      controller: jellyfin
+      ports:
+        http:
+          port: 8096
+
+  ingress:
+    jellyfin:
+      className: nginx
+      hosts:
+        - host: jellyfin.hl
+          paths:
+            - path: /
+              service:
+                identifier: jellyfin
+                port: http
+
+  persistence:
+    config:
+      type: persistentVolumeClaim
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      storageClass: local-path
+      globalMounts:
+        - path: /config
+    media:
+      type: persistentVolumeClaim
+      existingClaim: media-data
+      globalMounts:
+        - path: /media
+          readOnly: true

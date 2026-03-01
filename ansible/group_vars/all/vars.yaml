@@ -1,1 +1,14 @@
 ansible_become_password: "{{ ansible_password }}"
+
+# ---------------------------------------------------------------------------
+# Media stack (non-sensitive)
+# ---------------------------------------------------------------------------
+
+# ProtonVPN WireGuard — exit country for SABnzbd Gluetun sidecar.
+# Netherlands is recommended for Usenet (Eweka is NL-based).
+protonvpn_server_countries: "Netherlands"
+
+# k3s pod and service CIDRs — Gluetun must allow these to bypass the VPN
+# so that cluster-internal traffic (DNS, APIs) still works.
+k3s_pod_cidr: "10.42.0.0/16"
+k3s_service_cidr: "10.43.0.0/16"

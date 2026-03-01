@@ -1,0 +1,51 @@
+app-template:
+  controllers:
+    sonarr:
+      containers:
+        sonarr:
+          image:
+            repository: ghcr.io/hotio/sonarr
+            tag: latest
+          env:
+            PUID: "1000"
+            PGID: "1000"
+            TZ: Europe/Amsterdam
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+  service:
+    sonarr:
+      controller: sonarr
+      ports:
+        http:
+          port: 8989
+
+  ingress:
+    sonarr:
+      className: nginx
+      hosts:
+        - host: sonarr.hl
+          paths:
+            - path: /
+              service:
+                identifier: sonarr
+                port: http
+
+  persistence:
+    config:
+      type: persistentVolumeClaim
+      accessMode: ReadWriteOnce
+      size: 2Gi
+      storageClass: local-path
+      globalMounts:
+        - path: /config
+    media:
+      type: persistentVolumeClaim
+      existingClaim: media-data
+      globalMounts:
+        - path: /media

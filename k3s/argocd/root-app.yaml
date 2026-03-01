@@ -1,0 +1,32 @@
+---
+# Root "App of Apps" — applied manually once to bootstrap ArgoCD.
+#
+# Usage:
+#   kubectl apply -f k3s/argocd/root-app.yaml
+#
+# This Application watches k3s/argocd/apps/ in this repo and creates
+# a child ArgoCD Application for every YAML file found there.
+# Each child Application manages one media service's Helm chart.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: media-apps
+  namespace: argocd
+  # Finalizer ensures child apps are deleted when this app is deleted.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/mathielo/homelab.git
+    targetRevision: main
+    path: k3s/argocd/apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

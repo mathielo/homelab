@@ -1,0 +1,69 @@
+---
+# Installs ArgoCD and creates the media-secrets Kubernetes Secret.
+#
+# Prerequisites:
+#   - Add the following to ansible/group_vars/all/secrets.sops.yaml (sops --decrypt to edit):
+#       protonvpn_wireguard_private_key: "<key from ProtonVPN WireGuard config>"
+#       protonvpn_wireguard_addresses:   "<address from ProtonVPN WireGuard config, e.g. 10.2.0.2/32>"
+#       eweka_username:                  "<eweka.nl username>"
+#       eweka_password:                  "<eweka.nl password>"
+#       drunkenslug_api_key:             "<drunkenslug.com API key>"
+#       argocd_admin_password_hash:      "<bcrypt hash — generate with: htpasswd -nbBC 10 '' 'password' | tr -d ':\n' | sed 's/$2y/$2a/'>"
+#
+# After running this playbook, bootstrap ArgoCD by running from your workstation:
+#   kubectl apply -f k3s/argocd/root-app.yaml
+
+- name: Deploy ArgoCD and prepare media namespace
+  hosts: k3s_servers
+  become: true
+  environment:
+    KUBECONFIG: /etc/k3s/k3s.yaml
+
+  tasks:
+    - name: Add argo Helm repo
+      command: helm repo add argo https://argoproj.github.io/argo-helm
+      register: helm_repo
+      changed_when: "'has been added' in helm_repo.stdout"
+      failed_when: helm_repo.rc != 0 and 'already exists' not in helm_repo.stderr
+
+    - name: Update Helm repos
+      command: helm repo update
+      changed_when: false
+
+    - name: Template ArgoCD values file
+      template:
+        src: files/argocd.values.yaml.j2
+        dest: /tmp/argocd.values.yaml
+        mode: "0600"
+
+    - name: Deploy ArgoCD
+      command: >
+        helm upgrade --install argocd argo/argo-cd
+        --namespace argocd
+        --create-namespace
+        --values /tmp/argocd.values.yaml
+        --wait --timeout 10m
+
+    - name: Clean up ArgoCD values file
+      file:
+        path: /tmp/argocd.values.yaml
+        state: absent
+
+    - name: Create media namespace
+      command: kubectl create namespace media --dry-run=client -o yaml | kubectl apply -f -
+      changed_when: false
+
+    - name: Create media-secrets Kubernetes Secret
+      # Idempotent: --dry-run=client -o yaml | kubectl apply replaces if changed.
+      # no_log keeps secrets out of Ansible output.
+      shell: |
+        kubectl create secret generic media-secrets \
+          --namespace media \
+          --from-literal=protonvpn_wireguard_private_key='{{ protonvpn_wireguard_private_key }}' \
+          --from-literal=protonvpn_wireguard_addresses='{{ protonvpn_wireguard_addresses }}' \
+          --from-literal=eweka_username='{{ eweka_username }}' \
+          --from-literal=eweka_password='{{ eweka_password }}' \
+          --from-literal=drunkenslug_api_key='{{ drunkenslug_api_key }}' \
+          --dry-run=client -o yaml | kubectl apply -f -
+      no_log: true
+      changed_when: false

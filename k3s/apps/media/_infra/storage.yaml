@@ -1,0 +1,63 @@
+---
+# ---------------------------------------------------------------------------
+# NFS StorageClass (future NAS)
+#
+# Requires: nfs-subdir-external-provisioner deployed to the cluster.
+# Install via Ansible when the NAS is ready:
+#   helm repo add nfs-subdir-external-provisioner \
+#     https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner/
+#   helm install nfs-provisioner nfs-subdir-external-provisioner/nfs-subdir-external-provisioner \
+#     --set nfs.server=<NAS-IP> --set nfs.path=/volume1/media
+#
+# To switch from local-path to NFS when the NAS arrives:
+#   1. Deploy the provisioner above.
+#   2. Update media-data PVC storageClassName to nfs-media.
+#   3. Update accessModes to ReadWriteMany (NFS supports RWX).
+# ---------------------------------------------------------------------------
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nfs-media
+  annotations:
+    # Placeholder — not functional until nfs-subdir-external-provisioner is installed.
+    description: "NFS-backed storage for media. Enable when NAS is available."
+provisioner: nfs.csi.k8s.io
+parameters:
+  server: 10.10.50.x     # TODO: replace with NAS IP when available
+  share: /volume1/media
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+
+---
+# ---------------------------------------------------------------------------
+# Shared media PVC
+#
+# All ARR apps and Jellyfin mount this single volume.
+# Directory layout inside the volume (mirrors TRaSH Guide):
+#
+#   /media/
+#   ├── downloads/usenet/
+#   │   ├── incomplete/
+#   │   └── complete/
+#   │       ├── movies/
+#   │       ├── tv/
+#   │       └── music/
+#   └── library/
+#       ├── movies/
+#       ├── tv/
+#       └── music/
+#
+# Using local-path now; swap storageClassName + accessModes when NAS is ready.
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media-data
+  namespace: media
+spec:
+  storageClassName: local-path
+  accessModes:
+    - ReadWriteOnce   # Change to ReadWriteMany when switching to NFS
+  resources:
+    requests:
+      storage: 200Gi

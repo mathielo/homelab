@@ -1,0 +1,114 @@
+# SABnzbd with Gluetun VPN kill-switch sidecar (ProtonVPN / WireGuard).
+#
+# Network architecture:
+#   - Gluetun runs as a native k8s sidecar (restartPolicy: Always).
+#   - SABnzbd shares Gluetun's network namespace automatically (same pod).
+#   - All SABnzbd traffic exits through the ProtonVPN WireGuard tunnel.
+#   - FIREWALL_OUTBOUND_SUBNETS allows cluster-internal traffic (DNS, APIs)
+#     to bypass the VPN so in-cluster service discovery keeps working.
+#
+# Verification (after deploy):
+#   kubectl exec -n media <sabnzbd-pod> -- curl -s https://api.ipify.org
+#   → should show a ProtonVPN NL exit IP, not your home IP
+#
+# Post-deploy: add Eweka server in SABnzbd UI:
+#   Server: news.eweka.nl | Port: 563 (SSL) | Connections: per your plan
+#   Credentials stored in media-secrets (eweka_username / eweka_password).
+app-template:
+  controllers:
+    sabnzbd:
+      pod:
+        # Required to allow Gluetun to configure the WireGuard interface.
+        securityContext:
+          sysctls:
+            - name: net.ipv6.conf.all.disable_ipv6
+              value: "1"
+
+      initContainers:
+        # Native k8s sidecar: restartPolicy: Always gives sidecar semantics
+        # (starts before main containers, restarts independently).
+        # Requires k8s >= 1.29 — k3s single-node is current enough.
+        gluetun:
+          image:
+            repository: ghcr.io/qdm12/gluetun
+            tag: latest
+          restartPolicy: Always
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+          env:
+            VPN_SERVICE_PROVIDER: protonvpn
+            VPN_TYPE: wireguard
+            WIREGUARD_PRIVATE_KEY:
+              valueFrom:
+                secretKeyRef:
+                  name: media-secrets
+                  key: protonvpn_wireguard_private_key
+            WIREGUARD_ADDRESSES:
+              valueFrom:
+                secretKeyRef:
+                  name: media-secrets
+                  key: protonvpn_wireguard_addresses
+            SERVER_COUNTRIES: Netherlands
+            # Keep cluster DNS working: DNS queries go to kube-dns, not through VPN tunnel.
+            DNS_KEEP_NAMESERVER: "on"
+            # Allow traffic to k3s pod CIDR + service CIDR to bypass the VPN tunnel.
+            # This keeps in-cluster calls (SABnzbd → Sonarr, DNS, etc.) working.
+            FIREWALL_OUTBOUND_SUBNETS: "10.42.0.0/16,10.43.0.0/16"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+
+      containers:
+        sabnzbd:
+          image:
+            repository: ghcr.io/hotio/sabnzbd
+            tag: latest
+          env:
+            PUID: "1000"
+            PGID: "1000"
+            TZ: Europe/Amsterdam
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+
+  service:
+    sabnzbd:
+      controller: sabnzbd
+      ports:
+        http:
+          port: 8080
+
+  ingress:
+    sabnzbd:
+      className: nginx
+      hosts:
+        - host: sabnzbd.hl
+          paths:
+            - path: /
+              service:
+                identifier: sabnzbd
+                port: http
+
+  persistence:
+    config:
+      type: persistentVolumeClaim
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      storageClass: local-path
+      globalMounts:
+        - path: /config
+    media:
+      type: persistentVolumeClaim
+      existingClaim: media-data
+      globalMounts:
+        - path: /media

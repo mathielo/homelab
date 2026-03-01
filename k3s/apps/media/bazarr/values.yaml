@@ -1,0 +1,51 @@
+app-template:
+  controllers:
+    bazarr:
+      containers:
+        bazarr:
+          image:
+            repository: ghcr.io/hotio/bazarr
+            tag: latest
+          env:
+            PUID: "1000"
+            PGID: "1000"
+            TZ: Europe/Amsterdam
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+
+  service:
+    bazarr:
+      controller: bazarr
+      ports:
+        http:
+          port: 6767
+
+  ingress:
+    bazarr:
+      className: nginx
+      hosts:
+        - host: bazarr.hl
+          paths:
+            - path: /
+              service:
+                identifier: bazarr
+                port: http
+
+  persistence:
+    config:
+      type: persistentVolumeClaim
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      storageClass: local-path
+      globalMounts:
+        - path: /config
+    media:
+      type: persistentVolumeClaim
+      existingClaim: media-data
+      globalMounts:
+        - path: /media

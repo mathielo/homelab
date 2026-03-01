@@ -1,0 +1,63 @@
+global:
+  domain: argocd.hl
+
+configs:
+  params:
+    # TLS is terminated at the NGINX ingress level; ArgoCD itself runs plain HTTP.
+    server.insecure: "true"
+  secret:
+    # Bcrypt hash of the ArgoCD admin password.
+    # Stored encrypted in secrets.sops.yaml as argocd_admin_password_hash.
+    argocdServerAdminPassword: "{{ argocd_admin_password_hash }}"
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hostname: argocd.hl
+    annotations:
+      nginx.ingress.kubernetes.io/backend-protocol: HTTP
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+applicationSet:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+controller:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+repoServer:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+redis:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
