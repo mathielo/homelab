@@ -18,6 +18,21 @@ app-template:
   controllers:
     sabnzbd:
       initContainers:
+        # Runs once before gluetun/sabnzbd start. Seeds sabnzbd.ini with the
+        # host whitelist so the UI is accessible via the ingress hostname on
+        # first boot. Skipped on subsequent starts (file already exists).
+        config-init:
+          image:
+            repository: busybox
+            tag: latest
+          command:
+            - sh
+            - -c
+            - |
+              if [ ! -f /config/sabnzbd.ini ]; then
+                printf '[misc]\nhost_whitelist = sabnzbd.hl.mathielo.com,\n' > /config/sabnzbd.ini
+              fi
+
         # Native k8s sidecar: restartPolicy: Always gives sidecar semantics
         # (starts before main containers, restarts independently).
         # Requires k8s >= 1.29 — k3s single-node is current enough.
