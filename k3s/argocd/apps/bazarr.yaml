@@ -10,7 +10,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/mathielo/homelab.git
+    repoURL: git@github.com:mathielo/homelab.git
     targetRevision: main
     path: k3s/apps/media/bazarr
     helm:
