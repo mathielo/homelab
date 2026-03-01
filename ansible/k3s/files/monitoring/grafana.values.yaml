@@ -3,6 +3,30 @@ adminPassword: "admin"
 service:
   type: ClusterIP
 
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+      - name: default
+        orgId: 1
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards/default
+
+dashboards:
+  default:
+    node-exporter-full:
+      gnetId: 1860
+      datasource: Prometheus
+    kubernetes-cluster-overview:
+      gnetId: 6417
+      datasource: Prometheus
+    loki-log-explorer:
+      gnetId: 13639
+      datasource: Loki
+
 datasources:
   datasources.yaml:
     apiVersion: 1
