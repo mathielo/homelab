@@ -28,13 +28,19 @@ app-template:
   ingress:
     bazarr:
       className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
       hosts:
-        - host: bazarr.hl
+        - host: bazarr.hl.mathielo.com
           paths:
             - path: /
               service:
                 identifier: bazarr
                 port: http
+      tls:
+        - hosts:
+            - bazarr.hl.mathielo.com
+          secretName: bazarr-hl-tls
 
   persistence:
     config:

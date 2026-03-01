@@ -33,5 +33,11 @@ persistence:
 ingress:
   enabled: true
   ingressClassName: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
   hosts:
-    - grafana.hl
+    - grafana.hl.mathielo.com
+  tls:
+    - hosts:
+        - grafana.hl.mathielo.com
+      secretName: grafana-tls

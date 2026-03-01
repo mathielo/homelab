@@ -31,13 +31,19 @@ app-template:
   ingress:
     jellyfin:
       className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
       hosts:
-        - host: jellyfin.hl
+        - host: jellyfin.hl.mathielo.com
           paths:
             - path: /
               service:
                 identifier: jellyfin
                 port: http
+      tls:
+        - hosts:
+            - jellyfin.hl.mathielo.com
+          secretName: jellyfin-hl-tls
 
   persistence:
     config:

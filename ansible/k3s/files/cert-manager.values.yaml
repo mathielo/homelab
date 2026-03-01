@@ -1,0 +1,29 @@
+# cert-manager Helm values.
+# CRDs are installed via --set installCRDs=true at the CLI level (not here),
+# which avoids the Helm upgrade-then-delete-CRD footgun.
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+webhook:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+cainjector:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi

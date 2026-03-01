@@ -50,7 +50,7 @@
         state: absent
 
     - name: Create media namespace
-      command: kubectl create namespace media --dry-run=client -o yaml | kubectl apply -f -
+      shell: kubectl create namespace media --dry-run=client -o yaml | kubectl apply -f -
       changed_when: false
 
     - name: Create media-secrets Kubernetes Secret

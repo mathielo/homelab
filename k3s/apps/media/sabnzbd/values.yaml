@@ -91,13 +91,19 @@ app-template:
   ingress:
     sabnzbd:
       className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
       hosts:
-        - host: sabnzbd.hl
+        - host: sabnzbd.hl.mathielo.com
           paths:
             - path: /
               service:
                 identifier: sabnzbd
                 port: http
+      tls:
+        - hosts:
+            - sabnzbd.hl.mathielo.com
+          secretName: sabnzbd-hl-tls
 
   persistence:
     config:

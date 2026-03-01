@@ -28,13 +28,19 @@ app-template:
   ingress:
     radarr:
       className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
       hosts:
-        - host: radarr.hl
+        - host: radarr.hl.mathielo.com
           paths:
             - path: /
               service:
                 identifier: radarr
                 port: http
+      tls:
+        - hosts:
+            - radarr.hl.mathielo.com
+          secretName: radarr-hl-tls
 
   persistence:
     config:

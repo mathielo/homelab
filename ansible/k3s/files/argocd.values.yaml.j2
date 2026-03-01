@@ -1,5 +1,5 @@
 global:
-  domain: argocd.hl
+  domain: argocd.hl.mathielo.com
 
 configs:
   params:
@@ -14,8 +14,10 @@ server:
   ingress:
     enabled: true
     ingressClassName: nginx
-    hostname: argocd.hl
+    hostname: argocd.hl.mathielo.com
+    tls: true
     annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
       nginx.ingress.kubernetes.io/backend-protocol: HTTP
 
   resources:

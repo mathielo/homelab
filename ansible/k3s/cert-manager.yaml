@@ -1,0 +1,74 @@
+---
+# Installs cert-manager and configures Let's Encrypt (DNS-01 via Cloudflare) for the k3s cluster.
+#
+# Prerequisites:
+#   - Add the following to ansible/group_vars/all/secrets.sops.yaml (sops --decrypt to edit):
+#       cloudflare_api_token: "<token>"
+#       # Token needs "Edit zone DNS" permission, scoped to zone mathielo.com only.
+#       # Create at: Cloudflare dashboard → My Profile → API Tokens → Create Token
+#       # Template: "Edit zone DNS" → Zone Resources: Include → Specific zone → mathielo.com
+#
+#   - Add the following to ansible/group_vars/all/secrets.sops.yaml (sops --decrypt to edit):
+#       letsencrypt_email: "your@email.com"  # receives renewal failure notifications
+
+- name: Deploy cert-manager with Let's Encrypt (Cloudflare DNS-01)
+  hosts: k3s_servers
+  become: true
+  environment:
+    KUBECONFIG: /etc/k3s/k3s.yaml
+
+  tasks:
+    - name: Add jetstack Helm repo
+      command: helm repo add jetstack https://charts.jetstack.io
+      register: helm_repo
+      changed_when: "'has been added' in helm_repo.stdout"
+      failed_when: helm_repo.rc != 0 and 'already exists' not in helm_repo.stderr
+
+    - name: Update Helm repos
+      command: helm repo update
+      changed_when: false
+
+    - name: Copy cert-manager values file
+      copy:
+        src: files/cert-manager.values.yaml
+        dest: /tmp/cert-manager.values.yaml
+        mode: "0600"
+
+    - name: Deploy cert-manager
+      command: >
+        helm upgrade --install cert-manager jetstack/cert-manager
+        --namespace cert-manager
+        --create-namespace
+        --set installCRDs=true
+        --values /tmp/cert-manager.values.yaml
+        --wait --timeout 5m
+
+    - name: Clean up cert-manager values file
+      file:
+        path: /tmp/cert-manager.values.yaml
+        state: absent
+
+    - name: Create cloudflare-api-token Secret
+      # Idempotent: --dry-run=client -o yaml | kubectl apply replaces if changed.
+      # no_log keeps the token out of Ansible output.
+      shell: |
+        kubectl create secret generic cloudflare-api-token \
+          --namespace cert-manager \
+          --from-literal=api-token='{{ cloudflare_api_token }}' \
+          --dry-run=client -o yaml | kubectl apply -f -
+      no_log: true
+      changed_when: false
+
+    - name: Template ClusterIssuer manifest
+      template:
+        src: files/clusterissuer.yaml.j2
+        dest: /tmp/clusterissuer.yaml
+        mode: "0600"
+
+    - name: Apply ClusterIssuer
+      command: kubectl apply -f /tmp/clusterissuer.yaml
+
+    - name: Clean up ClusterIssuer manifest
+      file:
+        path: /tmp/clusterissuer.yaml
+        state: absent

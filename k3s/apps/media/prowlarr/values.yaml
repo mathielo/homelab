@@ -28,13 +28,19 @@ app-template:
   ingress:
     prowlarr:
       className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
       hosts:
-        - host: prowlarr.hl
+        - host: prowlarr.hl.mathielo.com
           paths:
             - path: /
               service:
                 identifier: prowlarr
                 port: http
+      tls:
+        - hosts:
+            - prowlarr.hl.mathielo.com
+          secretName: prowlarr-hl-tls
 
   persistence:
     config:
