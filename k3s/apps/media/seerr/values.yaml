@@ -1,4 +1,4 @@
-# Jellyseerr — media request portal optimised for Jellyfin.
+# Seerr — media request portal (successor to Jellyseerr + Overseerr, merged Feb 2026).
 # Post-deploy: connect to Jellyfin via http://jellyfin.media.svc.cluster.local:8096
 #              then add Sonarr (http://sonarr.media.svc.cluster.local:8989)
 #              and Radarr (http://radarr.media.svc.cluster.local:7878).
@@ -8,11 +8,9 @@ app-template:
       containers:
         seerr:
           image:
-            repository: ghcr.io/hotio/jellyseerr
+            repository: ghcr.io/seerr-team/seerr
             tag: latest
           env:
-            PUID: "1000"
-            PGID: "1000"
             TZ: Europe/Amsterdam
           resources:
             requests:
