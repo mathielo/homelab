@@ -17,13 +17,6 @@
 app-template:
   controllers:
     sabnzbd:
-      pod:
-        # Required to allow Gluetun to configure the WireGuard interface.
-        securityContext:
-          sysctls:
-            - name: net.ipv6.conf.all.disable_ipv6
-              value: "1"
-
       initContainers:
         # Native k8s sidecar: restartPolicy: Always gives sidecar semantics
         # (starts before main containers, restarts independently).

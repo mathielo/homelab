@@ -5,7 +5,20 @@
   environment:
     KUBECONFIG: /etc/k3s/k3s.yaml
 
+  handlers:
+    - name: Apply sysctl settings
+      command: sysctl --system
+
   tasks:
+    - name: Disable IPv6 at node level (required for Gluetun VPN sidecar)
+      copy:
+        dest: /etc/sysctl.d/99-disable-ipv6.conf
+        content: |
+          net.ipv6.conf.all.disable_ipv6 = 1
+          net.ipv6.conf.default.disable_ipv6 = 1
+        mode: "0644"
+      notify: Apply sysctl settings
+
     - name: Install k3s using official install script
       shell:
         cmd: curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --data-dir=/var/lib/k3s --write-kubeconfig=/etc/k3s/k3s.yaml --write-kubeconfig-mode=0640" sh -
