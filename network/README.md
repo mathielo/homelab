@@ -4,14 +4,14 @@ For security and traffic optimization, the network is subdivided in separate Vir
 
 The access points provide different WiFi networks, and each of them connect directly to their respective VLAN:
 
-| ID  | Name    | Subnet           | WiFi SSID  | Bands (GHz) | SSID Broadcast | Inter-VLAN access  | Purpose                                         |
-| --- | ------- | ---------------- | ---------- | ----------- | -------------- | ------------------ | ----------------------------------------------- |
-| 1   | UniFi   | 10.10.1.0/24     | -          | -           | -              | -                  | UniFi management (router, switches, APs, cams)  |
-| 10  | Trusted | 10.10.10.0/24    | 221B       | 2.4 / 5 / 6 | Yes            | Servers + IoT      | Trusted devices (PCs, phones)                   |
-| 40  | Guest   | 10.10.40.0/24    | 221B Guest | 5           | Yes            | None               | Friends and visitors                            |
-| 50  | Servers | 10.10.50.0/24    | -          | -           | -              | -                  | k3s cluster, future NAS                         |
-| 53  | DNS     | 10.10.53.0/24    | -          | -           | -              | -                  | Pi-hole DNS resolver                            |
-| 107 | IoT     | 10.10.107.0/24   | 221B IoT   | 2.4         | No             | None               | All IoT devices (lights, robot vacuum, sensors) |
+| ID  | Name    | Subnet         | WiFi SSID  | Bands (GHz) | SSID Broadcast | Inter-VLAN access | Purpose                                         |
+| --- | ------- | -------------- | ---------- | ----------- | -------------- | ----------------- | ----------------------------------------------- |
+| 1   | UniFi   | 10.10.1.0/24   | -          | -           | -              | -                 | UniFi management (router, switches, APs, cams)  |
+| 10  | Trusted | 10.10.10.0/24  | 221B       | 2.4 / 5 / 6 | Yes            | Servers + IoT     | Trusted devices (PCs, phones)                   |
+| 40  | Guest   | 10.10.40.0/24  | 221B Guest | 5           | Yes            | None              | Friends and visitors                            |
+| 50  | Servers | 10.10.50.0/24  | -          | -           | -              | -                 | k3s cluster, future NAS                         |
+| 53  | DNS     | 10.10.53.0/24  | -          | -           | -              | -                 | Pi-hole DNS resolver                            |
+| 107 | IoT     | 10.10.107.0/24 | 221B IoT   | 2.4         | No             | None              | All IoT devices (lights, robot vacuum, sensors) |
 
 All VLANs have internet access (some might have speed limits established e.g. Guest network). Only devices in the Trusted VLAN can access Servers and IoT VLANs; otherwise devices have access limited to the VLAN in which they reside. All VLANs can reach Pi-hole on port 53 for DNS.
 
@@ -35,24 +35,50 @@ This ensures **per-client** visibility in Pi-hole logs for statistics and **per-
 
 In **Settings → Internet → [WAN] → DNS**:
 
-| Protocol | Primary      | Secondary  |
-| -------- | ------------ | ---------- |
-| IPv4     | 10.10.53.53  | 9.9.9.9    |
-| IPv6     | 2620:fe::fe  | 2620:fe::9 |
+| Protocol | Primary     | Secondary  |
+| -------- | ----------- | ---------- |
+| IPv4     | 10.10.53.53 | 9.9.9.9    |
+| IPv6     | 2620:fe::fe | 2620:fe::9 |
 
 This ensures the **router itself** uses Pi-hole for its own DNS queries.
 
 ## Firewall Rules
 
-Pi-hole is on its own VLAN 53 (DNS), isolated from all other VLANs. Firewall rules are needed to allow DNS traffic from all VLANs, and admin access from Trusted only.
+UniFi uses a **zone-based firewall** (Settings → Firewall & Security → Zones & Policies).
 
-In **Settings → Firewall & Security → Firewall Rules**, create LAN rules:
+### Zone Assignments
 
-| Name                   | Action | Source         | Destination  | Port    | Protocol    |
-| ---------------------- | ------ | -------------- | ------------ | ------- | ----------- |
-| Allow DNS to Pi-hole   | Allow  | All VLANs      | 10.10.53.53  | 53      | TCP and UDP |
-| Allow Pi-hole admin    | Allow  | VLAN 10        | 10.10.53.0/24 | 80, 443 | TCP         |
-| Trusted → Servers      | Allow  | VLAN 10        | 10.10.50.0/24 | any     | any         |
-| Trusted → IoT          | Allow  | VLAN 10        | 10.10.107.0/24 | any    | any         |
+VLANs are grouped into zones, which define the default trust level between them:
 
-Place these rules **before** any inter-VLAN block rules.
+| Zone     | VLANs                                                               |
+| -------- | ------------------------------------------------------------------- |
+| Internal | VLAN 1 (UniFi), VLAN 10 (Trusted), VLAN 50 (Servers), VLAN 53 (DNS) |
+| Hotspot  | VLAN 40 (Guest)                                                     |
+| Limited  | VLAN 107 (IoT)                                                      |
+| External | WAN interfaces                                                      |
+
+Because Trusted, Servers, and DNS all share the Internal zone, they can freely communicate with each other by default.
+
+### Zone Matrix (default policies)
+
+| Source → Destination | Internal     | Hotspot   | Limited   | External  |
+| -------------------- | ------------ | --------- | --------- | --------- |
+| **Internal**         | Allow All    | Allow All | Block All | Allow All |
+| **Hotspot**          | Allow Return | Block All | Block All | Allow All |
+| **Limited**          | Block All    | Block All | Block All | Allow All |
+
+### Custom Firewall Policies
+
+The zone matrix defaults handle most access control, but a few explicit policies are needed in **Settings → Firewall & Security → Firewall Policies**:
+
+| Name                           | Src. Zone | Src. | Dst. Zone | Dst.        | Port | Protocol    |
+| ------------------------------ | --------- | ---- | --------- | ----------- | ---- | ----------- |
+| Allow "Hotspot" DNS to Pi-hole | Hotspot   | Any  | Internal  | 10.10.53.53 | 53   | TCP and UDP |
+| Allow "Limited" DNS to Pi-hole | Limited   | Any  | Internal  | 10.10.53.53 | 53   | TCP and UDP |
+| Allow "Internal" → Limited     | Internal  | Any  | Limited   | Any         | Any  | Any         |
+
+**What each rule covers:**
+- The two DNS rules punch through the zone defaults to allow Guest and IoT devices to reach Pi-hole for DNS, while remaining isolated from everything else in the Internal zone.
+- The Internal → Limited rule allows Trusted devices (VLAN 10) to reach IoT devices (VLAN 107). The broader Internal → Limited scope (rather than just VLAN 10) is acceptable since Servers and DNS VLANs have no reason to initiate connections to IoT devices in practice.
+- Pi-hole admin access (HTTP/HTTPS) from Trusted to VLAN 53 is covered implicitly by the Internal → Internal "Allow All" default.
+- Trusted → Servers access is also covered implicitly by Internal → Internal "Allow All".
