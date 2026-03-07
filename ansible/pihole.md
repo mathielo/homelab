@@ -2,9 +2,9 @@
 
 Using a Raspberry Pi as the host for [Pi-hole](https://docs.pi-hole.net/) as the network's default DNS Resolver. All network traffic is meant to go through it to block unwanted ads, malware or any other type of blacklisted domains.
 
-| Host   | Hardware       | LAN IP        | Tailscale IP   |
-| ------ | -------------- | ------------- | -------------- |
-| pihole | Raspberry Pi 5 | 10.10.53.53   | 100.100.53.53  |
+| Host   | Hardware       | LAN IP        | LAN IPv6                   | Tailscale IP   |
+| ------ | -------------- | ------------- | -------------------------- | -------------- |
+| pihole | Raspberry Pi 5 | 10.10.53.53   | 2001:2042:37b0:1c35::53    | 100.100.53.53  |
 
 ## Prerequisites
 
@@ -33,11 +33,6 @@ sudo nmcli connection modify "netplan-eth0" \
   ipv4.gateway 10.10.53.1 \
   ipv4.dns "127.0.0.1"
 
-# Ensure IPv6 stays on auto (SLAAC)
-# If the ISP changes the IPv6 prefix, this will automatically update
-sudo nmcli connection modify "netplan-eth0" \
-  ipv6.method auto
-
 # Apply changes (will briefly drop SSH connection)
 sudo nmcli connection up "netplan-eth0"
 ```
@@ -45,6 +40,26 @@ sudo nmcli connection up "netplan-eth0"
 > :bulb: DNS is set to `127.0.0.1` — the Pi resolves via its own Pi-hole → Unbound chain.
 
 > :bulb: After this, the Pi is reachable at `10.10.53.53` — which is what the Ansible inventory uses.
+
+### 3. Configure UniFi for IPv6
+
+**VLAN 53 (DNS) — enable IPv6:**
+
+- Networks → VLAN 53 → Edit → IPv6
+- Interface Type: **Static**
+- IPv6 Address: `2001:2042:37b0:1c35::1`, Netmask: `64`
+- Client Address Assignment: **SLAAC**
+- Router Advertisement (RA): enabled
+
+**VLANs with IPv6 (1, 10) — set Pi-hole as IPv6 DNS:**
+
+- Networks → VLAN → Edit → IPv6 → Advanced → Manual
+- Uncheck **Auto DNS Server**, set DNS Server to `2001:2042:37b0:1c35::53`
+
+**WAN — update DNS servers:**
+
+- Settings → Internet → WAN1 → IPv4: Primary `10.10.53.53`, Secondary `9.9.9.9`
+- Settings → Internet → WAN1 → IPv6: Primary `2001:2042:37b0:1c35::53`, Secondary `2620:fe::fe`
 
 ## Bootstrap
 
@@ -76,6 +91,7 @@ This will:
 - Write `/etc/pihole/setupVars.conf` with the network and DNS configuration
 - Install Pi-hole (query logging enabled)
 - Set the admin password from the secrets file
+- Configure a static IPv6 address (`2001:2042:37b0:1c35::53/64`) on `eth0` via NetworkManager
 - Install and configure Unbound as a recursive resolver on `127.0.0.1:5335`
 - Configure Pi-hole to use Unbound as its upstream (`127.0.0.1#5335`)
 - Enable `/etc/dnsmasq.d/` loading for wildcard DNS records

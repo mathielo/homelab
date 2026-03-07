@@ -36,7 +36,7 @@ Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
 | 10   | 10.10.10.0/24    | 254   | 2001:2042:37b0:1c02::/64    | Trusted (PCs, phones)        |
 | 40   | 10.10.40.0/24    | 254   | -                           | Guest                        |
 | 50   | 10.10.50.0/24    | 254   | -                           | Servers (k3s, future NAS)    |
-| 53   | 10.10.53.0/24    | 254   | -                           | DNS (Pi-hole)                |
+| 53   | 10.10.53.0/24    | 254   | 2001:2042:37b0:1c35::/64    | DNS (Pi-hole)                |
 | 107  | 10.10.107.0/24   | 254   | -                           | IoT (lights, sensors)        |
 
 - Gateway at .1 in each VLAN (e.g. `10.10.10.1` for VLAN 10)

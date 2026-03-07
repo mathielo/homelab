@@ -6,6 +6,8 @@
   vars:
     pihole_interface: eth0
     pihole_ipv4_address: "10.10.53.53/24"
+    pihole_ipv6_address: "2001:2042:37b0:1c35::53/64"
+    pihole_ipv6_gateway: "2001:2042:37b0:1c35::1"
 
   tasks:
     - name: Ensure /etc/pihole directory exists
@@ -20,7 +22,7 @@
         content: |
           PIHOLE_INTERFACE={{ pihole_interface }}
           IPV4_ADDRESS={{ pihole_ipv4_address }}
-          IPV6_ADDRESS=
+          IPV6_ADDRESS={{ pihole_ipv6_address }}
           QUERY_LOGGING=true
           BLOCKING_ENABLED=true
           DNSSEC=false
@@ -29,6 +31,22 @@
           CACHE_SIZE=10000
           DNSMASQ_LISTENING=all
         mode: "0644"
+
+    - name: Configure static IPv6 address on {{ pihole_interface }}
+      shell: |
+        CONN=$(nmcli -g NAME,DEVICE con show | grep ':{{ pihole_interface }}$' | cut -d: -f1 | head -1)
+        CURRENT=$(nmcli -g ipv6.addresses con show "$CONN")
+        if [ "$CURRENT" != "{{ pihole_ipv6_address }}" ]; then
+          nmcli con mod "$CONN" \
+            ipv6.method manual \
+            ipv6.addresses "{{ pihole_ipv6_address }}" \
+            ipv6.gateway "{{ pihole_ipv6_gateway }}"
+          nmcli con up "$CONN"
+          echo changed
+        fi
+      register: nmcli_ipv6
+      changed_when: "'changed' in nmcli_ipv6.stdout"
+      notify: Restart pihole-FTL
 
     - name: Install Pi-hole using official install script
       shell:
@@ -60,7 +78,7 @@
               do-ip4: yes
               do-udp: yes
               do-tcp: yes
-              do-ip6: no
+              do-ip6: yes
               root-hints: /usr/share/dns/root.hints
               harden-glue: yes
               harden-dnssec-stripped: yes
