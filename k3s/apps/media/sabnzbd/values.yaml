@@ -47,6 +47,18 @@ app-template:
             capabilities:
               add:
                 - NET_ADMIN
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - /gluetun-entrypoint
+                    - healthcheck
+                initialDelaySeconds: 30
+                periodSeconds: 30
+                failureThreshold: 3
           lifecycle:
             postStart:
               exec:
