@@ -1,7 +1,7 @@
 # SABnzbd with Gluetun VPN kill-switch sidecar (ProtonVPN / WireGuard).
 #
 # Network architecture:
-#   - Gluetun runs as a native k8s sidecar (restartPolicy: Always).
+#   - Gluetun runs as a regular container alongside SABnzbd (same pod).
 #   - SABnzbd shares Gluetun's network namespace automatically (same pod).
 #   - All SABnzbd traffic exits through the ProtonVPN WireGuard tunnel.
 #   - FIREWALL_OUTBOUND_SUBNETS allows cluster-internal traffic (DNS, APIs)
@@ -17,6 +17,7 @@
 app-template:
   controllers:
     sabnzbd:
+      strategy: Recreate
       initContainers:
         # Runs once before gluetun/sabnzbd start. Seeds sabnzbd.ini with the
         # host whitelist so the UI is accessible via the ingress hostname on
@@ -33,18 +34,26 @@ app-template:
                 printf '[misc]\nhost_whitelist = sabnzbd.hl.mathielo.com,\n' > /config/sabnzbd.ini
               fi
 
-        # Native k8s sidecar: restartPolicy: Always gives sidecar semantics
-        # (starts before main containers, restarts independently).
-        # Requires k8s >= 1.29 — k3s single-node is current enough.
+      containers:
+        # Gluetun VPN kill-switch. Runs as a regular container with a postStart
+        # lifecycle hook that cleans up stale WireGuard IP rules left by previous
+        # pods — fixes "adding IPv6 rule: file exists" on Kubernetes.
+        # See: https://github.com/qdm12/gluetun/issues/2521
         gluetun:
           image:
             repository: ghcr.io/qdm12/gluetun
             tag: latest
-          restartPolicy: Always
           securityContext:
             capabilities:
               add:
                 - NET_ADMIN
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - (ip rule del table 51820; ip -6 rule del table 51820) || true
           env:
             VPN_SERVICE_PROVIDER: protonvpn
             VPN_TYPE: wireguard
@@ -70,9 +79,8 @@ app-template:
               memory: 64Mi
             limits:
               cpu: 200m
-              memory: 128Mi
+              memory: 256Mi
 
-      containers:
         sabnzbd:
           image:
             repository: ghcr.io/hotio/sabnzbd
