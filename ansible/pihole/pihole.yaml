@@ -104,6 +104,18 @@
         pihole-FTL --config dns.upstreams '["127.0.0.1#5335"]'
       notify: Restart pihole-FTL
 
+    - name: Configure conditional forwarding for local hostname resolution
+      command: >
+        pihole-FTL --config dns.revServers
+        '["true,10.10.1.0/24,10.10.1.1,localdomain",
+          "true,10.10.10.0/24,10.10.10.1,localdomain",
+          "true,10.10.40.0/24,10.10.40.1,localdomain",
+          "true,10.10.50.0/24,10.10.50.1,localdomain",
+          "true,10.10.53.0/24,10.10.53.1,localdomain",
+          "true,10.10.107.0/24,10.10.107.1,localdomain",
+          "true,100.64.0.0/10,100.100.100.100,qilin-goby.ts.net"]'
+      notify: Restart pihole-FTL
+
     - name: Enable loading of /etc/dnsmasq.d/ config files (required for wildcard DNS)
       command: pihole-FTL --config misc.etc_dnsmasq_d true
       notify: Restart pihole-FTL
