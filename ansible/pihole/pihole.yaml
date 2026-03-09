@@ -86,7 +86,7 @@
               edns-buffer-size: 1232
               qname-minimisation: yes
               prefetch: yes
-              num-threads: 1
+              num-threads: 2
               access-control: 127.0.0.1/32 allow
         mode: "0644"
       notify: Restart unbound
