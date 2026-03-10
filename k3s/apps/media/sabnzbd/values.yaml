@@ -18,6 +18,20 @@ app-template:
   controllers:
     sabnzbd:
       strategy: Recreate
+      pod:
+        # Override k8s DNS to fix resolution inside Gluetun VPN.
+        # Default dnsPolicy (ClusterFirst) injects ndots:5 + search domains,
+        # which causes musl's resolver to exhaust search suffixes through
+        # Gluetun's DoT DNS before trying the bare hostname — failing with
+        # "Name has no usable address". Using dnsPolicy=None with a manual
+        # config pointing to Gluetun's local DNS avoids this entirely.
+        dnsPolicy: None
+        dnsConfig:
+          nameservers:
+            - 127.0.0.1
+          options:
+            - name: ndots
+              value: "0"
       initContainers:
         # Runs once before gluetun/sabnzbd start. Seeds sabnzbd.ini with the
         # host whitelist so the UI is accessible via the ingress hostname on
@@ -38,7 +52,7 @@ app-template:
         # Gluetun VPN kill-switch. Runs as a regular container with a postStart
         # lifecycle hook that cleans up stale WireGuard IP rules left by previous
         # pods — fixes "adding IPv6 rule: file exists" on Kubernetes.
-        # See: https://github.com/qdm12/gluetun/issues/2521
+        # See: https://github.com/qdm12/gluetun/issues/2471
         gluetun:
           image:
             repository: ghcr.io/qdm12/gluetun
@@ -66,10 +80,9 @@ app-template:
                   - /bin/sh
                   - -c
                   - |
+                    # Clean up stale WireGuard IP rules left by previous pods.
+                    # See: https://github.com/qdm12/gluetun/issues/2471
                     (ip rule del table 51820; ip -6 rule del table 51820) 2>/dev/null || true
-                    ip6tables -P OUTPUT DROP 2>/dev/null || true
-                    ip6tables -P INPUT DROP 2>/dev/null || true
-                    ip6tables -P FORWARD DROP 2>/dev/null || true
           env:
             VPN_SERVICE_PROVIDER: protonvpn
             VPN_TYPE: wireguard
@@ -84,8 +97,6 @@ app-template:
                   name: media-secrets
                   key: protonvpn_wireguard_addresses
             SERVER_COUNTRIES: Netherlands
-            # Keep cluster DNS working: DNS queries go to kube-dns, not through VPN tunnel.
-            DNS_KEEP_NAMESERVER: "on"
             # Allow traffic to k3s pod CIDR + service CIDR to bypass the VPN tunnel.
             # This keeps in-cluster calls (SABnzbd → Sonarr, DNS, etc.) working.
             FIREWALL_OUTBOUND_SUBNETS: "10.42.0.0/16,10.43.0.0/16"
