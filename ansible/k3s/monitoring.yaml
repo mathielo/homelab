@@ -28,7 +28,12 @@
         - prometheus.values.yaml
         - loki.values.yaml
         - promtail.values.yaml
-        - grafana.values.yaml
+
+    - name: Template Grafana values
+      template:
+        src: "files/monitoring/grafana.values.yaml.j2"
+        dest: "/tmp/grafana.values.yaml"
+        mode: "0644"
 
     - name: Deploy Prometheus
       command: >

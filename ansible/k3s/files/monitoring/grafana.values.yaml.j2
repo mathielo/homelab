@@ -1,4 +1,5 @@
-adminPassword: "admin"
+adminUser: "{{ grafana_admin_user }}"
+adminPassword: "{{ grafana_admin_password }}"
 
 service:
   type: ClusterIP
@@ -19,9 +20,10 @@ dashboards:
   default:
     node-exporter-full:
       gnetId: 1860
+      revision: 37
       datasource: Prometheus
-    kubernetes-cluster-overview:
-      gnetId: 6417
+    kubernetes-cluster:
+      gnetId: 15661
       datasource: Prometheus
     loki-log-explorer:
       gnetId: 13639
