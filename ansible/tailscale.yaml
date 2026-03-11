@@ -21,12 +21,27 @@
       changed_when: false
       failed_when: false
 
+    - name: Enable IP forwarding (required for Tailscale subnet routing)
+      sysctl:
+        name: "{{ item }}"
+        value: "1"
+        sysctl_set: true
+        reload: true
+      loop:
+        - net.ipv4.ip_forward
+        - net.ipv6.conf.all.forwarding
+      when: "'k3s_servers' in group_names"
+
     - name: Connect to Tailscale
       command: tailscale up --auth-key={{ tailscale_auth_key }}
       no_log: true
       when: >
         tailscale_status.rc != 0 or
         (tailscale_status.stdout | from_json).BackendState != 'Running'
+
+    - name: Advertise Servers subnet via Tailscale (subnet routing)
+      command: tailscale set --advertise-routes=10.10.50.0/24
+      when: "'k3s_servers' in group_names"
 
     - name: Get Tailscale IP
       command: tailscale ip --4
@@ -38,10 +53,9 @@
         msg:
           - "Tailscale is up! Node IP: {{ tailscale_ip.stdout }}"
 
-    - name: Show Pi-hole DNS setup
+    - name: Approve subnet route reminder
       debug:
         msg:
-          - "Pi-hole DNS setup — SSH into Pi-hole and run:"
-          - "  echo 'address=/.hl/{{ tailscale_ip.stdout }}' | sudo tee /etc/dnsmasq.d/20-k3s.conf && sudo systemctl restart pihole-FTL"
-          - "See ansible/k3s.md for full instructions."
+          - "Subnet route advertised for 10.10.50.0/24."
+          - "Approve it in Tailscale admin console → Machines → {{ inventory_hostname }} → Edit route settings → enable 10.10.50.0/24"
       when: "'k3s_servers' in group_names"

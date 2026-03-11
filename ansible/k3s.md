@@ -54,14 +54,15 @@ ansible-playbook tailscale.yaml --limit k3s_servers
 
 The playbook decrypts the secrets file, connects the node to your tailnet, and prints the node's Tailscale IP.
 
+### Subnet routing
+
+The Tailscale playbook advertises the Servers subnet (`10.10.50.0/24`) as a subnet route, allowing remote tailnet devices to reach k3s services at their LAN IPs.
+
+After running the playbook, approve the route in the **Tailscale admin console** → Machines → k3s-srv-01 → Edit route settings → enable `10.10.50.0/24`.
+
 ### DNS setup (Pi-hole)
 
-Add a wildcard DNS record in Pi-hole pointing `*.hl` to the Tailscale IP printed by the playbook:
-
-1. Pi-hole admin → **Local DNS → DNS Records**
-2. Add record: `*.hl` → `<tailscale-ip>`
-
-All `*.hl` hostnames will now resolve to the k3s node on any device in your tailnet.
+Pi-hole has a wildcard DNS record pointing `*.hl.mathielo.com` to the k3s LAN IP (`10.10.50.3`) via `/etc/dnsmasq.d/20-k3s.conf`. Combined with subnet routing, this resolves correctly for both LAN and tailnet devices.
 
 ## Install k3s
 

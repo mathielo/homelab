@@ -59,7 +59,8 @@ Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
   - Tailnet: `qilin-goby.ts.net`
   - k3s node: `k3s.qilin-goby.ts.net` / `100.100.50.3` (mirrors local `10.10.50.3`)
   - Pi-hole: `100.100.53.53` (mirrors local `10.10.53.53`)
-  - Pi-hole wildcard record: `*.hl → 100.100.50.3` (via `/etc/dnsmasq.d/20-k3s.conf`)
+  - Pi-hole wildcard record: `*.hl.mathielo.com → 10.10.50.3` (via `/etc/dnsmasq.d/20-k3s.conf`)
+  - k3s node advertises `10.10.50.0/24` as a Tailscale subnet route so remote tailnet devices can reach LAN IPs
 
 ## MCP Access Policy
 
