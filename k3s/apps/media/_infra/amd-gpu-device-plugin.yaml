@@ -1,0 +1,48 @@
+---
+# ---------------------------------------------------------------------------
+# AMD GPU Device Plugin
+#
+# Exposes amd.com/gpu resources to Kubernetes so pods can request GPU access
+# for hardware transcoding (e.g. Plex, Jellyfin).
+#
+# Upstream: https://github.com/ROCm/k8s-device-plugin
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: amdgpu-device-plugin-daemonset
+spec:
+  selector:
+    matchLabels:
+      name: amdgpu-dp-ds
+  template:
+    metadata:
+      labels:
+        name: amdgpu-dp-ds
+    spec:
+      restartPolicy: Always
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      priorityClassName: system-node-critical
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+      containers:
+        - name: amdgpu-dp-cntr
+          image: rocm/k8s-device-plugin
+          securityContext:
+            privileged: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: dp
+              mountPath: /var/lib/kubelet/device-plugins
+            - name: sys
+              mountPath: /sys
+      volumes:
+        - name: dp
+          hostPath:
+            path: /var/lib/kubelet/device-plugins
+        - name: sys
+          hostPath:
+            path: /sys
