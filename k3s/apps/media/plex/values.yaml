@@ -1,0 +1,74 @@
+app-template:
+  defaultPodOptions:
+    nodeSelector:
+      # Only run on AMD64 nodes i.e. Lenovo ThinkCentre M715Q
+      # as it has dedicated GPU for hardware transcoding
+      kubernetes.io/arch: amd64
+
+  controllers:
+    plex:
+      containers:
+        plex:
+          image:
+            repository: ghcr.io/hotio/plex
+            tag: latest
+          env:
+            PUID: "1000"
+            PGID: "1000"
+            TZ: Europe/Amsterdam
+            # Generate a claim token at https://plex.tv/claim
+            # It expires in 4 minutes — update in SOPS, run playbook, then sync
+            PLEX_CLAIM:
+              valueFrom:
+                secretKeyRef:
+                  name: media-secrets
+                  key: plex_claim
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+              # AMD GPU passthrough for hardware transcoding
+              # (ThinkCentre M715Q has Radeon Vega 8)
+              amd.com/gpu: "1"
+
+  service:
+    plex:
+      controller: plex
+      ports:
+        http:
+          port: 32400
+
+  ingress:
+    plex:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      hosts:
+        - host: plex.hl.mathielo.com
+          paths:
+            - path: /
+              service:
+                identifier: plex
+                port: http
+      tls:
+        - hosts:
+            - plex.hl.mathielo.com
+          secretName: plex-hl-tls
+
+  persistence:
+    config:
+      type: persistentVolumeClaim
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      storageClass: local-path
+      globalMounts:
+        - path: /config
+    media:
+      type: persistentVolumeClaim
+      existingClaim: media-data
+      globalMounts:
+        - path: /media
+          readOnly: true

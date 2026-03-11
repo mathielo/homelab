@@ -85,6 +85,7 @@
           --from-literal=eweka_username='{{ eweka_username }}' \
           --from-literal=eweka_password='{{ eweka_password }}' \
           --from-literal=drunkenslug_api_key='{{ drunkenslug_api_key }}' \
+          --from-literal=plex_claim='{{ plex_claim }}' \
           --dry-run=client -o yaml | kubectl apply -f -
       no_log: true
       changed_when: false
