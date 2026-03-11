@@ -18,7 +18,7 @@ app-template:
             TZ: Europe/Amsterdam
             # Generate a claim token at https://plex.tv/claim
             # It expires in 4 minutes — update in SOPS, run playbook, then sync
-            PLEX_CLAIM:
+            PLEX_CLAIM_TOKEN:
               valueFrom:
                 secretKeyRef:
                   name: media-secrets
