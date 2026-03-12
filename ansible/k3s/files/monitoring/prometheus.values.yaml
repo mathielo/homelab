@@ -9,10 +9,10 @@ server:
   resources:
     requests:
       cpu: 100m
-      memory: 256Mi
+      memory: 384Mi
     limits:
       cpu: 500m
-      memory: 512Mi
+      memory: 768Mi
   persistentVolume:
     enabled: true
     storageClass: local-path
@@ -31,7 +31,7 @@ kube-state-metrics:
   resources:
     requests:
       cpu: 50m
-      memory: 64Mi
+      memory: 96Mi
     limits:
       cpu: 100m
-      memory: 128Mi
+      memory: 192Mi
