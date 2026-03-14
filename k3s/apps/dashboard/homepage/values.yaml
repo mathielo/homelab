@@ -1,0 +1,126 @@
+app-template:
+  controllers:
+    homepage:
+      containers:
+        homepage:
+          image:
+            repository: ghcr.io/gethomepage/homepage
+            tag: latest
+          env:
+            TZ: Europe/Amsterdam
+            HOMEPAGE_ALLOWED_HOSTS: hl.mathielo.com
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+
+  service:
+    homepage:
+      controller: homepage
+      ports:
+        http:
+          port: 3000
+
+  ingress:
+    homepage:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      hosts:
+        - host: hl.mathielo.com
+          paths:
+            - path: /
+              service:
+                identifier: homepage
+                port: http
+      tls:
+        - hosts:
+            - hl.mathielo.com
+          secretName: homepage-hl-tls
+
+  persistence:
+    config:
+      type: configMap
+      name: homepage-config
+      globalMounts:
+        - path: /app/config/settings.yaml
+          subPath: settings.yaml
+        - path: /app/config/services.yaml
+          subPath: services.yaml
+        - path: /app/config/widgets.yaml
+          subPath: widgets.yaml
+        - path: /app/config/bookmarks.yaml
+          subPath: bookmarks.yaml
+
+  configMaps:
+    config:
+      data:
+        settings.yaml: |
+          title: Homelab
+          favicon: https://gethomepage.dev/favicon.ico
+          headerStyle: clean
+          layout:
+            Media:
+              style: row
+              columns: 4
+            Downloads:
+              style: row
+              columns: 2
+            Infrastructure:
+              style: row
+              columns: 3
+
+        services.yaml: |
+          - Media:
+              - Plex:
+                  href: https://plex.hl.mathielo.com
+                  description: Media server
+                  icon: plex.png
+              - Jellyfin:
+                  href: https://jellyfin.hl.mathielo.com
+                  description: Media server
+                  icon: jellyfin.png
+              - Sonarr:
+                  href: https://sonarr.hl.mathielo.com
+                  description: TV series
+                  icon: sonarr.png
+              - Radarr:
+                  href: https://radarr.hl.mathielo.com
+                  description: Movies
+                  icon: radarr.png
+          - Downloads:
+              - SABnzbd:
+                  href: https://sabnzbd.hl.mathielo.com
+                  description: Usenet downloader
+                  icon: sabnzbd.png
+              - Prowlarr:
+                  href: https://prowlarr.hl.mathielo.com
+                  description: Indexer manager
+                  icon: prowlarr.png
+          - Infrastructure:
+              - Grafana:
+                  href: https://grafana.hl.mathielo.com
+                  description: Monitoring dashboards
+                  icon: grafana.png
+              - ArgoCD:
+                  href: https://argocd.hl.mathielo.com
+                  description: GitOps deployments
+                  icon: argocd.png
+              - Seerr:
+                  href: https://seerr.hl.mathielo.com
+                  description: Media requests
+                  icon: overseerr.png
+
+        widgets.yaml: |
+          - search:
+              provider: google
+              target: _blank
+
+        bookmarks.yaml: |
+          - Developer:
+              - GitHub:
+                  - abbr: GH
+                    href: https://github.com/mathielo/homelab

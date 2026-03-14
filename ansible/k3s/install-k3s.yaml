@@ -46,7 +46,6 @@
       command: k3s kubectl create namespace {{ item }}
       loop:
         - kube-extra
-        - prod
       register: ns_create
       changed_when: ns_create.rc == 0
       failed_when: ns_create.rc != 0 and 'already exists' not in ns_create.stderr

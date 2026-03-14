@@ -1,0 +1,27 @@
+---
+# Manages the dashboard namespace.
+# Must sync before any dashboard app — ArgoCD respects sync-wave ordering.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: dashboard-infra
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:mathielo/homelab.git
+    targetRevision: main
+    path: k3s/apps/dashboard/_infra
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: dashboard
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

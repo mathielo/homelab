@@ -8,10 +8,13 @@
 
 ## Namespaces
 
-| Namespace    | Purpose                                      |
-| ------------ | -------------------------------------------- |
-| `kube-extra` | Cluster infrastructure (monitoring, ingress) |
-| `prod`       | Deployed services                            |
+| Namespace      | Purpose                                          | Services                                                             |
+| -------------- | ------------------------------------------------ | -------------------------------------------------------------------- |
+| `kube-extra`   | Cluster infrastructure (monitoring, ingress)     | nginx-ingress, Prometheus, Grafana, Loki, Promtail                   |
+| `media`        | Media stack (ARR + streaming, managed by ArgoCD) | Sonarr, Radarr, Prowlarr, Bazarr, SABnzbd, Plex, Jellyfin, Seerr   |
+| `dashboard`    | User-facing dashboards and portals               | Homepage                                                             |
+| `argocd`       | GitOps controller                                | ArgoCD                                                               |
+| `cert-manager` | TLS certificate management                       | cert-manager                                                         |
 
 ## Prerequisites
 
@@ -76,7 +79,7 @@ This will:
 - Install k3s (Traefik disabled)
 - Wait for the node to become Ready
 - Install Helm
-- Create the `kube-extra` and `prod` namespaces
+- Create the `kube-extra` namespace
 - Deploy the nginx ingress controller into `kube-extra`
 - Fetch the kubeconfig to `~/.kube/config-k3s` on your local machine
 
@@ -104,7 +107,7 @@ ansible-playbook k3s/monitoring.yaml
 
 ### Accessing Grafana
 
-- **URL:** `http://grafana.hl` (requires Tailscale + Pi-hole DNS record, see below)
+- **URL:** `https://grafana.hl.mathielo.com` (requires Tailscale + Pi-hole DNS, see above)
 - **Username:** `admin`
 - **Password:** set in `ansible/k3s/files/monitoring/grafana.values.yaml` (change before deploying or via the Grafana UI)
 
@@ -136,27 +139,10 @@ Key settings:
 
 ### Adding more services
 
-To expose a new service at `myapp.hl`, add an Ingress manifest in the `prod` namespace:
+ArgoCD-managed apps live in `k3s/apps/<namespace>/<app>/` as Helm charts (bjw-s/app-template v3). To add a new service:
 
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: myapp
-  namespace: prod
-spec:
-  ingressClassName: nginx
-  rules:
-    - host: myapp.hl
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: myapp
-                port:
-                  number: 80
-```
+1. Create `k3s/apps/<namespace>/<app>/Chart.yaml` and `values.yaml`
+2. Add an ArgoCD Application CR in `k3s/argocd/apps/<app>.yaml` pointing to the chart
+3. Commit and push — ArgoCD syncs automatically
 
-No DNS changes needed — the wildcard record covers it automatically.
+The wildcard DNS record (`*.hl.mathielo.com → 10.10.50.3`) covers all subdomains, so no DNS changes needed for new `<app>.hl.mathielo.com` services. See existing apps in `k3s/apps/media/` for examples.

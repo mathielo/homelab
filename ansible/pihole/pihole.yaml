@@ -120,6 +120,13 @@
       command: pihole-FTL --config misc.etc_dnsmasq_d true
       notify: Restart pihole-FTL
 
+    - name: Deploy k3s wildcard DNS record for *.hl.mathielo.com
+      copy:
+        src: files/20-k3s.conf
+        dest: /etc/dnsmasq.d/20-k3s.conf
+        mode: "0644"
+      notify: Restart pihole-FTL
+
   handlers:
     - name: Restart unbound
       systemd:
