@@ -9,7 +9,7 @@ The access points provide different WiFi networks, and each of them connect dire
 | 1   | UniFi   | 10.10.1.0/24   | -          | -           | -              | -                 | UniFi management (router, switches, APs, cams)  |
 | 10  | Trusted | 10.10.10.0/24  | 221B       | 2.4 / 5 / 6 | Yes            | Servers + IoT     | Trusted devices (PCs, phones)                   |
 | 40  | Guest   | 10.10.40.0/24  | 221B Guest | 5           | Yes            | None              | Friends and visitors                            |
-| 50  | Servers | 10.10.50.0/24  | -          | -           | -              | -                 | k3s cluster, future NAS                         |
+| 50  | Servers | 10.10.50.0/24  | -          | -           | -              | -                 | k3s cluster                                     |
 | 53  | DNS     | 10.10.53.0/24  | -          | -           | -              | -                 | Pi-hole DNS resolver                            |
 | 107 | IoT     | 10.10.107.0/24 | 221B IoT   | 2.4         | No             | None              | All IoT devices (lights, robot vacuum, sensors) |
 

@@ -1,38 +1,33 @@
 ---
 # ---------------------------------------------------------------------------
-# NFS StorageClass (future NAS)
+# Static NFS PersistentVolume — UNAS-4
 #
-# Requires: nfs-subdir-external-provisioner deployed to the cluster.
-# Install via Ansible when the NAS is ready:
-#   helm repo add nfs-subdir-external-provisioner \
-#     https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner/
-#   helm install nfs-provisioner nfs-subdir-external-provisioner/nfs-subdir-external-provisioner \
-#     --set nfs.server=<NAS-IP> --set nfs.path=/volume1/media
+# Points to the "Media" share on the UniFi NAS (10.10.1.4, VLAN 1).
+# NFS access is restricted to 10.10.50.3 (k3s node) on the NAS side.
+# No CSI driver or provisioner needed — k3s uses kernel NFS via nfs-common.
 #
-# To switch from local-path to NFS when the NAS arrives:
-#   1. Deploy the provisioner above.
-#   2. Update media-data PVC storageClassName to nfs-media.
-#   3. Update accessModes to ReadWriteMany (NFS supports RWX).
+# NAS specs: 4×4 TB HDD (RAID 5, ~12 TB usable) + 500 GB M.2 SSD cache
 # ---------------------------------------------------------------------------
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
+apiVersion: v1
+kind: PersistentVolume
 metadata:
-  name: nfs-media
-  annotations:
-    # Placeholder — not functional until nfs-subdir-external-provisioner is installed.
-    description: "NFS-backed storage for media. Enable when NAS is available."
-provisioner: nfs.csi.k8s.io
-parameters:
-  server: 10.10.50.x     # TODO: replace with NAS IP when available
-  share: /volume1/media
-reclaimPolicy: Retain
-volumeBindingMode: Immediate
+  name: media-data
+spec:
+  capacity:
+    storage: 8Ti
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  nfs:
+    server: 10.10.1.4
+    path: /var/nfs/shared/Media
 
 ---
 # ---------------------------------------------------------------------------
 # Shared media PVC
 #
-# All ARR apps and Jellyfin mount this single volume.
+# All ARR apps and media servers mount this single volume.
 # Directory layout inside the volume (mirrors TRaSH Guide):
 #
 #   /media/
@@ -46,8 +41,6 @@ volumeBindingMode: Immediate
 #       ├── movies/
 #       ├── tv/
 #       └── music/
-#
-# Using local-path now; swap storageClassName + accessModes when NAS is ready.
 # ---------------------------------------------------------------------------
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -55,9 +48,10 @@ metadata:
   name: media-data
   namespace: media
 spec:
-  storageClassName: local-path
+  storageClassName: ""
+  volumeName: media-data
   accessModes:
-    - ReadWriteOnce   # Change to ReadWriteMany when switching to NFS
+    - ReadWriteMany
   resources:
     requests:
-      storage: 200Gi
+      storage: 8Ti

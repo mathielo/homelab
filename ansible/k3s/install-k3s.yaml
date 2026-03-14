@@ -19,6 +19,11 @@
         mode: "0644"
       notify: Apply sysctl settings
 
+    - name: Install NFS client (required for NFS PersistentVolumes)
+      apt:
+        name: nfs-common
+        state: present
+
     - name: Install k3s using official install script
       shell:
         cmd: curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --data-dir=/var/lib/k3s --write-kubeconfig=/etc/k3s/k3s.yaml --write-kubeconfig-mode=0640" sh -

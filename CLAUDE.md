@@ -35,7 +35,7 @@ Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
 | 1    | 10.10.1.0/24     | 254   | 2001:2042:37b0:1c00::/64    | UniFi management             |
 | 10   | 10.10.10.0/24    | 254   | 2001:2042:37b0:1c02::/64    | Trusted (PCs, phones)        |
 | 40   | 10.10.40.0/24    | 254   | -                           | Guest                        |
-| 50   | 10.10.50.0/24    | 254   | -                           | Servers (k3s, future NAS)    |
+| 50   | 10.10.50.0/24    | 254   | -                           | Servers (k3s)                |
 | 53   | 10.10.53.0/24    | 254   | 2001:2042:37b0:1c35::/64    | DNS (Pi-hole)                |
 | 107  | 10.10.107.0/24   | 254   | -                           | IoT (lights, sensors)        |
 
@@ -53,6 +53,10 @@ Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
   - DNS service: `pihole-FTL` (restart with `sudo systemctl restart pihole-FTL`)
   - **Unbound** runs as recursive resolver on `127.0.0.1:5335`; Pi-hole uses it as upstream instead of Quad9 directly
   - DNS chain: Device → Pi-hole (`:53`) → Unbound (`127.0.0.1:5335`) → root nameservers
+- **UNAS-4** (UniFi NAS): Network-attached storage on VLAN 1 (`10.10.1.4`)
+  - 4×4 TB HDD in RAID 5 (~12 TB usable) + 500 GB M.2 SSD cache
+  - NFS share `Media` exported to k3s node (`10.10.50.3`) at `/var/nfs/shared/Media`
+  - Backs the `media-data` PVC used by all ARR apps and media servers
 - **k3s cluster** on Lenovo ThinkCentre M715Q: Single-node Kubernetes running Prometheus, Grafana, Alertmanager
 - **Cloudflare Tunnel**: Exposes k3s services as `*.mathielo.com` without opening ports
 - **Tailscale**: Private overlay network for internal access to k3s services
@@ -74,5 +78,4 @@ Claude has MCP access to Pi-hole and UniFi for **read-only purposes**:
 ## Planned Expansions
 
 - Backup solutions
-- NFS (Network File System)
 - VPN (Wireguard or UniFi Teleport)
