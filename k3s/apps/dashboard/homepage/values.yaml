@@ -1,4 +1,7 @@
 app-template:
+  serviceAccount:
+    name: homepage
+
   controllers:
     homepage:
       containers:
@@ -9,6 +12,8 @@ app-template:
           env:
             TZ: Europe/Amsterdam
             HOMEPAGE_ALLOWED_HOSTS: hl.mathielo.com
+            HOMEPAGE_SKIP_TLS_VERIFY: "true"
+            # * env vars injected via values.sops.yaml
           resources:
             requests:
               cpu: 10m
@@ -54,13 +59,21 @@ app-template:
           subPath: widgets.yaml
         - path: /app/config/bookmarks.yaml
           subPath: bookmarks.yaml
+        - path: /app/config/kubernetes.yaml
+          subPath: kubernetes.yaml
+    favicon:
+      type: configMap
+      name: homepage-favicon
+      globalMounts:
+        - path: /app/public/icons/homelab.ico
+          subPath: homelab.ico
 
   configMaps:
     config:
       data:
         settings.yaml: |
           title: Homelab
-          favicon: https://gethomepage.dev/favicon.ico
+          favicon: /icons/homelab.ico
           headerStyle: clean
           layout:
             Media:
@@ -71,7 +84,7 @@ app-template:
               columns: 2
             Infrastructure:
               style: row
-              columns: 3
+              columns: 4
 
         services.yaml: |
           - Media:
@@ -79,28 +92,77 @@ app-template:
                   href: https://plex.hl.mathielo.com
                   description: Media server
                   icon: plex.png
+                  widget:
+                    type: plex
+                    url: http://plex.media.svc.cluster.local:32400
+                    key: "{{PLEX_TOKEN}}"
               - Jellyfin:
                   href: https://jellyfin.hl.mathielo.com
                   description: Media server
                   icon: jellyfin.png
+                  widget:
+                    type: jellyfin
+                    url: http://jellyfin.media.svc.cluster.local:8096
+                    key: "{{JELLYFIN_KEY}}"
+                    enableNowPlaying: true
               - Sonarr:
                   href: https://sonarr.hl.mathielo.com
                   description: TV series
                   icon: sonarr.png
+                  widget:
+                    type: sonarr
+                    url: http://sonarr.media.svc.cluster.local:8989
+                    key: "{{SONARR_KEY}}"
               - Radarr:
                   href: https://radarr.hl.mathielo.com
                   description: Movies
                   icon: radarr.png
+                  widget:
+                    type: radarr
+                    url: http://radarr.media.svc.cluster.local:7878
+                    key: "{{RADARR_KEY}}"
+              - Bazarr:
+                  href: https://bazarr.hl.mathielo.com
+                  description: Subtitles
+                  icon: bazarr.png
+                  widget:
+                    type: bazarr
+                    url: http://bazarr.media.svc.cluster.local:6767
+                    key: "{{BAZARR_KEY}}"
+              - Seerr:
+                  href: https://seerr.hl.mathielo.com
+                  description: Media requests
+                  icon: overseerr.png
+                  widget:
+                    type: overseerr
+                    url: http://seerr.media.svc.cluster.local:5055
+                    key: "{{SEERR_KEY}}"
           - Downloads:
               - SABnzbd:
                   href: https://sabnzbd.hl.mathielo.com
                   description: Usenet downloader
                   icon: sabnzbd.png
+                  widget:
+                    type: sabnzbd
+                    url: http://sabnzbd.media.svc.cluster.local:8080
+                    key: "{{SABNZBD_KEY}}"
               - Prowlarr:
                   href: https://prowlarr.hl.mathielo.com
                   description: Indexer manager
                   icon: prowlarr.png
+                  widget:
+                    type: prowlarr
+                    url: http://prowlarr.media.svc.cluster.local:9696
+                    key: "{{PROWLARR_KEY}}"
           - Infrastructure:
+              - Pi-hole:
+                  href: http://10.10.53.53/admin
+                  description: DNS ad-blocking
+                  icon: pi-hole.png
+                  widget:
+                    type: pihole
+                    url: http://10.10.53.53
+                    key: "{{PIHOLE_KEY}}"
               - Grafana:
                   href: https://grafana.hl.mathielo.com
                   description: Monitoring dashboards
@@ -109,15 +171,45 @@ app-template:
                   href: https://argocd.hl.mathielo.com
                   description: GitOps deployments
                   icon: argocd.png
-              - Seerr:
-                  href: https://seerr.hl.mathielo.com
-                  description: Media requests
-                  icon: overseerr.png
+                  widget:
+                    type: argocd
+                    url: http://argocd-server.argocd.svc.cluster.local:8080
+                    key: "{{ARGOCD_KEY}}"
+              - Uptime Kuma:
+                  href: https://status.hl.mathielo.com
+                  description: Service monitoring
+                  icon: uptime-kuma.png
+                  widget:
+                    type: uptimekuma
+                    url: http://uptime-kuma.dashboard.svc.cluster.local:3001
+                    slug: default
+                    key: "{{UPTIMEKUMA_KEY}}"
+              - UniFi:
+                  href: https://10.10.1.1
+                  description: Network controller
+                  icon: unifi.png
+                  widget:
+                    type: unifi
+                    url: https://10.10.1.1
+                    username: "{{UNIFI_USER}}"
+                    password: "{{UNIFI_PASS}}"
 
         widgets.yaml: |
+          - kubernetes:
+              cluster:
+                show: true
+                cpu: true
+                memory: true
+              nodes:
+                show: true
+                cpu: true
+                memory: true
           - search:
               provider: google
               target: _blank
+
+        kubernetes.yaml: |
+          mode: cluster
 
         bookmarks.yaml: |
           - Developer:

@@ -10,6 +10,12 @@ configs:
     helm.valuesFileSchemes: >-
       secrets+age-import, secrets+age-import-kubernetes,
       secrets, secrets+literal, https
+    # Read-only account for Homepage widget integration.
+    accounts.homepage: apiKey
+  rbac:
+    policy.csv: |
+      p, role:readonly, applications, get, */*, allow
+      g, homepage, role:readonly
   secret:
     # Bcrypt hash of the ArgoCD admin password.
     # Stored encrypted in secrets.sops.yaml as argocd_admin_password_hash.
