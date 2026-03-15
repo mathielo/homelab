@@ -1,5 +1,5 @@
 ---
-# Installs ArgoCD and creates the media-secrets Kubernetes Secret.
+# Installs ArgoCD and creates namespace secrets.
 #
 # Prerequisites:
 #   - Add the following to ansible/group_vars/all/secrets.sops.yaml (sops --decrypt to edit):
@@ -12,11 +12,12 @@
 #       github_ssh_private_key:          "<private key of a read-only GitHub deploy key for this repo>"
 #         Generate: ssh-keygen -t ed25519 -C "argocd@k3s" -f ~/.ssh/argocd_deploy_key
 #         Then add the public key at: GitHub repo → Settings → Deploy keys → Add (read-only)
+#       uptime_kuma_admin_password:      "<password for Uptime Kuma admin user>"
 #
 # After running this playbook, bootstrap ArgoCD by running from your workstation:
 #   kubectl apply -f k3s/argocd/root-app.yaml
 
-- name: Deploy ArgoCD and prepare media namespace
+- name: Deploy ArgoCD and prepare namespace secrets
   hosts: k3s_servers
   become: true
   environment:
@@ -86,6 +87,19 @@
           --from-literal=eweka_password='{{ eweka_password }}' \
           --from-literal=drunkenslug_api_key='{{ drunkenslug_api_key }}' \
           --from-literal=plex_claim='{{ plex_claim }}' \
+          --dry-run=client -o yaml | kubectl apply -f -
+      no_log: true
+      changed_when: false
+
+    - name: Create dashboard namespace
+      shell: kubectl create namespace dashboard --dry-run=client -o yaml | kubectl apply -f -
+      changed_when: false
+
+    - name: Create dashboard-secrets Kubernetes Secret
+      shell: |
+        kubectl create secret generic dashboard-secrets \
+          --namespace dashboard \
+          --from-literal=uptime_kuma_admin_password='{{ uptime_kuma_admin_password }}' \
           --dry-run=client -o yaml | kubectl apply -f -
       no_log: true
       changed_when: false

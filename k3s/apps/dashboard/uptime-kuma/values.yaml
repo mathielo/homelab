@@ -1,0 +1,80 @@
+app-template:
+  controllers:
+    uptime-kuma:
+      containers:
+        uptime-kuma:
+          image:
+            repository: louislam/uptime-kuma
+            tag: "1"
+          env:
+            TZ: Europe/Amsterdam
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+
+        autokuma:
+          image:
+            repository: ghcr.io/bigboot/autokuma
+            tag: latest
+          env:
+            AUTOKUMA__KUMA__URL: http://localhost:3001
+            AUTOKUMA__KUMA__USERNAME: admin
+            AUTOKUMA__KUMA__PASSWORD:
+              valueFrom:
+                secretKeyRef:
+                  name: dashboard-secrets
+                  key: uptime_kuma_admin_password
+            AUTOKUMA__STATIC_MONITORS: /monitors
+          resources:
+            requests:
+              cpu: 5m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+
+  service:
+    uptime-kuma:
+      controller: uptime-kuma
+      ports:
+        http:
+          port: 3001
+
+  ingress:
+    uptime-kuma:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      hosts:
+        - host: status.hl.mathielo.com
+          paths:
+            - path: /
+              service:
+                identifier: uptime-kuma
+                port: http
+      tls:
+        - hosts:
+            - status.hl.mathielo.com
+          secretName: uptime-kuma-hl-tls
+
+  persistence:
+    data:
+      type: persistentVolumeClaim
+      accessMode: ReadWriteOnce
+      size: 2Gi
+      storageClass: local-path
+      advancedMounts:
+        uptime-kuma:
+          uptime-kuma:
+            - path: /app/data
+    monitors:
+      type: configMap
+      name: autokuma-monitors
+      advancedMounts:
+        uptime-kuma:
+          autokuma:
+            - path: /monitors
