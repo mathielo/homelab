@@ -15,6 +15,7 @@ spec:
     helm:
       valueFiles:
         - values.yaml
+        - secrets://values.sops.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: dashboard

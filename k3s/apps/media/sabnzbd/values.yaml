@@ -13,7 +13,7 @@
 #
 # Post-deploy: add Eweka server in SABnzbd UI:
 #   Server: news.eweka.nl | Port: 563 (SSL) | Connections: per your plan
-#   Credentials stored in media-secrets (eweka_username / eweka_password).
+#   Credentials configured in SABnzbd UI (eweka_username / eweka_password).
 app-template:
   controllers:
     sabnzbd:
@@ -86,16 +86,7 @@ app-template:
           env:
             VPN_SERVICE_PROVIDER: protonvpn
             VPN_TYPE: wireguard
-            WIREGUARD_PRIVATE_KEY:
-              valueFrom:
-                secretKeyRef:
-                  name: media-secrets
-                  key: protonvpn_wireguard_private_key
-            WIREGUARD_ADDRESSES:
-              valueFrom:
-                secretKeyRef:
-                  name: media-secrets
-                  key: protonvpn_wireguard_addresses
+            # WIREGUARD_PRIVATE_KEY and WIREGUARD_ADDRESSES injected via values.sops.yaml
             SERVER_COUNTRIES: Netherlands
             # Allow traffic to k3s pod CIDR + service CIDR to bypass the VPN tunnel.
             # This keeps in-cluster calls (SABnzbd → Sonarr, DNS, etc.) working.

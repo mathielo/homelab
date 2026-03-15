@@ -1,18 +1,16 @@
 ---
-# Installs ArgoCD and creates namespace secrets.
+# Installs ArgoCD (with helm-secrets plugin) and creates bootstrap secrets.
 #
 # Prerequisites:
 #   - Add the following to ansible/group_vars/all/secrets.sops.yaml (sops --decrypt to edit):
-#       protonvpn_wireguard_private_key: "<key from ProtonVPN WireGuard config>"
-#       protonvpn_wireguard_addresses:   "<address from ProtonVPN WireGuard config, e.g. 10.2.0.2/32>"
-#       eweka_username:                  "<eweka.nl username>"
-#       eweka_password:                  "<eweka.nl password>"
-#       drunkenslug_api_key:             "<drunkenslug.com API key>"
 #       argocd_admin_password_hash:      "<bcrypt hash — generate with: htpasswd -nbBC 10 '' 'password' | tr -d ':\n' | sed 's/$2y/$2a/'>"
 #       github_ssh_private_key:          "<private key of a read-only GitHub deploy key for this repo>"
 #         Generate: ssh-keygen -t ed25519 -C "argocd@k3s" -f ~/.ssh/argocd_deploy_key
 #         Then add the public key at: GitHub repo → Settings → Deploy keys → Add (read-only)
-#       uptime_kuma_admin_password:      "<password for Uptime Kuma admin user>"
+#       sops_age_private_key:            "<age secret key from ~/.config/sops/age/keys.txt>"
+#
+#   - App-level secrets (VPN, API keys, etc.) live in per-app values.sops.yaml files
+#     under k3s/apps/. ArgoCD decrypts them at sync time via the helm-secrets plugin.
 #
 # After running this playbook, bootstrap ArgoCD by running from your workstation:
 #   kubectl apply -f k3s/argocd/root-app.yaml
@@ -34,6 +32,20 @@
       command: helm repo update
       changed_when: false
 
+    - name: Ensure argocd namespace exists
+      shell: kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+      changed_when: false
+
+    - name: Create helm-secrets age key for ArgoCD repo-server
+      # Must exist before helm upgrade — the repo-server pod mounts this Secret.
+      shell: |
+        kubectl create secret generic helm-secrets-private-keys \
+          --namespace argocd \
+          --from-literal=key.txt='{{ sops_age_private_key }}' \
+          --dry-run=client -o yaml | kubectl apply -f -
+      no_log: true
+      changed_when: false
+
     - name: Template ArgoCD values file
       template:
         src: files/argocd.values.yaml.j2
@@ -53,10 +65,6 @@
         path: /tmp/argocd.values.yaml
         state: absent
 
-    - name: Create media namespace
-      shell: kubectl create namespace media --dry-run=client -o yaml | kubectl apply -f -
-      changed_when: false
-
     - name: Template ArgoCD repo secret
       # no_log + mode 0600 keep the private key off disk safely.
       template:
@@ -75,31 +83,5 @@
         path: /tmp/argocd-repo.secret.yaml
         state: absent
 
-    - name: Create media-secrets Kubernetes Secret
-      # Idempotent: --dry-run=client -o yaml | kubectl apply replaces if changed.
-      # no_log keeps secrets out of Ansible output.
-      shell: |
-        kubectl create secret generic media-secrets \
-          --namespace media \
-          --from-literal=protonvpn_wireguard_private_key='{{ protonvpn_wireguard_private_key }}' \
-          --from-literal=protonvpn_wireguard_addresses='{{ protonvpn_wireguard_addresses }}' \
-          --from-literal=eweka_username='{{ eweka_username }}' \
-          --from-literal=eweka_password='{{ eweka_password }}' \
-          --from-literal=drunkenslug_api_key='{{ drunkenslug_api_key }}' \
-          --from-literal=plex_claim='{{ plex_claim }}' \
-          --dry-run=client -o yaml | kubectl apply -f -
-      no_log: true
-      changed_when: false
-
-    - name: Create dashboard namespace
-      shell: kubectl create namespace dashboard --dry-run=client -o yaml | kubectl apply -f -
-      changed_when: false
-
-    - name: Create dashboard-secrets Kubernetes Secret
-      shell: |
-        kubectl create secret generic dashboard-secrets \
-          --namespace dashboard \
-          --from-literal=uptime_kuma_admin_password='{{ uptime_kuma_admin_password }}' \
-          --dry-run=client -o yaml | kubectl apply -f -
-      no_log: true
-      changed_when: false
+    # Namespace creation is handled by ArgoCD (CreateNamespace=true in sync options).
+    # App-level secrets are in per-app values.sops.yaml files, decrypted by helm-secrets.

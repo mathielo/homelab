@@ -16,13 +16,8 @@ app-template:
             PUID: "1000"
             PGID: "1000"
             TZ: Europe/Amsterdam
-            # Generate a claim token at https://plex.tv/claim
-            # It expires in 4 minutes — update in SOPS, run playbook, then sync
-            PLEX_CLAIM_TOKEN:
-              valueFrom:
-                secretKeyRef:
-                  name: media-secrets
-                  key: plex_claim
+            # PLEX_CLAIM_TOKEN injected via values.sops.yaml
+            # Generate a claim token at https://plex.tv/claim (expires in 4 minutes)
           resources:
             requests:
               cpu: 100m

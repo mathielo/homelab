@@ -1,0 +1,31 @@
+app-template:
+    controllers:
+        plex:
+            containers:
+                plex:
+                    env:
+                        PLEX_CLAIM_TOKEN: ENC[AES256_GCM,data:4bYT0wPg9pKCBIBRpFuww29ccZw0GttRmyM=,iv:gCkbaBVajEeAj/94R4qCpX3ICvGHUgnUYJa/bwjIHa0=,tag:SCrAa9CqaocEyXF0Svia3Q==,type:str]
+sops:
+    age:
+        - recipient: age1gyywmz5ypukdr265ltj45s3vtnckyvd7qn5ddr8qepj8ktdzsers20cz6t
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBWS2dyMXVsbDNLV0ZtWGpF
+            aUxSZGtwSi9RZ3UvT3pkbFEzZnBQeDFjc2hNCjJvbktUNHRiSDcvQ0loaGwvdDhu
+            bUx0NDdTdzZ1Q0JWRUJRUDdNbzB3SjQKLS0tIGpnUE1Wb0tJTFZQdVBEMEU1VU0y
+            TFlxOVRiWnFheVJCbFdTbHhzaWFYQzQKB1OaFlTmQoDXDmxh4VcUNdylNz526Snt
+            EDpz+2goy6rTy/hjjdCyx6++uJp/AvO9F59AuElKmmxsciZLC0rCSw==
+            -----END AGE ENCRYPTED FILE-----
+        - recipient: age1kt5aynyagn4t6v4epgl95ls9gpskq49f07j2v797g99zhje8teussmnytu
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBJV3p6SWVqN25TNUdTSUx3
+            TDI2VlBvY1FndXlDV3lRcmVBMTkwS0o1UmlvClczQldXMUpBRE51ajhiay82eHJJ
+            cE1zRE1NbEtZR3ZBaXhMNEZnbndyRnMKLS0tIHNFVTVmL2hUM1pIUlc1KzBHblBY
+            WGVUT2diclRKTVJNcWNGamU5cmphM0UKKzUYWmifLXDAgcneXz3zK002BEgZNEfe
+            ka2RuGoBMCZyhF6kc1BQgwYWCFGuZgQSF8itOJLHLKdU5qhGn7q4Hw==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-03-15T15:39:26Z"
+    mac: ENC[AES256_GCM,data:igyIK0oqwZvGlQcuKx4G2GsfJJ7gYOHiiBGAvWXMiS+6mG3mJwYUByislKVM1zpzMu/bdNREvOCwTASVZBjoulF/ucOJd+4vI/2Xh+MgaFUZ+ixUbHsfrgOpciGBdlowts0L1AJigX++KbOwvpAJ+y/vXpmbhpU1xbUwE2R/Yzg=,iv:qvH+DSkZNMY0mc+nAU6VdNJMEuzOM47/hk1bO7ns34o=,tag:TWWEqTBsiJwMEcOEx6wF9A==,type:str]
+    unencrypted_suffix: _unencrypted
+    version: 3.12.1

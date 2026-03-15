@@ -47,6 +47,55 @@ controller:
       memory: 512Mi
 
 repoServer:
+  # helm-secrets plugin: decrypts values.sops.yaml files during Helm rendering.
+  # The init container downloads helm-secrets + sops into an emptyDir shared with
+  # the repo-server. The age private key is mounted from a k8s Secret created by
+  # the argocd.yaml Ansible playbook.
+  env:
+    - name: HELM_PLUGINS
+      value: /custom-tools/helm-plugins/
+    - name: HELM_SECRETS_SOPS_PATH
+      value: /custom-tools/sops
+    - name: HELM_SECRETS_BACKEND
+      value: sops
+    - name: HELM_SECRETS_VALUES_ALLOW_SYMLINKS
+      value: "false"
+    - name: HELM_SECRETS_VALUES_ALLOW_ABSOLUTE_PATH
+      value: "false"
+    - name: HELM_SECRETS_VALUES_ALLOW_PATH_TRAVERSAL
+      value: "false"
+    - name: SOPS_AGE_KEY_FILE
+      value: /sops-age/key.txt
+
+  volumes:
+    - name: custom-tools
+      emptyDir: {}
+    - name: sops-age
+      secret:
+        secretName: helm-secrets-private-keys
+
+  volumeMounts:
+    - name: custom-tools
+      mountPath: /custom-tools
+    - name: sops-age
+      mountPath: /sops-age
+
+  initContainers:
+    - name: download-tools
+      image: alpine:latest
+      imagePullPolicy: IfNotPresent
+      command: [sh, -ec]
+      args:
+        - |
+          mkdir -p /custom-tools/helm-plugins
+          wget -qO- https://github.com/jkroepke/helm-secrets/releases/latest/download/helm-secrets.tar.gz \
+            | tar -xzf- -C /custom-tools/helm-plugins
+          wget -qO /custom-tools/sops https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64
+          chmod +x /custom-tools/sops
+      volumeMounts:
+        - name: custom-tools
+          mountPath: /custom-tools
+
   resources:
     requests:
       cpu: 10m

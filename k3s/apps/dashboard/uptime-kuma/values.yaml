@@ -23,11 +23,7 @@ app-template:
           env:
             AUTOKUMA__KUMA__URL: http://localhost:3001
             AUTOKUMA__KUMA__USERNAME: admin
-            AUTOKUMA__KUMA__PASSWORD:
-              valueFrom:
-                secretKeyRef:
-                  name: dashboard-secrets
-                  key: uptime_kuma_admin_password
+            # AUTOKUMA__KUMA__PASSWORD injected via values.sops.yaml
             AUTOKUMA__DOCKER__ENABLED: "false"
             AUTOKUMA__FILES__ENABLED: "true"
             AUTOKUMA__FILES__FOLLOW_SYMLINKS: "true"

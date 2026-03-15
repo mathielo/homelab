@@ -1,0 +1,31 @@
+app-template:
+    controllers:
+        uptime-kuma:
+            containers:
+                autokuma:
+                    env:
+                        AUTOKUMA__KUMA__PASSWORD: ENC[AES256_GCM,data:SSP7a05qu6P4C/abz4rOJP2+xzPHWny6hlrb91VsrHpInco3,iv:4tgHk92rP+Z9EN7y2IvxJOq3Cwy5yHBLmkCty5MdVrE=,tag:vEYD5AAdcRESpcqUdrOeaQ==,type:str]
+sops:
+    age:
+        - recipient: age1gyywmz5ypukdr265ltj45s3vtnckyvd7qn5ddr8qepj8ktdzsers20cz6t
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBNVW1UbmtCUk04ZU4yZG9R
+            TVQwdk0zampXQXIyeDk4eFltb3hhWTJZOEhzCnhrQThzQXhmcUNtQW5nQ1ByRkhl
+            N0xqT2FQZDBPemJZUFZPb0kyWTcxS3MKLS0tIFNtWm9pNXVaYVBGWmkvTXdOSHNp
+            OWpoUVNtVkMreVVhaHZneVZRakFLKzQKHIjEKktx7igTiPFhJYHjhW0qO9Kru3e9
+            udnfZIp3qZ097lNjl/n89QRE1UpMpHSA0hSmQFaooKHIfrktVCBRNg==
+            -----END AGE ENCRYPTED FILE-----
+        - recipient: age1kt5aynyagn4t6v4epgl95ls9gpskq49f07j2v797g99zhje8teussmnytu
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBEcjMwd1hOTmFVZ0IxUi9X
+            Mzh5REQvSDBkUnYybTlXQzg2MERqWVR1dTF3CnplSDhJZWhFYmI5Zlh3Q1ZTblZz
+            SzhyNHRYUHVWa1pna1c4TkZVTFFwcFEKLS0tIFFhSit5TW5tTnE4RVlOV21KSFJa
+            RkR0cllDMGRTTm9kbUN5Y3o5WW0vUjQKWOAAd7EcgeciPeJ6aAh7YPKbmyT2tGZp
+            GFjvKLDRrC6MyWY5KK3sBKqVYelMariWLbr95QsMDtyQjSTFedmVTA==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-03-15T15:40:00Z"
+    mac: ENC[AES256_GCM,data:P6oyRPuE5zwmPlpp1RXmz6T5slZtWOjUOTsX6vDNJWXxh3nghEjLi/zbN+vQK5wWOzbyLXai0LX6A/9leTb63axRsAdZAHu8RBOMyP7oimfM/yIiJNHS3/JHJX6f1h86Cxw81sPxgAusQOmNtXlYGXUPM3mhNnzcDZWiTBLAV4E=,iv:mTxzcF1rEzjAzS46zP6diTxECYb7pFwROmSUNMipwcc=,tag:/HzpvY93aMZOQvteTuvAog==,type:str]
+    unencrypted_suffix: _unencrypted
+    version: 3.12.1
