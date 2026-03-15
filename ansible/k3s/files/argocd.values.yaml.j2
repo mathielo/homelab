@@ -5,6 +5,11 @@ configs:
   params:
     # TLS is terminated at the NGINX ingress level; ArgoCD itself runs plain HTTP.
     server.insecure: "true"
+  cm:
+    # Allow helm-secrets URL schemes in valueFiles references.
+    helm.valuesFileSchemes: >-
+      secrets+age-import, secrets+age-import-kubernetes,
+      secrets, secrets+literal, https
   secret:
     # Bcrypt hash of the ArgoCD admin password.
     # Stored encrypted in secrets.sops.yaml as argocd_admin_password_hash.
@@ -61,7 +66,7 @@ repoServer:
     - name: HELM_SECRETS_VALUES_ALLOW_SYMLINKS
       value: "false"
     - name: HELM_SECRETS_VALUES_ALLOW_ABSOLUTE_PATH
-      value: "false"
+      value: "true"
     - name: HELM_SECRETS_VALUES_ALLOW_PATH_TRAVERSAL
       value: "false"
     - name: SOPS_AGE_KEY_FILE
