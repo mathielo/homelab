@@ -11,3 +11,5 @@ creation_rules:
       - age:
         # Mathielo's age key
         - age1gyywmz5ypukdr265ltj45s3vtnckyvd7qn5ddr8qepj8ktdzsers20cz6t
+        # ArgoCD age key
+        - age1kt5aynyagn4t6v4epgl95ls9gpskq49f07j2v797g99zhje8teussmnytu
