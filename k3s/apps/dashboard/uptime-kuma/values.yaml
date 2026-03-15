@@ -5,7 +5,7 @@ app-template:
         uptime-kuma:
           image:
             repository: louislam/uptime-kuma
-            tag: "1"
+            tag: "2"
           env:
             TZ: Europe/Amsterdam
           resources:
@@ -28,6 +28,9 @@ app-template:
                 secretKeyRef:
                   name: dashboard-secrets
                   key: uptime_kuma_admin_password
+            AUTOKUMA__DOCKER__ENABLED: "false"
+            AUTOKUMA__FILES__ENABLED: "true"
+            AUTOKUMA__FILES__FOLLOW_SYMLINKS: "true"
             AUTOKUMA__STATIC_MONITORS: /monitors
           resources:
             requests:

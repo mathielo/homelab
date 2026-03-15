@@ -8,178 +8,143 @@ data:
   # --- Groups ---
   dashboard.json: |
     {
-      "group": {
-        "name": "Dashboard"
-      }
+      "type": "group",
+      "name": "Dashboard"
     }
   infrastructure.json: |
     {
-      "group": {
-        "name": "Infrastructure"
-      }
+      "type": "group",
+      "name": "Infrastructure"
     }
   media.json: |
     {
-      "group": {
-        "name": "Media"
-      }
+      "type": "group",
+      "name": "Media"
     }
   downloads.json: |
     {
-      "group": {
-        "name": "Downloads"
-      }
+      "type": "group",
+      "name": "Downloads"
     }
   cloudflare-tunnel.json: |
     {
-      "group": {
-        "name": "Cloudflare Tunnel"
-      }
+      "type": "group",
+      "name": "Cloudflare Tunnel"
     }
 
   # --- Dashboard ---
   homepage.json: |
     {
-      "monitor": {
-        "name": "Homepage",
-        "type": "http",
-        "url": "http://homepage.dashboard.svc.cluster.local:3000",
-        "parent_name": "dashboard"
-      }
+      "type": "http",
+      "name": "Homepage",
+      "url": "http://homepage.dashboard.svc.cluster.local:3000",
+      "parent_name": "dashboard"
     }
   uptime-kuma-monitor.json: |
     {
-      "monitor": {
-        "name": "Uptime Kuma",
-        "type": "http",
-        "url": "http://uptime-kuma.dashboard.svc.cluster.local:3001",
-        "parent_name": "dashboard"
-      }
+      "type": "http",
+      "name": "Uptime Kuma",
+      "url": "http://uptime-kuma.dashboard.svc.cluster.local:3001",
+      "parent_name": "dashboard"
     }
 
   # --- Infrastructure ---
   grafana.json: |
     {
-      "monitor": {
-        "name": "Grafana",
-        "type": "http",
-        "url": "http://grafana.kube-extra.svc.cluster.local",
-        "parent_name": "infrastructure"
-      }
+      "type": "http",
+      "name": "Grafana",
+      "url": "http://grafana.kube-extra.svc.cluster.local",
+      "parent_name": "infrastructure"
     }
   prometheus.json: |
     {
-      "monitor": {
-        "name": "Prometheus",
-        "type": "http",
-        "url": "http://prometheus-server.kube-extra.svc.cluster.local",
-        "parent_name": "infrastructure"
-      }
+      "type": "http",
+      "name": "Prometheus",
+      "url": "http://prometheus-server.kube-extra.svc.cluster.local",
+      "parent_name": "infrastructure"
     }
   pihole-dns.json: |
     {
-      "monitor": {
-        "name": "Pi-hole DNS",
-        "type": "dns",
-        "hostname": "google.com",
-        "dns_resolve_server": "10.10.53.53",
-        "port": 53,
-        "parent_name": "infrastructure"
-      }
+      "type": "dns",
+      "name": "Pi-hole DNS",
+      "hostname": "google.com",
+      "dns_resolve_server": "10.10.53.53",
+      "port": 53,
+      "parent_name": "infrastructure"
     }
 
   # --- Media ---
   sonarr.json: |
     {
-      "monitor": {
-        "name": "Sonarr",
-        "type": "http",
-        "url": "http://sonarr.media.svc.cluster.local:8989",
-        "parent_name": "media"
-      }
+      "type": "http",
+      "name": "Sonarr",
+      "url": "http://sonarr.media.svc.cluster.local:8989",
+      "parent_name": "media"
     }
   radarr.json: |
     {
-      "monitor": {
-        "name": "Radarr",
-        "type": "http",
-        "url": "http://radarr.media.svc.cluster.local:7878",
-        "parent_name": "media"
-      }
+      "type": "http",
+      "name": "Radarr",
+      "url": "http://radarr.media.svc.cluster.local:7878",
+      "parent_name": "media"
     }
   prowlarr.json: |
     {
-      "monitor": {
-        "name": "Prowlarr",
-        "type": "http",
-        "url": "http://prowlarr.media.svc.cluster.local:9696",
-        "parent_name": "media"
-      }
+      "type": "http",
+      "name": "Prowlarr",
+      "url": "http://prowlarr.media.svc.cluster.local:9696",
+      "parent_name": "media"
     }
   bazarr.json: |
     {
-      "monitor": {
-        "name": "Bazarr",
-        "type": "http",
-        "url": "http://bazarr.media.svc.cluster.local:6767",
-        "parent_name": "media"
-      }
+      "type": "http",
+      "name": "Bazarr",
+      "url": "http://bazarr.media.svc.cluster.local:6767",
+      "parent_name": "media"
     }
   jellyfin.json: |
     {
-      "monitor": {
-        "name": "Jellyfin",
-        "type": "http",
-        "url": "http://jellyfin.media.svc.cluster.local:8096",
-        "parent_name": "media"
-      }
+      "type": "http",
+      "name": "Jellyfin",
+      "url": "http://jellyfin.media.svc.cluster.local:8096",
+      "parent_name": "media"
     }
   plex.json: |
     {
-      "monitor": {
-        "name": "Plex",
-        "type": "http",
-        "url": "http://plex.media.svc.cluster.local:32400/web",
-        "parent_name": "media"
-      }
+      "type": "http",
+      "name": "Plex",
+      "url": "http://plex.media.svc.cluster.local:32400/web",
+      "parent_name": "media"
     }
   seerr.json: |
     {
-      "monitor": {
-        "name": "Seerr",
-        "type": "http",
-        "url": "http://seerr.media.svc.cluster.local:5055",
-        "parent_name": "media"
-      }
+      "type": "http",
+      "name": "Seerr",
+      "url": "http://seerr.media.svc.cluster.local:5055",
+      "parent_name": "media"
     }
 
   # --- Downloads ---
   sabnzbd.json: |
     {
-      "monitor": {
-        "name": "SABnzbd",
-        "type": "http",
-        "url": "http://sabnzbd.media.svc.cluster.local:8080",
-        "parent_name": "downloads"
-      }
+      "type": "http",
+      "name": "SABnzbd",
+      "url": "http://sabnzbd.media.svc.cluster.local:8080",
+      "parent_name": "downloads"
     }
 
   # --- Cloudflare Tunnel ---
   external-homepage.json: |
     {
-      "monitor": {
-        "name": "[External] Homepage",
-        "type": "http",
-        "url": "https://hl.mathielo.com",
-        "parent_name": "cloudflare-tunnel"
-      }
+      "type": "http",
+      "name": "[External] Homepage",
+      "url": "https://hl.mathielo.com",
+      "parent_name": "cloudflare-tunnel"
     }
   external-grafana.json: |
     {
-      "monitor": {
-        "name": "[External] Grafana",
-        "type": "http",
-        "url": "https://grafana.hl.mathielo.com",
-        "parent_name": "cloudflare-tunnel"
-      }
+      "type": "http",
+      "name": "[External] Grafana",
+      "url": "https://grafana.hl.mathielo.com",
+      "parent_name": "cloudflare-tunnel"
     }
