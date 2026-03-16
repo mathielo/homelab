@@ -87,7 +87,7 @@ app-template:
             VPN_SERVICE_PROVIDER: protonvpn
             VPN_TYPE: wireguard
             # WIREGUARD_PRIVATE_KEY and WIREGUARD_ADDRESSES injected via values.sops.yaml
-            SERVER_COUNTRIES: Netherlands
+            SERVER_COUNTRIES: Sweden
             # Allow traffic to k3s pod CIDR + service CIDR to bypass the VPN tunnel.
             # This keeps in-cluster calls (SABnzbd → Sonarr, DNS, etc.) working.
             FIREWALL_OUTBOUND_SUBNETS: "10.42.0.0/16,10.43.0.0/16"
