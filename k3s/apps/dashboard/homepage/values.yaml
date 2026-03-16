@@ -95,7 +95,7 @@ app-template:
                   widget:
                     type: plex
                     url: http://plex.media.svc.cluster.local:32400
-                    key: "{{PLEX_TOKEN}}"
+                    key: "{{ "{{HOMEPAGE_VAR_PLEX_TOKEN}}" }}"
               - Jellyfin:
                   href: https://jellyfin.hl.mathielo.com
                   description: Media server
@@ -103,7 +103,7 @@ app-template:
                   widget:
                     type: jellyfin
                     url: http://jellyfin.media.svc.cluster.local:8096
-                    key: "{{JELLYFIN_KEY}}"
+                    key: "{{ "{{HOMEPAGE_VAR_JELLYFIN_KEY}}" }}"
                     enableNowPlaying: true
               - Sonarr:
                   href: https://sonarr.hl.mathielo.com
@@ -112,7 +112,7 @@ app-template:
                   widget:
                     type: sonarr
                     url: http://sonarr.media.svc.cluster.local:8989
-                    key: "{{SONARR_KEY}}"
+                    key: "{{ "{{HOMEPAGE_VAR_SONARR_KEY}}" }}"
               - Radarr:
                   href: https://radarr.hl.mathielo.com
                   description: Movies
@@ -120,7 +120,7 @@ app-template:
                   widget:
                     type: radarr
                     url: http://radarr.media.svc.cluster.local:7878
-                    key: "{{RADARR_KEY}}"
+                    key: "{{ "{{HOMEPAGE_VAR_RADARR_KEY}}" }}"
               - Bazarr:
                   href: https://bazarr.hl.mathielo.com
                   description: Subtitles
@@ -128,7 +128,7 @@ app-template:
                   widget:
                     type: bazarr
                     url: http://bazarr.media.svc.cluster.local:6767
-                    key: "{{BAZARR_KEY}}"
+                    key: "{{ "{{HOMEPAGE_VAR_BAZARR_KEY}}" }}"
               - Seerr:
                   href: https://seerr.hl.mathielo.com
                   description: Media requests
@@ -136,7 +136,7 @@ app-template:
                   widget:
                     type: overseerr
                     url: http://seerr.media.svc.cluster.local:5055
-                    key: "{{SEERR_KEY}}"
+                    key: "{{ "{{HOMEPAGE_VAR_SEERR_KEY}}" }}"
           - Downloads:
               - SABnzbd:
                   href: https://sabnzbd.hl.mathielo.com
@@ -145,7 +145,7 @@ app-template:
                   widget:
                     type: sabnzbd
                     url: http://sabnzbd.media.svc.cluster.local:8080
-                    key: "{{SABNZBD_KEY}}"
+                    key: "{{ "{{HOMEPAGE_VAR_SABNZBD_KEY}}" }}"
               - Prowlarr:
                   href: https://prowlarr.hl.mathielo.com
                   description: Indexer manager
@@ -153,7 +153,7 @@ app-template:
                   widget:
                     type: prowlarr
                     url: http://prowlarr.media.svc.cluster.local:9696
-                    key: "{{PROWLARR_KEY}}"
+                    key: "{{ "{{HOMEPAGE_VAR_PROWLARR_KEY}}" }}"
           - Infrastructure:
               - Pi-hole:
                   href: http://10.10.53.53/admin
@@ -162,7 +162,7 @@ app-template:
                   widget:
                     type: pihole
                     url: http://10.10.53.53
-                    key: "{{PIHOLE_KEY}}"
+                    key: "{{ "{{HOMEPAGE_VAR_PIHOLE_KEY}}" }}"
               - Grafana:
                   href: https://grafana.hl.mathielo.com
                   description: Monitoring dashboards
@@ -174,7 +174,7 @@ app-template:
                   widget:
                     type: argocd
                     url: http://argocd-server.argocd.svc.cluster.local:8080
-                    key: "{{ARGOCD_KEY}}"
+                    key: "{{ "{{HOMEPAGE_VAR_ARGOCD_KEY}}" }}"
               - Uptime Kuma:
                   href: https://status.hl.mathielo.com
                   description: Service monitoring
@@ -183,7 +183,7 @@ app-template:
                     type: uptimekuma
                     url: http://uptime-kuma.dashboard.svc.cluster.local:3001
                     slug: default
-                    key: "{{UPTIMEKUMA_KEY}}"
+                    key: "{{ "{{HOMEPAGE_VAR_UPTIMEKUMA_KEY}}" }}"
               - UniFi:
                   href: https://10.10.1.1
                   description: Network controller
@@ -191,8 +191,8 @@ app-template:
                   widget:
                     type: unifi
                     url: https://10.10.1.1
-                    username: "{{UNIFI_USER}}"
-                    password: "{{UNIFI_PASS}}"
+                    username: "{{ "{{HOMEPAGE_VAR_UNIFI_USER}}" }}"
+                    password: "{{ "{{HOMEPAGE_VAR_UNIFI_PASS}}" }}"
 
         widgets.yaml: |
           - kubernetes:
