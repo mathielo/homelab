@@ -37,7 +37,7 @@ server:
       memory: 128Mi
     limits:
       cpu: 500m
-      memory: 256Mi
+      memory: 512Mi
 
 applicationSet:
   resources:
@@ -55,7 +55,8 @@ controller:
       memory: 256Mi
     limits:
       cpu: 500m
-      memory: 512Mi
+      # ArgoCD controller can spike memory when all apps are syncing at once
+      memory: 1Gi
 
 repoServer:
   # helm-secrets plugin: decrypts values.sops.yaml files during Helm rendering.
@@ -113,7 +114,7 @@ repoServer:
       memory: 64Mi
     limits:
       cpu: 200m
-      memory: 128Mi
+      memory: 512Mi
 
 redis:
   resources:
