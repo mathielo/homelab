@@ -162,6 +162,7 @@ app-template:
                   widget:
                     type: pihole
                     url: http://10.10.53.53
+                    version: 6
                     key: "{{ "{{HOMEPAGE_VAR_PIHOLE_KEY}}" }}"
               - Grafana:
                   href: https://grafana.hl.mathielo.com
@@ -182,7 +183,7 @@ app-template:
                   widget:
                     type: uptimekuma
                     url: http://uptime-kuma.dashboard.svc.cluster.local:3001
-                    slug: default
+                    slug: homelab
                     key: "{{ "{{HOMEPAGE_VAR_UPTIMEKUMA_KEY}}" }}"
               - UniFi:
                   href: https://10.10.1.1

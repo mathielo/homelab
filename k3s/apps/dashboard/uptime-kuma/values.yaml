@@ -28,6 +28,9 @@ app-template:
             AUTOKUMA__FILES__ENABLED: "true"
             AUTOKUMA__FILES__FOLLOW_SYMLINKS: "true"
             AUTOKUMA__STATIC_MONITORS: /monitors
+            AUTOKUMA__KUMA__CONNECT_TIMEOUT: "30"
+            AUTOKUMA__KUMA__CALL_TIMEOUT: "30"
+            AUTOKUMA__DB__PATH: /app/data/autokuma/autokuma.db
           resources:
             requests:
               cpu: 5m
@@ -70,6 +73,9 @@ app-template:
         uptime-kuma:
           uptime-kuma:
             - path: /app/data
+          autokuma:
+            - path: /app/data
+              subPath: autokuma
     monitors:
       type: configMap
       name: autokuma-monitors
