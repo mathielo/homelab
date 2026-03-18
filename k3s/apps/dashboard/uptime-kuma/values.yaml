@@ -65,6 +65,7 @@ app-template:
 
   persistence:
     data:
+      suffix: data
       type: persistentVolumeClaim
       accessMode: ReadWriteOnce
       size: 2Gi

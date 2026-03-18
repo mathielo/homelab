@@ -1,5 +1,9 @@
 # Ansible
 *.retry
 
-.env
+# Helm
+Chart.lock
+charts/
+*.tgz
 
+.env

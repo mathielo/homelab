@@ -3,8 +3,8 @@ app-template:
         plex:
             containers:
                 plex:
-                    env:
-                        PLEX_CLAIM_TOKEN: ENC[AES256_GCM,data:4bYT0wPg9pKCBIBRpFuww29ccZw0GttRmyM=,iv:gCkbaBVajEeAj/94R4qCpX3ICvGHUgnUYJa/bwjIHa0=,tag:SCrAa9CqaocEyXF0Svia3Q==,type:str]
+                    env: null
+#ENC[AES256_GCM,data:UPWLkN1PdhmxaRYH3BgngjQUHsgNO7o8p/mPOPXlNdEj0Cd9GANtRbbv49qn,iv:3NSQSeopQmA5pCXkfXELdYf8faeiCyjpZKAtS+ecXDQ=,tag:cNxaR5LKIs2N6kLta8wlPw==,type:comment]
 sops:
     age:
         - recipient: age1gyywmz5ypukdr265ltj45s3vtnckyvd7qn5ddr8qepj8ktdzsers20cz6t
@@ -25,7 +25,7 @@ sops:
             WGVUT2diclRKTVJNcWNGamU5cmphM0UKKzUYWmifLXDAgcneXz3zK002BEgZNEfe
             ka2RuGoBMCZyhF6kc1BQgwYWCFGuZgQSF8itOJLHLKdU5qhGn7q4Hw==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2026-03-15T15:39:26Z"
-    mac: ENC[AES256_GCM,data:igyIK0oqwZvGlQcuKx4G2GsfJJ7gYOHiiBGAvWXMiS+6mG3mJwYUByislKVM1zpzMu/bdNREvOCwTASVZBjoulF/ucOJd+4vI/2Xh+MgaFUZ+ixUbHsfrgOpciGBdlowts0L1AJigX++KbOwvpAJ+y/vXpmbhpU1xbUwE2R/Yzg=,iv:qvH+DSkZNMY0mc+nAU6VdNJMEuzOM47/hk1bO7ns34o=,tag:TWWEqTBsiJwMEcOEx6wF9A==,type:str]
+    lastmodified: "2026-03-18T06:38:02Z"
+    mac: ENC[AES256_GCM,data:TRmKpSlCXXqhP0+QQkIoff+JPb5wwTORTS7Y/QoDtVZvNoGt9aPceeyQJ0U3UFt82uDokUfWMefHreiVogDh49VR7CGT2DEm+fh5ZIEA9sJPrtjtwecXtuTSjESJN9oD0X70fHjICJaXlXl0p7tkhf+8SvpxWtJik6ytpmqC7ZY=,iv:fajHJXzIW7K09fyQp1/X+BXKgCPrEo6hTPunX4WhFMg=,tag:zVjpPZjd2IGBOfyCl2CYkQ==,type:str]
     unencrypted_suffix: _unencrypted
     version: 3.12.1
