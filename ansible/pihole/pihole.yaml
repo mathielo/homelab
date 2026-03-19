@@ -10,6 +10,17 @@
     pihole_ipv6_gateway: "2001:2042:37b0:1c35::1"
 
   tasks:
+    - name: Disable WiFi via boot firmware config
+      lineinfile:
+        path: /boot/firmware/config.txt
+        line: "dtoverlay=disable-wifi"
+        state: present
+      register: wifi_disabled
+
+    - name: Reboot to apply WiFi disable
+      reboot:
+      when: wifi_disabled.changed
+
     - name: Ensure /etc/pihole directory exists
       file:
         path: /etc/pihole
