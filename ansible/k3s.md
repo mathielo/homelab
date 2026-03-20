@@ -11,7 +11,7 @@
 | Namespace      | Purpose                                          | Services                                                             |
 | -------------- | ------------------------------------------------ | -------------------------------------------------------------------- |
 | `kube-extra`   | Cluster infrastructure (monitoring, ingress)     | nginx-ingress, Prometheus, Grafana, Loki, Promtail                   |
-| `media`        | Media stack (ARR + streaming, managed by ArgoCD) | Sonarr, Radarr, Prowlarr, Bazarr, SABnzbd, Plex, Jellyfin, Seerr   |
+| `media`        | Media stack (ARR + streaming, managed by ArgoCD) | Sonarr, Radarr, Prowlarr, Bazarr, SABnzbd, Jellyfin, Seerr         |
 | `dashboard`    | User-facing dashboards and portals               | Homepage                                                             |
 | `argocd`       | GitOps controller                                | ArgoCD                                                               |
 | `cert-manager` | TLS certificate management                       | cert-manager                                                         |
@@ -88,7 +88,7 @@ To use kubectl locally:
 ```bash
 export KUBECONFIG=~/.kube/config-k3s
 kubectl get nodes
-```e
+```
 
 ## Monitoring Stack
 
@@ -139,7 +139,7 @@ Key settings:
 
 ### Adding more services
 
-ArgoCD-managed apps live in `k3s/apps/<namespace>/<app>/` as Helm charts (bjw-s/app-template v3). To add a new service:
+ArgoCD-managed apps live in `k3s/apps/<namespace>/<app>/` as Helm charts (bjw-s/app-template v4). To add a new service:
 
 1. Create `k3s/apps/<namespace>/<app>/Chart.yaml` and `values.yaml`
 2. Add an ArgoCD Application CR in `k3s/argocd/apps/<app>.yaml` pointing to the chart

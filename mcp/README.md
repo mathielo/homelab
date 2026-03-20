@@ -45,6 +45,6 @@ Create/edit `.mcp.json` in your project root (or `~/.claude/mcp.json` for global
 }
 ```
 
-### 3. Restart Claude Code
+## 4. Restart Claude Code
 
 Exit and relaunch Claude Code. Run `/mcp` to verify both servers connect.

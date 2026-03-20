@@ -17,7 +17,7 @@ All VLANs have internet access (some might have speed limits established e.g. Gu
 
 # DNS Configuration through Pi-hole
 
-After properly setting up the local [Pi-hole](../services/pi-hole/README.md), configure UniFi to use Pi-hole as the DNS resolver for all VLANs.
+After properly setting up the local [Pi-hole](../ansible/pihole.md), configure UniFi to use Pi-hole as the DNS resolver for all VLANs.
 
 ## Per-VLAN DHCP Settings
 
