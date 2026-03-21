@@ -1,178 +1,216 @@
 {
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended",
-    "docker:enableMajor",
-    ":disableRateLimiting"
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: [
+    'config:recommended',
+    'docker:enableMajor',
+    ':disableRateLimiting',
   ],
-
-  // Weekend schedule — time to monitor after ArgoCD auto-syncs
-  "schedule": ["after 10am and before 6pm on Saturday and Sunday"],
-  "timezone": "Europe/Stockholm",
-
-  // Don't touch encrypted secrets
-  "ignorePaths": ["**/*.sops.yaml", ".sops.yaml"],
-
-  // Dependency Dashboard issue for visibility
-  "dependencyDashboard": true,
-
-  // Custom managers for files Renovate can't auto-detect
-  "customManagers": [
-    // SOPS binary URL in Jinja2 template
-    {
-      "customType": "regex",
-      "fileMatch": ["ansible/k3s/files/.*\\.j2$"],
-      "matchStrings": [
-        "github\\.com/getsops/sops/releases/download/(?<currentValue>v[\\d.]+)/sops-"
-      ],
-      "depNameTemplate": "getsops/sops",
-      "datasourceTemplate": "github-releases"
-    },
-    // Alpine image in Jinja2 template
-    {
-      "customType": "regex",
-      "fileMatch": ["ansible/k3s/files/.*\\.j2$"],
-      "matchStrings": ["image:\\s*(?<depName>alpine):(?<currentValue>[\\w.]+)"],
-      "datasourceTemplate": "docker"
-    },
-    // Ansible Helm install version pins (one per chart)
-    {
-      "customType": "regex",
-      "fileMatch": ["ansible/k3s/argocd\\.yaml$"],
-      "matchStrings": [
-        "helm upgrade --install argocd argo/argo-cd[\\s\\S]*?--version\\s+(?<currentValue>[\\d.]+)"
-      ],
-      "depNameTemplate": "argo-cd",
-      "datasourceTemplate": "helm",
-      "registryUrlTemplate": "https://argoproj.github.io/argo-helm"
-    },
-    {
-      "customType": "regex",
-      "fileMatch": ["ansible/k3s/cert-manager\\.yaml$"],
-      "matchStrings": [
-        "helm upgrade --install cert-manager jetstack/cert-manager[\\s\\S]*?--version\\s+(?<currentValue>[v\\d.]+)"
-      ],
-      "depNameTemplate": "cert-manager",
-      "datasourceTemplate": "helm",
-      "registryUrlTemplate": "https://charts.jetstack.io"
-    },
-    {
-      "customType": "regex",
-      "fileMatch": ["ansible/k3s/install-k3s\\.yaml$"],
-      "matchStrings": [
-        "helm upgrade --install ingress-nginx\\s+ingress-nginx/ingress-nginx[\\s\\S]*?--version\\s+(?<currentValue>[\\d.]+)"
-      ],
-      "depNameTemplate": "ingress-nginx",
-      "datasourceTemplate": "helm",
-      "registryUrlTemplate": "https://kubernetes.github.io/ingress-nginx"
-    },
-    {
-      "customType": "regex",
-      "fileMatch": ["ansible/k3s/monitoring\\.yaml$"],
-      "matchStrings": [
-        "helm upgrade --install prometheus\\s+prometheus-community/prometheus[\\s\\S]*?--version\\s+(?<currentValue>[\\d.]+)"
-      ],
-      "depNameTemplate": "prometheus",
-      "datasourceTemplate": "helm",
-      "registryUrlTemplate": "https://prometheus-community.github.io/helm-charts"
-    },
-    {
-      "customType": "regex",
-      "fileMatch": ["ansible/k3s/monitoring\\.yaml$"],
-      "matchStrings": [
-        "helm upgrade --install loki\\s+grafana/loki[\\s\\S]*?--version\\s+(?<currentValue>[\\d.]+)"
-      ],
-      "depNameTemplate": "loki",
-      "datasourceTemplate": "helm",
-      "registryUrlTemplate": "https://grafana.github.io/helm-charts"
-    },
-    {
-      "customType": "regex",
-      "fileMatch": ["ansible/k3s/monitoring\\.yaml$"],
-      "matchStrings": [
-        "helm upgrade --install promtail\\s+grafana/promtail[\\s\\S]*?--version\\s+(?<currentValue>[\\d.]+)"
-      ],
-      "depNameTemplate": "promtail",
-      "datasourceTemplate": "helm",
-      "registryUrlTemplate": "https://grafana.github.io/helm-charts"
-    },
-    {
-      "customType": "regex",
-      "fileMatch": ["ansible/k3s/monitoring\\.yaml$"],
-      "matchStrings": [
-        "helm upgrade --install grafana\\s+grafana/grafana[\\s\\S]*?--version\\s+(?<currentValue>[\\d.]+)"
-      ],
-      "depNameTemplate": "grafana",
-      "datasourceTemplate": "helm",
-      "registryUrlTemplate": "https://grafana.github.io/helm-charts"
-    }
+  schedule: [
+    'after 10am and before 6pm on Saturday and Sunday',
   ],
-
-  "packageRules": [
-    // Hotio images — variable tag format, need regex versioning
+  timezone: 'Europe/Stockholm',
+  ignorePaths: [
+    '**/*.sops.yaml',
+    '.sops.yaml',
+  ],
+  dependencyDashboard: true,
+  customManagers: [
     {
-      "description": "Hotio media stack images",
-      "matchDatasources": ["docker"],
-      "matchPackagePatterns": ["^ghcr\\.io/hotio/"],
-      "versioning": "regex:^release-(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(\\.(?<build>\\d+))?(-(?<revision>\\d+))?$",
-      "groupName": "media-stack-hotio"
-    },
-    // Media support
-    {
-      "description": "Media support (Gluetun, busybox)",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["ghcr.io/qdm12/gluetun", "busybox"],
-      "groupName": "media-support"
-    },
-    // Seerr — no semver tags, track digest only
-    {
-      "description": "Seerr (digest-only, no semver tags)",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["ghcr.io/seerr-team/seerr"],
-      "pinDigests": true
-    },
-    // Dashboard
-    {
-      "description": "Dashboard images",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": [
-        "ghcr.io/gethomepage/homepage",
-        "louislam/uptime-kuma",
-        "ghcr.io/bigboot/autokuma"
+      customType: 'regex',
+      managerFilePatterns: [
+        '/ansible/k3s/files/.*\\.j2$/',
       ],
-      "groupName": "dashboard"
-    },
-    // app-template chart (all Chart.yaml files)
-    {
-      "description": "bjw-s app-template",
-      "matchDatasources": ["helm"],
-      "matchPackageNames": ["app-template"],
-      "groupName": "helm-app-template"
-    },
-    // Cluster infra
-    {
-      "description": "Cluster infra charts + SOPS",
-      "matchDatasources": ["helm", "github-releases"],
-      "matchPackageNames": [
-        "argo-cd",
-        "cert-manager",
-        "ingress-nginx",
-        "getsops/sops"
+      matchStrings: [
+        'github\\.com/getsops/sops/releases/download/(?<currentValue>v[\\d.]+)/sops-',
       ],
-      "groupName": "cluster-infra"
+      depNameTemplate: 'getsops/sops',
+      datasourceTemplate: 'github-releases',
     },
-    // Monitoring
     {
-      "description": "Monitoring stack charts",
-      "matchDatasources": ["helm"],
-      "matchPackageNames": ["prometheus", "loki", "promtail", "grafana"],
-      "groupName": "monitoring-infra"
+      customType: 'regex',
+      managerFilePatterns: [
+        '/ansible/k3s/files/.*\\.j2$/',
+      ],
+      matchStrings: [
+        'image:\\s*(?<depName>alpine):(?<currentValue>[\\w.]+)',
+      ],
+      datasourceTemplate: 'docker',
     },
-    // Major updates require dashboard approval
     {
-      "matchUpdateTypes": ["major"],
-      "dependencyDashboardApproval": true,
-      "labels": ["major-update"]
-    }
-  ]
+      customType: 'regex',
+      managerFilePatterns: [
+        '/ansible/k3s/argocd\\.yaml$/',
+      ],
+      matchStrings: [
+        'helm upgrade --install argocd argo/argo-cd[\\s\\S]*?--version\\s+(?<currentValue>[\\d.]+)',
+      ],
+      depNameTemplate: 'argo-cd',
+      datasourceTemplate: 'helm',
+      registryUrlTemplate: 'https://argoproj.github.io/argo-helm',
+    },
+    {
+      customType: 'regex',
+      managerFilePatterns: [
+        '/ansible/k3s/cert-manager\\.yaml$/',
+      ],
+      matchStrings: [
+        'helm upgrade --install cert-manager jetstack/cert-manager[\\s\\S]*?--version\\s+(?<currentValue>[v\\d.]+)',
+      ],
+      depNameTemplate: 'cert-manager',
+      datasourceTemplate: 'helm',
+      registryUrlTemplate: 'https://charts.jetstack.io',
+    },
+    {
+      customType: 'regex',
+      managerFilePatterns: [
+        '/ansible/k3s/install-k3s\\.yaml$/',
+      ],
+      matchStrings: [
+        'helm upgrade --install ingress-nginx\\s+ingress-nginx/ingress-nginx[\\s\\S]*?--version\\s+(?<currentValue>[\\d.]+)',
+      ],
+      depNameTemplate: 'ingress-nginx',
+      datasourceTemplate: 'helm',
+      registryUrlTemplate: 'https://kubernetes.github.io/ingress-nginx',
+    },
+    {
+      customType: 'regex',
+      managerFilePatterns: [
+        '/ansible/k3s/monitoring\\.yaml$/',
+      ],
+      matchStrings: [
+        'helm upgrade --install prometheus\\s+prometheus-community/prometheus[\\s\\S]*?--version\\s+(?<currentValue>[\\d.]+)',
+      ],
+      depNameTemplate: 'prometheus',
+      datasourceTemplate: 'helm',
+      registryUrlTemplate: 'https://prometheus-community.github.io/helm-charts',
+    },
+    {
+      customType: 'regex',
+      managerFilePatterns: [
+        '/ansible/k3s/monitoring\\.yaml$/',
+      ],
+      matchStrings: [
+        'helm upgrade --install loki\\s+grafana/loki[\\s\\S]*?--version\\s+(?<currentValue>[\\d.]+)',
+      ],
+      depNameTemplate: 'loki',
+      datasourceTemplate: 'helm',
+      registryUrlTemplate: 'https://grafana.github.io/helm-charts',
+    },
+    {
+      customType: 'regex',
+      managerFilePatterns: [
+        '/ansible/k3s/monitoring\\.yaml$/',
+      ],
+      matchStrings: [
+        'helm upgrade --install promtail\\s+grafana/promtail[\\s\\S]*?--version\\s+(?<currentValue>[\\d.]+)',
+      ],
+      depNameTemplate: 'promtail',
+      datasourceTemplate: 'helm',
+      registryUrlTemplate: 'https://grafana.github.io/helm-charts',
+    },
+    {
+      customType: 'regex',
+      managerFilePatterns: [
+        '/ansible/k3s/monitoring\\.yaml$/',
+      ],
+      matchStrings: [
+        'helm upgrade --install grafana\\s+grafana/grafana[\\s\\S]*?--version\\s+(?<currentValue>[\\d.]+)',
+      ],
+      depNameTemplate: 'grafana',
+      datasourceTemplate: 'helm',
+      registryUrlTemplate: 'https://grafana.github.io/helm-charts',
+    },
+  ],
+  packageRules: [
+    {
+      description: 'Hotio media stack images',
+      matchDatasources: [
+        'docker',
+      ],
+      versioning: 'regex:^release-(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(\\.(?<build>\\d+))?(-(?<revision>\\d+))?$',
+      groupName: 'media-stack-hotio',
+      matchPackageNames: [
+        '/^ghcr\\.io/hotio//',
+      ],
+    },
+    {
+      description: 'Media support (Gluetun, busybox)',
+      matchDatasources: [
+        'docker',
+      ],
+      matchPackageNames: [
+        'ghcr.io/qdm12/gluetun',
+        'busybox',
+      ],
+      groupName: 'media-support',
+    },
+    {
+      description: 'Seerr (digest-only, no semver tags)',
+      matchDatasources: [
+        'docker',
+      ],
+      matchPackageNames: [
+        'ghcr.io/seerr-team/seerr',
+      ],
+      pinDigests: true,
+    },
+    {
+      description: 'Dashboard images',
+      matchDatasources: [
+        'docker',
+      ],
+      matchPackageNames: [
+        'ghcr.io/gethomepage/homepage',
+        'louislam/uptime-kuma',
+        'ghcr.io/bigboot/autokuma',
+      ],
+      groupName: 'dashboard',
+    },
+    {
+      description: 'bjw-s app-template',
+      matchDatasources: [
+        'helm',
+      ],
+      matchPackageNames: [
+        'app-template',
+      ],
+      groupName: 'helm-app-template',
+    },
+    {
+      description: 'Cluster infra charts + SOPS',
+      matchDatasources: [
+        'helm',
+        'github-releases',
+      ],
+      matchPackageNames: [
+        'argo-cd',
+        'cert-manager',
+        'ingress-nginx',
+        'getsops/sops',
+      ],
+      groupName: 'cluster-infra',
+    },
+    {
+      description: 'Monitoring stack charts',
+      matchDatasources: [
+        'helm',
+      ],
+      matchPackageNames: [
+        'prometheus',
+        'loki',
+        'promtail',
+        'grafana',
+      ],
+      groupName: 'monitoring-infra',
+    },
+    {
+      matchUpdateTypes: [
+        'major',
+      ],
+      dependencyDashboardApproval: true,
+      labels: [
+        'major-update',
+      ],
+    },
+  ],
 }
