@@ -30,7 +30,6 @@ app-template:
             AUTOKUMA__STATIC_MONITORS: /monitors
             AUTOKUMA__KUMA__CONNECT_TIMEOUT: "30"
             AUTOKUMA__KUMA__CALL_TIMEOUT: "30"
-            AUTOKUMA__MIGRATE: "true"
           resources:
             requests:
               cpu: 5m
