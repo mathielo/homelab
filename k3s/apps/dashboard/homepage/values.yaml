@@ -8,9 +8,9 @@ app-template:
         homepage:
           image:
             repository: ghcr.io/gethomepage/homepage
-            tag: latest
+            tag: v0.9.9
           env:
-            TZ: Europe/Amsterdam
+            TZ: Europe/Stockholm
             HOMEPAGE_ALLOWED_HOSTS: hl.mathielo.com
             HOMEPAGE_SKIP_TLS_VERIFY: "true"
             # * env vars injected via values.sops.yaml

@@ -75,6 +75,13 @@ Claude has MCP access to Pi-hole and UniFi for **read-only purposes**:
 - **DO** provide guidance and commands/steps for the user to apply changes manually
 - The user wants to learn by applying changes themselves
 
+## Versioning Policy
+
+- **Always use the latest stable version** when adding new dependencies (Helm charts, container images, tools).
+- **Pin explicit versions** — never use `latest`, `stable`, or floating tags. Renovate tracks updates via pinned versions.
+- **Renovate** (GitHub App) monitors all dependencies and opens PRs for updates on weekends.
+- Look up current latest versions online before implementing — don't assume versions from memory or documentation are current.
+
 ## Planned Expansions
 
 - Backup solutions

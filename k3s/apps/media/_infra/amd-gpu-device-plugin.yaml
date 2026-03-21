@@ -29,7 +29,7 @@ spec:
           operator: Exists
       containers:
         - name: amdgpu-dp-cntr
-          image: rocm/k8s-device-plugin
+          image: rocm/k8s-device-plugin:1.31.0.9
           securityContext:
             privileged: true
             capabilities:

@@ -1,6 +1,6 @@
 services:
   homelab-mcp:
-    image: bjeans/homelab-mcp:latest
+    image: bjeans/homelab-mcp:3.0.0
     container_name: homelab-mcp
     network_mode: host
     stdin_open: true

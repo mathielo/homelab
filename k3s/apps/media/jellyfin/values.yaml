@@ -5,11 +5,11 @@ app-template:
         jellyfin:
           image:
             repository: ghcr.io/hotio/jellyfin
-            tag: latest
+            tag: release-10.8.10-1
           env:
             PUID: "1000"
             PGID: "1000"
-            TZ: Europe/Amsterdam
+            TZ: Europe/Stockholm
           resources:
             requests:
               cpu: 100m

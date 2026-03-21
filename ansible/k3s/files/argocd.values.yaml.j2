@@ -94,7 +94,7 @@ repoServer:
 
   initContainers:
     - name: download-tools
-      image: alpine:latest
+      image: alpine:3.21
       imagePullPolicy: IfNotPresent
       command: [sh, -ec]
       args:
@@ -102,7 +102,7 @@ repoServer:
           mkdir -p /custom-tools/helm-plugins
           wget -qO- https://github.com/jkroepke/helm-secrets/releases/latest/download/helm-secrets.tar.gz \
             | tar -xzf- -C /custom-tools/helm-plugins
-          wget -qO /custom-tools/sops https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64
+          wget -qO /custom-tools/sops https://github.com/getsops/sops/releases/download/v3.12.2/sops-v3.12.2.linux.amd64
           chmod +x /custom-tools/sops
       volumeMounts:
         - name: custom-tools

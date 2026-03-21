@@ -5,11 +5,11 @@ app-template:
         bazarr:
           image:
             repository: ghcr.io/hotio/bazarr
-            tag: latest
+            tag: release-1.2.4
           env:
             PUID: "1000"
             PGID: "1000"
-            TZ: Europe/Amsterdam
+            TZ: Europe/Stockholm
           resources:
             requests:
               cpu: 10m

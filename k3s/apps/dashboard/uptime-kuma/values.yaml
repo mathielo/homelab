@@ -5,9 +5,9 @@ app-template:
         uptime-kuma:
           image:
             repository: louislam/uptime-kuma
-            tag: "2"
+            tag: "2.2.1"
           env:
-            TZ: Europe/Amsterdam
+            TZ: Europe/Stockholm
           resources:
             requests:
               cpu: 10m
@@ -19,7 +19,7 @@ app-template:
         autokuma:
           image:
             repository: ghcr.io/bigboot/autokuma
-            tag: latest
+            tag: "0.2.0"
           env:
             AUTOKUMA__KUMA__URL: http://localhost:3001
             AUTOKUMA__KUMA__USERNAME: admin

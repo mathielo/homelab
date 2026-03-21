@@ -9,9 +9,9 @@ app-template:
         seerr:
           image:
             repository: ghcr.io/seerr-team/seerr
-            tag: latest
+            tag: develop
           env:
-            TZ: Europe/Amsterdam
+            TZ: Europe/Stockholm
           resources:
             requests:
               cpu: 50m

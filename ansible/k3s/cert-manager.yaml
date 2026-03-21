@@ -41,6 +41,7 @@
         --create-namespace
         --set installCRDs=true
         --values /tmp/cert-manager.values.yaml
+        --version v1.20.0
         --wait --timeout 5m
 
     - name: Clean up cert-manager values file

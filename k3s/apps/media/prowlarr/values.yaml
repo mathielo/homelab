@@ -5,11 +5,11 @@ app-template:
         prowlarr:
           image:
             repository: ghcr.io/hotio/prowlarr
-            tag: latest
+            tag: release-1.7.4.3769
           env:
             PUID: "1000"
             PGID: "1000"
-            TZ: Europe/Amsterdam
+            TZ: Europe/Stockholm
           resources:
             requests:
               cpu: 10m

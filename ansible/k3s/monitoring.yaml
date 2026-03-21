@@ -41,6 +41,7 @@
         prometheus-community/prometheus
         --namespace kube-extra
         --values /tmp/prometheus.values.yaml
+        --version 28.14.0
         --wait --timeout 5m
 
     - name: Deploy Loki
@@ -49,6 +50,7 @@
         grafana/loki
         --namespace kube-extra
         --values /tmp/loki.values.yaml
+        --version 6.55.0
         --wait --timeout 5m
 
     - name: Deploy Promtail
@@ -57,6 +59,7 @@
         grafana/promtail
         --namespace kube-extra
         --values /tmp/promtail.values.yaml
+        --version 6.17.1
         --wait --timeout 5m
 
     - name: Deploy Grafana
@@ -65,6 +68,7 @@
         grafana/grafana
         --namespace kube-extra
         --values /tmp/grafana.values.yaml
+        --version 10.5.15
         --wait --timeout 5m
 
     - name: Clean up values files
