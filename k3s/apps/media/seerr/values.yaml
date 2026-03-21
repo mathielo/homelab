@@ -9,7 +9,7 @@ app-template:
         seerr:
           image:
             repository: ghcr.io/seerr-team/seerr
-            tag: develop
+            tag: develop@sha256:af01d51014181b4d3261a93e1e690ae180a337f6cabc281b2279f3af9f6d7d34
           env:
             TZ: Europe/Stockholm
           resources:
