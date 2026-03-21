@@ -13,6 +13,16 @@ This is a homelab repository for documenting, configuring, and automating a home
 - **User context**: Seasoned developer comfortable with code, learning networking specifics and advanced features.
 - **No git operations**: Do not commit, push, or perform other git operations unless explicitly asked. The user prefers to review all changes and commit themselves.
 
+## Security (Public Repository)
+
+This repository is **public**. When making changes:
+
+- **Never commit plaintext secrets** — all credentials must go through SOPS/AGE encryption (`*.sops.yaml`). If you see plaintext passwords, API keys, tokens, or private keys being added to tracked files, flag it immediately.
+- **Verify `.gitignore` coverage** — before creating files that could contain secrets (`.env`, `*.key`, `kubeconfig`, etc.), confirm they are gitignored.
+- **Audit new templates** — Jinja2 templates (`.j2`) should use `{{ variable }}` references, never hardcoded secret values.
+- **Sensitive operations** — use `no_log: true` in Ansible tasks that handle secrets.
+- **Internal details are acceptable** — private IPs, VLAN layout, domain names, and public keys are fine to include; they are non-exploitable without network access.
+
 ## Domain
 
 - **Domain:** `mathielo.com` (managed in Cloudflare)

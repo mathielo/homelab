@@ -69,6 +69,6 @@ Export `SOPS_AGE_KEY` to the environment:
 # without ever writing the key to disk.
 #
 # Update the op:// path to match your vault and item name.
-# To find the correct path: op item get "Homelab AGE Key" --format json
-export SOPS_AGE_KEY=$(op read "op://Private/Homelab AGE Key/AGE/secret key")
+# To find the correct path: op item get "<item-name>" --format json
+export SOPS_AGE_KEY=$(op read "op://<vault>/<item>/AGE/secret key")
 ```

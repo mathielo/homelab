@@ -7,3 +7,10 @@ charts/
 *.tgz
 
 .env
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+kubeconfig*
+.kubeconfig
