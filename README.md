@@ -13,6 +13,7 @@ Docs, config, scripts and _whatnots_ for everything being set up and experimente
 - [k3s Cluster](ansible/k3s.md) — k3s install, Tailscale, monitoring stack
 
 **Services**
+- [Ingress & DNS](services/ingress-dns.md) — How services are accessed (split-DNS, TLS, Cloudflare role)
 - [Media Stack](services/media-stack.md) — ARR + Usenet services setup and configuration
 
 **Tooling**

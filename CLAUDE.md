@@ -26,7 +26,7 @@ This repository is **public**. When making changes:
 ## Domain
 
 - **Domain:** `mathielo.com` (managed in Cloudflare)
-- **Homelab services:** exposed as `*.mathielo.com` via Cloudflare Tunnel (no open ports)
+- **Homelab services:** accessible as `*.hl.mathielo.com` via split-DNS (Pi-hole + k3s ingress, no public exposure)
 
 ## Repository Structure
 
@@ -68,8 +68,8 @@ Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
   - NFS share `Media` exported to k3s node (`10.10.50.3`) at `/var/nfs/shared/Media`
   - Backs the `media-data` PVC used by all ARR apps and media servers
 - **k3s cluster** on Lenovo ThinkCentre M715Q: Single-node Kubernetes running Prometheus, Grafana, Alertmanager
-- **Cloudflare Tunnel**: Exposes k3s services as `*.mathielo.com` without opening ports
-- **Tailscale**: Private overlay network for internal access to k3s services
+- **Cloudflare (DNS-01 only)**: Cloudflare manages the `mathielo.com` domain and provides DNS-01 challenge validation for Let's Encrypt certificates via cert-manager. No Cloudflare Tunnel — no services are publicly exposed.
+- **Tailscale**: Private overlay network for remote access to k3s services and Pi-hole
   - Tailnet: `qilin-goby.ts.net`
   - k3s node: `k3s.qilin-goby.ts.net` / `100.100.50.3` (mirrors local `10.10.50.3`)
   - Pi-hole: `100.100.53.53` (mirrors local `10.10.53.53`)
