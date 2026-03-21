@@ -56,7 +56,7 @@ app-template:
         gluetun:
           image:
             repository: ghcr.io/qdm12/gluetun
-            tag: v3.36.0
+            tag: v3.41.1
           securityContext:
             capabilities:
               add:
@@ -102,7 +102,7 @@ app-template:
         sabnzbd:
           image:
             repository: ghcr.io/hotio/sabnzbd
-            tag: release-4.0.3
+            tag: release-4.5.5
           env:
             PUID: "1000"
             PGID: "1000"
