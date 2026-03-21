@@ -41,6 +41,24 @@ singleBinary:
     storageClass: local-path
     size: 10Gi
 
+# Right-size memcached caches for single-node homelab.
+# Chart defaults (500m CPU / 9.6Gi mem) are for production clusters.
+chunksCache:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 128Mi
+    limits:
+      memory: 128Mi
+
+resultsCache:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      memory: 64Mi
+
 # Disable microservices-mode components
 backend:
   replicas: 0
