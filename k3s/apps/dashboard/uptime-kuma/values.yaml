@@ -19,7 +19,7 @@ app-template:
         autokuma:
           image:
             repository: ghcr.io/bigboot/autokuma
-            tag: "0.8.0"
+            tag: "2.0.0"
           env:
             AUTOKUMA__KUMA__URL: http://localhost:3001
             AUTOKUMA__KUMA__USERNAME: admin
