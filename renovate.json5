@@ -131,9 +131,7 @@
       groupName: 'media-stack-hotio',
       matchPackageNames: [
         '/^ghcr\\.io/hotio//',
-      ],
-      excludePackageNames: [
-        'ghcr.io/hotio/jellyfin',
+        '!ghcr.io/hotio/jellyfin',
       ],
     },
     {
