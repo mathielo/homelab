@@ -123,7 +123,7 @@
   ],
   packageRules: [
     {
-      description: 'Hotio media stack images',
+      description: 'Hotio media stack images (excl. Jellyfin)',
       matchDatasources: [
         'docker',
       ],
@@ -131,6 +131,19 @@
       groupName: 'media-stack-hotio',
       matchPackageNames: [
         '/^ghcr\\.io/hotio//',
+      ],
+      excludePackageNames: [
+        'ghcr.io/hotio/jellyfin',
+      ],
+    },
+    {
+      description: 'Jellyfin uses 10.x as a fixed prefix; treat the middle number as major',
+      matchDatasources: [
+        'docker',
+      ],
+      versioning: 'regex:^release-(?<compatibility>\\d+)\\.(?<major>\\d+)\\.(?<patch>\\d+)(-(?<build>\\d+))?$',
+      matchPackageNames: [
+        'ghcr.io/hotio/jellyfin',
       ],
     },
     {
