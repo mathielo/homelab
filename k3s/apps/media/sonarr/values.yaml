@@ -5,7 +5,7 @@ app-template:
         sonarr:
           image:
             repository: ghcr.io/hotio/sonarr
-            tag: release-3.0.10.1567
+            tag: release-4.0.17.2952
           env:
             PUID: "1000"
             PGID: "1000"
