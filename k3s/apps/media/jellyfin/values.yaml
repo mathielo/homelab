@@ -5,7 +5,7 @@ app-template:
         jellyfin:
           image:
             repository: ghcr.io/hotio/jellyfin
-            tag: release-10.8.10-1
+            tag: release-10.11.6
           env:
             PUID: "1000"
             PGID: "1000"
