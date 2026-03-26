@@ -23,11 +23,15 @@ After properly setting up the local [Pi-hole](../ansible/pihole.md), configure U
 
 For each VLAN in **Settings → Networks → [VLAN] → DHCP**:
 
-| Setting       | Value                    |
-| ------------- | ------------------------ |
-| Primary DNS   | 10.10.53.53 (Pi-hole)    |
-| Secondary DNS | 9.9.9.9 (Quad9 fallback) |
-| IPv6 DNS      | Auto                     |
+| Setting           | Value                        |
+| ----------------- | ---------------------------- |
+| Primary DNS       | `10.10.53.53` (Pi-hole)      |
+| ~~Secondary DNS~~ | ~~9.9.9.9 (Quad9 fallback)~~ |
+| IPv6 DNS          | `2001:2042:37b0:1c35::53`    |
+
+> :bulb: There are no secondary DNS resolvers for any VLANs. This makes the Pi-hole the sole DNS resolver for the entire network.
+>
+> While this ensures all traffic is properly filtered and controlled by the Pi-hole, it also turns it into a single point of failure. If the Pi-hole is down, all DNS resolving stops in the network.
 
 This ensures **per-client** visibility in Pi-hole logs for statistics and **per-device blocking**.
 
@@ -40,7 +44,7 @@ In **Settings → Internet → [WAN] → DNS**:
 | IPv4     | 10.10.53.53 | 9.9.9.9    |
 | IPv6     | 2620:fe::fe | 2620:fe::9 |
 
-This ensures the **router itself** uses Pi-hole for its own DNS queries.
+This ensures the **router itself** uses Pi-hole for its own DNS queries. Quad9 is used as backup resolver for the WAN.
 
 ## Firewall Rules
 
@@ -78,6 +82,7 @@ The zone matrix defaults handle most access control, but a few explicit policies
 | Allow "Internal" → Limited     | Internal  | Any  | Limited   | Any         | Any  | Any         |
 
 **What each rule covers:**
+
 - The two DNS rules punch through the zone defaults to allow Guest and IoT devices to reach Pi-hole for DNS, while remaining isolated from everything else in the Internal zone.
 - The Internal → Limited rule allows Trusted devices (VLAN 10) to reach IoT devices (VLAN 107). The broader Internal → Limited scope (rather than just VLAN 10) is acceptable since Servers and DNS VLANs have no reason to initiate connections to IoT devices in practice.
 - Pi-hole admin access (HTTP/HTTPS) from Trusted to VLAN 53 is covered implicitly by the Internal → Internal "Allow All" default.

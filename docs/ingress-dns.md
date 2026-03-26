@@ -6,7 +6,7 @@ How k3s services are accessed — from DNS resolution to TLS termination. Nothin
 
 ```
 Device (LAN or Tailscale)
-  → Pi-hole resolves *.hl.mathielo.com → 10.10.50.3      (split-DNS wildcard)
+  → Pi-hole resolves *.hl.mathielo.com → 10.10.50.3        (split-DNS wildcard)
   → nginx ingress controller routes by hostname            (k3s, kube-extra namespace)
   → TLS terminated with Let's Encrypt certificate          (cert-manager + Cloudflare DNS-01)
   → Traffic forwarded to backend pod                       (ClusterIP service)
@@ -26,6 +26,7 @@ address=/hl.mathielo.com/10.10.50.3
 This record is loaded because Pi-hole v6 has `misc.etc_dnsmasq_d = true` (set by the Pi-hole Ansible playbook).
 
 There is **no public DNS record** for `*.hl.mathielo.com` — it only resolves for devices using Pi-hole as their DNS server:
+
 - **LAN devices**: UniFi DHCP assigns Pi-hole (`10.10.53.53`) as the DNS server for all VLANs
 - **Remote devices**: Tailscale global nameserver override points to Pi-hole (`100.100.53.53`)
 
@@ -57,14 +58,15 @@ ingress:
 
 [cert-manager](https://cert-manager.io/) issues Let's Encrypt certificates using **DNS-01 challenges** via the Cloudflare API. This is the only role Cloudflare plays — it validates domain ownership by creating temporary DNS TXT records. No traffic is routed through Cloudflare.
 
-| Component | Details |
-|-----------|---------|
-| ClusterIssuer | `letsencrypt-prod` (ACME, DNS-01 solver) |
-| DNS provider | Cloudflare (API token with `Edit zone DNS` permission) |
-| Secret | `cloudflare-api-token` in `cert-manager` namespace (from SOPS) |
-| Installed by | `ansible/k3s/cert-manager.yaml` (jetstack Helm chart) |
+| Component     | Details                                                        |
+| ------------- | -------------------------------------------------------------- |
+| ClusterIssuer | `letsencrypt-prod` (ACME, DNS-01 solver)                       |
+| DNS provider  | Cloudflare (API token with `Edit zone DNS` permission)         |
+| Secret        | `cloudflare-api-token` in `cert-manager` namespace (from SOPS) |
+| Installed by  | `ansible/k3s/cert-manager.yaml` (jetstack Helm chart)          |
 
 When a new Ingress with the `cert-manager.io/cluster-issuer` annotation is created, cert-manager automatically:
+
 1. Requests a certificate from Let's Encrypt
 2. Creates a `_acme-challenge.<domain>` TXT record in Cloudflare DNS
 3. Let's Encrypt verifies the TXT record and issues the certificate

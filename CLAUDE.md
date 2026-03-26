@@ -30,8 +30,7 @@ This repository is **public**. When making changes:
 
 ## Repository Structure
 
-- `network/` - Network architecture documentation including VLAN segmentation
-- `services/` - Individual service setup guides and configurations (e.g., Pi-hole)
+- `docs/` - Hardware inventory, network architecture, service guides
 - `k3s/` - Kubernetes cluster setup, manifests, and Ansible playbooks
 
 ## Network Architecture

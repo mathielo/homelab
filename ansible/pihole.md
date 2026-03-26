@@ -2,9 +2,11 @@
 
 Using a Raspberry Pi as the host for [Pi-hole](https://docs.pi-hole.net/) as the network's default DNS Resolver. All network traffic is meant to go through it to block unwanted ads, malware or any other type of blacklisted domains.
 
-| Host   | Hardware       | LAN IP        | LAN IPv6                   | Tailscale IP   |
-| ------ | -------------- | ------------- | -------------------------- | -------------- |
-| pihole | Raspberry Pi 5 | 10.10.53.53   | 2001:2042:37b0:1c35::53    | 100.100.53.53  |
+| Host   | LAN IP      | LAN IPv6                | Tailscale IP  |
+| ------ | ----------- | ----------------------- | ------------- |
+| pihole | 10.10.53.53 | 2001:2042:37b0:1c35::53 | 100.100.53.53 |
+
+> Full hardware specs: [docs/hardware.md](../docs/hardware.md)
 
 ## Prerequisites
 
@@ -107,7 +109,7 @@ The admin panel is available at `http://10.10.53.53/admin` after installation.
 
 ## Tailscale
 
-Pi-hole is a member of the tailnet so it can serve DNS to all tailnet devices regardless of their physical location.
+Pi-hole is a member of the tailnet so it can serve DNS to all tailnet devices regardless of their physical location. See [docs/tailscale.md](../docs/tailscale.md) for the overall architecture (IP convention, subnet routing, DNS flow).
 
 ### Setup
 

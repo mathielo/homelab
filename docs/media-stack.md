@@ -18,7 +18,6 @@ DNS/indexer flow:
 
 ## Services
 
-
 | Service  | URL                                | Port | Purpose                 |
 | -------- | ---------------------------------- | ---- | ----------------------- |
 | SABnzbd  | `https://sabnzbd.hl.mathielo.com`  | 8080 | Usenet downloader       |
@@ -29,36 +28,29 @@ DNS/indexer flow:
 | Jellyfin | `https://jellyfin.hl.mathielo.com` | 8096 | Media server / playback |
 | Seerr    | `https://seerr.hl.mathielo.com`    | 5055 | Media request portal    |
 
-
 > :exclamation: All URLs require Tailscale (or LAN) + Pi-hole DNS (`*.hl.mathielo.com → 10.10.50.3`).
 
 ## External Services
 
 ### Usenet Providers (configured in SABnzbd)
 
-
 | Provider | Server          | Port | SSL | Role      |
 | -------- | --------------- | ---- | --- | --------- |
 | XS News  | `xsnews.nl`     | 563  | Yes | Primary   |
 | Eweka    | `news.eweka.nl` | 563  | Yes | Secondary |
 
-
 ### Indexers (configured in Prowlarr)
-
 
 | Indexer     | URL                       | Type   |
 | ----------- | ------------------------- | ------ |
 | DrunkenSlug | `https://drunkenslug.com` | Usenet |
 | NZBFinder   | `https://nzbfinder.ws`    | Usenet |
 
-
 ### Subtitles (configured in Bazarr)
-
 
 | Provider          | URL                             |
 | ----------------- | ------------------------------- |
 | OpenSubtitles.com | `https://www.opensubtitles.com` |
-
 
 > :bulb: OpenSubtitles.com requires a free account. The API key is generated from your account profile page.
 
@@ -105,7 +97,6 @@ Complete the setup wizard, then configure:
 
 **Config → Servers** — add both providers:
 
-
 | Setting     | XS News (primary) | Eweka (secondary) |
 | ----------- | ----------------- | ----------------- |
 | Host        | `xsnews.nl`       | `news.eweka.nl`   |
@@ -114,24 +105,19 @@ Complete the setup wizard, then configure:
 | Connections | `50`              | `25`              |
 | Priority    | `0`               | `1`               |
 
-
 **Config → Folders:**
-
 
 | Setting                   | Path                               |
 | ------------------------- | ---------------------------------- |
 | Temporary Download Folder | `/local-ssd/downloads`             |
 | Completed Download Folder | `/media/downloads/usenet/complete` |
 
-
 **Config → Categories:**
-
 
 | Category | Folder                                    |
 | -------- | ----------------------------------------- |
 | `movies` | `/media/downloads/usenet/complete/movies` |
 | `shows`  | `/media/downloads/usenet/complete/shows`  |
-
 
 Note the **API key** from Config → General → Security.
 
@@ -139,21 +125,17 @@ Note the **API key** from Config → General → Security.
 
 Set up authentication, then add indexers via **Settings → Indexers**:
 
-
 | Indexer     | Type    | URL                       | Auth    |
 | ----------- | ------- | ------------------------- | ------- |
 | DrunkenSlug | Newznab | `https://drunkenslug.com` | API key |
 | NZBFinder   | Newznab | `https://nzbfinder.ws`    | API key |
 
-
 After Steps 3–4 are done, come back to **Settings → Apps** and add:
-
 
 | App    | URL                                          | Sync      |
 | ------ | -------------------------------------------- | --------- |
 | Sonarr | `http://sonarr.media.svc.cluster.local:8989` | Full Sync |
 | Radarr | `http://radarr.media.svc.cluster.local:7878` | Full Sync |
-
 
 Set Prowlarr Server to `http://prowlarr.media.svc.cluster.local:9696`. Each app connection requires the respective API key.
 
@@ -183,13 +165,11 @@ Note the **API key** from Settings → General.
 
 Set up authentication, then connect to Sonarr and Radarr:
 
-
 | Setting | Sonarr                           | Radarr                           |
 | ------- | -------------------------------- | -------------------------------- |
 | Host    | `sonarr.media.svc.cluster.local` | `radarr.media.svc.cluster.local` |
 | Port    | `8989`                           | `7878`                           |
 | API Key | Sonarr API key                   | Radarr API key                   |
-
 
 Then configure **Settings → Languages** and add **OpenSubtitles.com** under **Settings → Providers** (requires account credentials + API key).
 
@@ -197,12 +177,10 @@ Then configure **Settings → Languages** and add **OpenSubtitles.com** under **
 
 Complete the setup wizard, then add media libraries:
 
-
 | Library | Content Type | Folder                  |
 | ------- | ------------ | ----------------------- |
 | Movies  | Movies       | `/media/library/movies` |
 | Shows   | Shows        | `/media/library/shows`  |
-
 
 Optional: enable VA-API hardware transcoding (AMD Radeon Vega 8 available via `amdgpu-device-plugin`, uncomment GPU resource requests in `k3s/apps/media/jellyfin/values.yaml`).
 
@@ -212,12 +190,10 @@ Note the **API key** from Dashboard → API Keys.
 
 Sign in, then connect all services:
 
-
 | Service  | URL                                            | Extra Config                         |
 | -------- | ---------------------------------------------- | ------------------------------------ |
 | Jellyfin | `http://jellyfin.media.svc.cluster.local:8096` | Sync Movies + Shows libraries        |
 | Radarr   | `http://radarr.media.svc.cluster.local:7878`   | Root folder: `/media/library/movies` |
 | Sonarr   | `http://sonarr.media.svc.cluster.local:8989`   | Root folder: `/media/library/shows`  |
-
 
 Each connection requires the respective API key and a quality profile selection.

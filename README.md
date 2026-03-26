@@ -4,24 +4,24 @@ Docs, config, scripts and _whatnots_ for everything being set up and experimente
 
 # Docs
 
-**Network**
-- [Network & VLANs](network/README.md) — VLAN segmentation, WiFi SSIDs, DNS config, firewall rules
+## General
 
-**Ansible**
+- [Hardware, Network & Services](docs/README.md) — Hardware inventory, network architecture, service guides
+
+## Ansible
+
 - [Overview](ansible/README.md) — Host inventory and setup
 - [Pi-hole](ansible/pihole.md) — Pi-hole + Unbound setup, Tailscale DNS
 - [k3s Cluster](ansible/k3s.md) — k3s install, Tailscale, monitoring stack
 
-**Services**
-- [Ingress & DNS](services/ingress-dns.md) — How services are accessed (split-DNS, TLS, Cloudflare role)
-- [Media Stack](services/media-stack.md) — ARR + Usenet services setup and configuration
+## Tooling
 
-**Tooling**
 - [MCP Server](mcp/README.md) — Claude Code MCP integration for Pi-hole and UniFi
 
 # Prerequisites
 
 Some tools need to be installed locally to be able to manage the homelab setup, namely:
+
 - Ansible
 - sshpass
 - Docker + compose plugin

@@ -2,19 +2,21 @@
 
 ## Nodes
 
-| Host       | Hardware                           | CPU            | RAM       | Storage        | IP         |
-| ---------- | ---------------------------------- | -------------- | --------- | -------------- | ---------- |
-| k3s-srv-01 | Lenovo ThinkCentre M715Q (2nd Gen) | Ryzen 3 2200GE | 32GB DDR4 | 256GB NVMe SSD | 10.10.50.3 |
+| Host        | IP         | Tailscale IP |
+| ----------- | ---------- | ------------ |
+| k3s-node-01 | 10.10.50.3 | 100.100.50.3 |
+
+> Full hardware specs: [docs/hardware.md](../docs/hardware.md)
 
 ## Namespaces
 
-| Namespace      | Purpose                                          | Services                                                             |
-| -------------- | ------------------------------------------------ | -------------------------------------------------------------------- |
-| `kube-extra`   | Cluster infrastructure (monitoring, ingress)     | nginx-ingress, Prometheus, Grafana, Loki, Promtail                   |
-| `media`        | Media stack (ARR + streaming, managed by ArgoCD) | Sonarr, Radarr, Prowlarr, Bazarr, SABnzbd, Jellyfin, Seerr         |
-| `dashboard`    | User-facing dashboards and portals               | Homepage                                                             |
-| `argocd`       | GitOps controller                                | ArgoCD                                                               |
-| `cert-manager` | TLS certificate management                       | cert-manager                                                         |
+| Namespace      | Purpose                                          | Services                                                   |
+| -------------- | ------------------------------------------------ | ---------------------------------------------------------- |
+| `kube-extra`   | Cluster infrastructure (monitoring, ingress)     | nginx-ingress, Prometheus, Grafana, Loki, Promtail         |
+| `media`        | Media stack (ARR + streaming, managed by ArgoCD) | Sonarr, Radarr, Prowlarr, Bazarr, SABnzbd, Jellyfin, Seerr |
+| `dashboard`    | User-facing dashboards and portals               | Homepage                                                   |
+| `argocd`       | GitOps controller                                | ArgoCD                                                     |
+| `cert-manager` | TLS certificate management                       | cert-manager                                               |
 
 ## Prerequisites
 
@@ -22,10 +24,10 @@
    - During install, create user: `m8hl`
    - Enable OpenSSH server when prompted
 
-
 ## Bootstrap
 
 The bootstrap playbook configures the server for remote management:
+
 - Passwordless sudo for the `m8hl` user
 - SSH public key authentication (only the key in the playbook is authorized)
 - Password-based SSH disabled
@@ -34,7 +36,7 @@ First run (password auth still enabled, credentials loaded from secrets):
 
 ```bash
 cd ansible
-ansible-playbook bootstrap.yaml --limit k3s_servers
+ansible-playbook bootstrap.yaml --limit k3s_nodes
 ```
 
 > :bulb: After bootstrap, SSH key auth is used for all subsequent playbooks.
@@ -43,7 +45,7 @@ ansible-playbook bootstrap.yaml --limit k3s_servers
 
 ## Tailscale
 
-Installs Tailscale on the k3s node for private network access — no ports exposed to the internet.
+Installs Tailscale on the k3s node for private network access — no ports exposed to the internet. See [docs/tailscale.md](../docs/tailscale.md) for the overall architecture (IP convention, subnet routing, DNS flow).
 
 ### Prerequisites
 
@@ -52,7 +54,7 @@ Generate a reusable auth key at [login.tailscale.com/admin/settings/keys](https:
 ### Deploy
 
 ```bash
-ansible-playbook tailscale.yaml --limit k3s_servers
+ansible-playbook tailscale.yaml --limit k3s_nodes
 ```
 
 The playbook decrypts the secrets file, connects the node to your tailnet, and prints the node's Tailscale IP.
@@ -61,7 +63,7 @@ The playbook decrypts the secrets file, connects the node to your tailnet, and p
 
 The Tailscale playbook advertises the Servers subnet (`10.10.50.0/24`) as a subnet route, allowing remote tailnet devices to reach k3s services at their LAN IPs.
 
-After running the playbook, approve the route in the **Tailscale admin console** → Machines → k3s-srv-01 → Edit route settings → enable `10.10.50.0/24`.
+After running the playbook, approve the route in the **Tailscale admin console** → Machines → k3s-node-01 → Edit route settings → enable `10.10.50.0/24`.
 
 ### DNS setup (Pi-hole)
 
@@ -76,6 +78,7 @@ ansible-playbook k3s/install-k3s.yaml
 ```
 
 This will:
+
 - Install k3s (Traefik disabled)
 - Wait for the node to become Ready
 - Install Helm
@@ -133,6 +136,7 @@ Helm values live in `ansible/k3s/files/monitoring/`:
 | `grafana.values.yaml`    | Grafana with pre-wired datasources and ingress         |
 
 Key settings:
+
 - **Retention:** 30 days for both Prometheus and Loki
 - **Storage:** Persistent volumes via k3s local-path-provisioner (10Gi Prometheus, 10Gi Loki, 2Gi Grafana)
 - **Resources:** Sized for a Mini PC/NUC
