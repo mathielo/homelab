@@ -1,6 +1,6 @@
 ---
 - name: Deploy monitoring stack
-  hosts: k3s_servers
+  hosts: k3s_nodes
   become: true
   environment:
     KUBECONFIG: /etc/k3s/k3s.yaml
@@ -9,7 +9,10 @@
     - name: Add Helm repos
       command: helm repo add {{ item.name }} {{ item.url }}
       loop:
-        - { name: prometheus-community, url: "https://prometheus-community.github.io/helm-charts" }
+        - {
+            name: prometheus-community,
+            url: "https://prometheus-community.github.io/helm-charts",
+          }
         - { name: grafana, url: "https://grafana.github.io/helm-charts" }
       register: helm_repo
       changed_when: "'has been added' in helm_repo.stdout"

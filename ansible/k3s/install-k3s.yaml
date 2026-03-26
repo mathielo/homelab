@@ -1,6 +1,6 @@
 ---
 - name: Install k3s
-  hosts: k3s_servers
+  hosts: k3s_nodes
   become: true
   environment:
     KUBECONFIG: /etc/k3s/k3s.yaml
