@@ -68,6 +68,17 @@
       command: pihole setpassword {{ pihole_password }}
       no_log: true
 
+    # --- NTP (use router as time source to avoid DNS dependency) ---
+
+    - name: Configure NTP to use VLAN gateway instead of external servers
+      copy:
+        dest: /etc/systemd/timesyncd.conf
+        content: |
+          [Time]
+          NTP=10.10.53.1
+        mode: "0644"
+      notify: Restart timesyncd
+
     # --- Unbound (recursive resolver) ---
 
     - name: Install Unbound
@@ -139,6 +150,11 @@
       notify: Restart pihole-FTL
 
   handlers:
+    - name: Restart timesyncd
+      systemd:
+        name: systemd-timesyncd
+        state: restarted
+
     - name: Restart unbound
       systemd:
         name: unbound
