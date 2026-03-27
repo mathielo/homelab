@@ -1,0 +1,25 @@
+---
+# MetalLB IP address pool
+#
+# Assigns 10.10.50.3 as a virtual IP (VIP) for LoadBalancer services.
+# This reuses the original single-node cluster IP so that the Pi-hole
+# DNS wildcard (*.hl.mathielo.com → 10.10.50.3) requires no changes.
+#
+# No physical node uses .3 — k3s nodes start at .10.
+# Expand to 10.10.50.3-10.10.50.9 if more LoadBalancer IPs are needed.
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: default-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 10.10.50.3/32
+
+---
+# L2 advertisement — MetalLB responds to ARP requests for the VIP
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: default
+  namespace: metallb-system

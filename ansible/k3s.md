@@ -2,27 +2,31 @@
 
 ## Nodes
 
-| Host        | IP         | Tailscale IP |
-| ----------- | ---------- | ------------ |
-| k3s-node-01 | 10.10.50.3 | 100.100.50.3 |
+| Host        | Role   | IP          | Tailscale IP  |
+| ----------- | ------ | ----------- | ------------- |
+| k3s-server  | Server | 10.10.50.10 | 100.100.50.10 |
+| k3s-node-01 | Agent  | 10.10.50.11 | 100.100.50.11 |
+
+MetalLB VIP: `10.10.50.3` (ingress, DNS wildcard target)
 
 > Full hardware specs: [docs/hardware.md](../docs/hardware.md)
-
-## Namespaces
-
-| Namespace      | Purpose                                          | Services                                                   |
-| -------------- | ------------------------------------------------ | ---------------------------------------------------------- |
-| `kube-extra`   | Cluster infrastructure (monitoring, ingress)     | nginx-ingress, Prometheus, Grafana, Loki, Promtail         |
-| `media`        | Media stack (ARR + streaming, managed by ArgoCD) | Sonarr, Radarr, Prowlarr, Bazarr, SABnzbd, Jellyfin, Seerr |
-| `dashboard`    | User-facing dashboards and portals               | Homepage                                                   |
-| `argocd`       | GitOps controller                                | ArgoCD                                                     |
-| `cert-manager` | TLS certificate management                       | cert-manager                                               |
 
 ## Prerequisites
 
 1. Install **Ubuntu Server** on the target machine
    - During install, create user: `m8hl`
    - Enable OpenSSH server when prompted
+
+## Namespaces
+
+| Namespace        | Purpose                                          | Services                                                   |
+| ---------------- | ------------------------------------------------ | ---------------------------------------------------------- |
+| `kube-extra`     | Cluster infrastructure (monitoring, ingress)     | nginx-ingress, Prometheus, Grafana, Loki, Promtail         |
+| `metallb-system` | Load balancer                                    | MetalLB (L2 mode, VIP 10.10.50.3)                          |
+| `media`          | Media stack (ARR + streaming, managed by ArgoCD) | Sonarr, Radarr, Prowlarr, Bazarr, SABnzbd, Jellyfin, Seerr |
+| `dashboard`      | User-facing dashboards and portals               | Homepage, Uptime Kuma                                      |
+| `argocd`         | GitOps controller                                | ArgoCD                                                     |
+| `cert-manager`   | TLS certificate management                       | cert-manager                                               |
 
 ## Bootstrap
 
@@ -54,37 +58,37 @@ Generate a reusable auth key at [login.tailscale.com/admin/settings/keys](https:
 ### Deploy
 
 ```bash
-ansible-playbook tailscale.yaml --limit k3s_nodes
+ansible-playbook tailscale.yaml --limit k3s_server
 ```
 
 The playbook decrypts the secrets file, connects the node to your tailnet, and prints the node's Tailscale IP.
 
 ### Subnet routing
 
-The Tailscale playbook advertises the Servers subnet (`10.10.50.0/24`) as a subnet route, allowing remote tailnet devices to reach k3s services at their LAN IPs.
+The Tailscale playbook advertises the Servers subnet (`10.10.50.0/24`) as a subnet route from the **server node only**, allowing remote tailnet devices to reach k3s services at their LAN IPs.
 
-After running the playbook, approve the route in the **Tailscale admin console** → Machines → k3s-node-01 → Edit route settings → enable `10.10.50.0/24`.
+After running the playbook, approve the route in the **Tailscale admin console** → Machines → k3s-server → Edit route settings → enable `10.10.50.0/24`.
 
 ### DNS setup (Pi-hole)
 
-Pi-hole has a wildcard DNS record pointing `*.hl.mathielo.com` to the k3s LAN IP (`10.10.50.3`) via `/etc/dnsmasq.d/20-k3s.conf`. Combined with subnet routing, this resolves correctly for both LAN and tailnet devices.
+Pi-hole has a wildcard DNS record pointing `*.hl.mathielo.com` to the MetalLB VIP (`10.10.50.3`) via `/etc/dnsmasq.d/20-k3s.conf`. Combined with subnet routing, this resolves correctly for both LAN and tailnet devices.
 
 ## Install k3s
 
-Installs k3s and sets up all cluster-level infrastructure:
+Installs k3s server and agents, and sets up cluster-level infrastructure:
 
 ```bash
+# Install server + agents (run without --limit to set up the full cluster)
 ansible-playbook k3s/install-k3s.yaml
+
+# Install MetalLB load balancer
+ansible-playbook k3s/metallb.yaml
 ```
 
-This will:
+The install playbook has two plays:
 
-- Install k3s (Traefik disabled)
-- Wait for the node to become Ready
-- Install Helm
-- Create the `kube-extra` namespace
-- Deploy the nginx ingress controller into `kube-extra`
-- Fetch the kubeconfig to `~/.kube/config-k3s` on your local machine
+1. **Server** (`k3s_server` group): installs k3s server, Helm, nginx-ingress, fetches kubeconfig
+2. **Agents** (`k3s_agents` group): joins agents to the cluster using the server's token
 
 To use kubectl locally:
 
@@ -149,4 +153,4 @@ ArgoCD-managed apps live in `k3s/apps/<namespace>/<app>/` as Helm charts (bjw-s/
 2. Add an ArgoCD Application CR in `k3s/argocd/apps/<app>.yaml` pointing to the chart
 3. Commit and push — ArgoCD syncs automatically
 
-The wildcard DNS record (`*.hl.mathielo.com → 10.10.50.3`) covers all subdomains, so no DNS changes needed for new `<app>.hl.mathielo.com` services. See existing apps in `k3s/apps/media/` for examples.
+The wildcard DNS record (`*.hl.mathielo.com → 10.10.50.3`, the MetalLB VIP) covers all subdomains, so no DNS changes needed for new `<app>.hl.mathielo.com` services. See existing apps in `k3s/apps/media/` for examples.

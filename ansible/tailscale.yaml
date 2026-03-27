@@ -30,7 +30,7 @@
       loop:
         - net.ipv4.ip_forward
         - net.ipv6.conf.all.forwarding
-      when: "'k3s_nodes' in group_names"
+      when: "'k3s_server' in group_names"
 
     - name: Connect to Tailscale
       command: tailscale up --auth-key={{ tailscale_auth_key }}
@@ -41,7 +41,7 @@
 
     - name: Advertise Servers subnet via Tailscale (subnet routing)
       command: tailscale set --advertise-routes=10.10.50.0/24
-      when: "'k3s_nodes' in group_names"
+      when: "'k3s_server' in group_names"
 
     - name: Get Tailscale IP
       command: tailscale ip --4
@@ -58,4 +58,4 @@
         msg:
           - "Subnet route advertised for 10.10.50.0/24."
           - "Approve it in Tailscale admin console → Machines → {{ inventory_hostname }} → Edit route settings → enable 10.10.50.0/24"
-      when: "'k3s_nodes' in group_names"
+      when: "'k3s_server' in group_names"

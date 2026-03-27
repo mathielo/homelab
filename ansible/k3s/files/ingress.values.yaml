@@ -1,4 +1,6 @@
 controller:
+  service:
+    loadBalancerIP: "10.10.50.3"
   resources:
     requests:
       cpu: 50m

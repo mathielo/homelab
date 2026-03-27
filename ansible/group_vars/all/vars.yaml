@@ -1,1 +1,10 @@
 ansible_become_password: "{{ ansible_password }}"
+
+# k3s node labels (applied by k3s/install-k3s.yaml Play 3)
+k3s_node_labels:
+  - node: k3s-server
+    labels:
+      - workload=infra
+  - node: k3s-node-01
+    labels:
+      - workload=media

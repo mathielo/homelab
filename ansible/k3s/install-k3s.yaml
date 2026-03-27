@@ -1,6 +1,7 @@
 ---
-- name: Install k3s
-  hosts: k3s_nodes
+# Play 1 — Install k3s server (control plane)
+- name: Install k3s server
+  hosts: k3s_server
   become: true
   environment:
     KUBECONFIG: /etc/k3s/k3s.yaml
@@ -24,9 +25,16 @@
         name: nfs-common
         state: present
 
-    - name: Install k3s using official install script
+    - name: Install k3s server using official install script
       shell:
-        cmd: curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --data-dir=/var/lib/k3s --write-kubeconfig=/etc/k3s/k3s.yaml --write-kubeconfig-mode=0640" sh -
+        cmd: >
+          curl -sfL https://get.k3s.io |
+          INSTALL_K3S_EXEC="--disable=traefik
+          --data-dir=/var/lib/k3s
+          --write-kubeconfig=/etc/k3s/k3s.yaml
+          --write-kubeconfig-mode=0640
+          --tls-san={{ ansible_host }}
+          --node-ip={{ ansible_host }}" sh -
         creates: /usr/local/bin/k3s
 
     - name: Wait for k3s to be ready
@@ -36,6 +44,15 @@
       delay: 5
       until: k3s_ready.rc == 0
       changed_when: false
+
+    - name: Read k3s join token
+      slurp:
+        src: /var/lib/k3s/server/node-token
+      register: k3s_token_raw
+
+    - name: Set k3s join token fact
+      set_fact:
+        k3s_token: "{{ k3s_token_raw.content | b64decode | trim }}"
 
     - name: Install Helm
       shell:
@@ -106,3 +123,67 @@
         msg: >-
           Kubeconfig written to ~/.kube/config-k3s.
           Export it with: export KUBECONFIG=~/.kube/config-k3s
+
+# Play 2 — Install k3s agents
+- name: Install k3s agents
+  hosts: k3s_agents
+  become: true
+
+  handlers:
+    - name: Apply sysctl settings
+      command: sysctl --system
+
+  tasks:
+    - name: Disable IPv6 at node level (required for Gluetun VPN sidecar)
+      copy:
+        dest: /etc/sysctl.d/99-disable-ipv6.conf
+        content: |
+          net.ipv6.conf.all.disable_ipv6 = 1
+          net.ipv6.conf.default.disable_ipv6 = 1
+        mode: "0644"
+      notify: Apply sysctl settings
+
+    - name: Install NFS client (required for NFS PersistentVolumes)
+      apt:
+        name: nfs-common
+        state: present
+
+    - name: Install k3s agent using official install script
+      shell:
+        cmd: >
+          curl -sfL https://get.k3s.io |
+          K3S_URL=https://{{ hostvars[groups['k3s_server'][0]]['ansible_host'] }}:6443
+          K3S_TOKEN={{ hostvars[groups['k3s_server'][0]]['k3s_token'] }}
+          INSTALL_K3S_EXEC="--data-dir=/var/lib/k3s
+          --node-ip={{ ansible_host }}" sh -
+        creates: /usr/local/bin/k3s-agent
+      no_log: true
+
+    - name: Wait for agent to join cluster
+      command: >
+        k3s kubectl get node {{ inventory_hostname }}
+      delegate_to: "{{ groups['k3s_server'][0] }}"
+      become: true
+      environment:
+        KUBECONFIG: /etc/k3s/k3s.yaml
+      register: agent_ready
+      retries: 10
+      delay: 5
+      until: agent_ready.rc == 0
+      changed_when: false
+
+# Play 3 — Label all k3s nodes
+- name: Label k3s nodes
+  hosts: k3s_server
+  become: true
+  environment:
+    KUBECONFIG: /etc/k3s/k3s.yaml
+
+  tasks:
+    - name: Apply node labels
+      command: >
+        k3s kubectl label node {{ item.node }}
+        {% for label in item.labels %}{{ label }} {% endfor %}
+        --overwrite
+      loop: "{{ k3s_node_labels }}"
+      changed_when: false

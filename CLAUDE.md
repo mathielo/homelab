@@ -39,14 +39,14 @@ Router: R18 UGC Max (UniFi)
 
 Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
 
-| VLAN | Subnet           | Hosts | IPv6                        | Purpose                      |
-|------|------------------|-------|-----------------------------|------------------------------|
-| 1    | 10.10.1.0/24     | 254   | 2001:2042:37b0:1c00::/64    | UniFi management             |
-| 10   | 10.10.10.0/24    | 254   | 2001:2042:37b0:1c02::/64    | Trusted (PCs, phones)        |
-| 40   | 10.10.40.0/24    | 254   | -                           | Guest                        |
-| 50   | 10.10.50.0/24    | 254   | -                           | Servers (k3s)                |
-| 53   | 10.10.53.0/24    | 254   | 2001:2042:37b0:1c35::/64    | DNS (Pi-hole)                |
-| 107  | 10.10.107.0/24   | 254   | -                           | IoT (lights, sensors)        |
+| VLAN | Subnet         | Hosts | IPv6                     | Purpose               |
+| ---- | -------------- | ----- | ------------------------ | --------------------- |
+| 1    | 10.10.1.0/24   | 254   | 2001:2042:37b0:1c00::/64 | UniFi management      |
+| 10   | 10.10.10.0/24  | 254   | 2001:2042:37b0:1c02::/64 | Trusted (PCs, phones) |
+| 40   | 10.10.40.0/24  | 254   | -                        | Guest                 |
+| 50   | 10.10.50.0/24  | 254   | -                        | Servers (k3s)         |
+| 53   | 10.10.53.0/24  | 254   | 2001:2042:37b0:1c35::/64 | DNS (Pi-hole)         |
+| 107  | 10.10.107.0/24 | 254   | -                        | IoT (lights, sensors) |
 
 - Gateway at .1 in each VLAN (e.g. `10.10.10.1` for VLAN 10)
 - Only Trusted (VLAN 10) can access Servers + IoT; all others isolated
@@ -64,16 +64,19 @@ Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
   - DNS chain: Device → Pi-hole (`:53`) → Unbound (`127.0.0.1:5335`) → root nameservers
 - **UNAS-4** (UniFi NAS): Network-attached storage on VLAN 1 (`10.10.1.4`)
   - 4×4 TB HDD in RAID 5 (~12 TB usable) + 500 GB M.2 SSD cache
-  - NFS share `Media` exported to k3s node (`10.10.50.3`) at `/var/nfs/shared/Media`
+  - NFS share `Media` exported to k3s nodes (`10.10.50.10`, `10.10.50.11`) at `/var/nfs/shared/Media`
   - Backs the `media-data` PVC used by all ARR apps and media servers
-- **k3s cluster** on Lenovo ThinkCentre M715Q: Single-node Kubernetes running Prometheus, Grafana, Alertmanager
+- **k3s cluster**: Multi-node Kubernetes (server + agent) running Prometheus, Grafana, Loki, Promtail
+  - Server: `k3s-server` (M75q-1) at `10.10.50.10`
+  - Agent: `k3s-node-01` (M715Q) at `10.10.50.11`
+  - MetalLB VIP: `10.10.50.3` (ingress target, DNS wildcard destination)
 - **Cloudflare (DNS-01 only)**: Cloudflare manages the `mathielo.com` domain and provides DNS-01 challenge validation for Let's Encrypt certificates via cert-manager. No Cloudflare Tunnel — no services are publicly exposed.
 - **Tailscale**: Private overlay network for remote access to k3s services and Pi-hole
   - Tailnet: `qilin-goby.ts.net`
-  - k3s node: `k3s.qilin-goby.ts.net` / `100.100.50.3` (mirrors local `10.10.50.3`)
+  - k3s server: `100.100.50.10` (mirrors local `10.10.50.10`)
   - Pi-hole: `100.100.53.53` (mirrors local `10.10.53.53`)
-  - Pi-hole wildcard record: `*.hl.mathielo.com → 10.10.50.3` (via `/etc/dnsmasq.d/20-k3s.conf`)
-  - k3s node advertises `10.10.50.0/24` as a Tailscale subnet route so remote tailnet devices can reach LAN IPs
+  - Pi-hole wildcard record: `*.hl.mathielo.com → 10.10.50.3` (MetalLB VIP, via `/etc/dnsmasq.d/20-k3s.conf`)
+  - k3s server advertises `10.10.50.0/24` as a Tailscale subnet route so remote tailnet devices can reach LAN IPs
 
 ## MCP Access Policy
 

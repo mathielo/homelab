@@ -66,6 +66,7 @@ sudo nmcli connection up "netplan-eth0"
 ## Bootstrap
 
 The bootstrap playbook configures the host for remote management:
+
 - Passwordless sudo for the `m8hl` user
 - SSH public key authentication (only the key in the playbook is authorized)
 - Password-based SSH disabled
@@ -90,6 +91,7 @@ ansible-playbook pihole/pihole.yaml
 ```
 
 This will:
+
 - Write `/etc/pihole/setupVars.conf` with the network and DNS configuration
 - Install Pi-hole (query logging enabled)
 - Set the admin password from the secrets file
@@ -101,6 +103,7 @@ This will:
 The admin panel is available at `http://10.10.53.53/admin` after installation.
 
 > :bulb: This playbook targets **Pi-hole v6**. Key v6 differences:
+>
 > - Main config: `/etc/pihole/pihole.toml` (replaces legacy dnsmasq conf files)
 > - DNS service: `pihole-FTL` — restart with `sudo systemctl restart pihole-FTL`
 > - Config CLI: `sudo pihole-FTL --config <key> <value>` (e.g. `sudo pihole-FTL --config misc.etc_dnsmasq_d true`)

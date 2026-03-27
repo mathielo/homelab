@@ -1,0 +1,52 @@
+---
+- name: Install MetalLB
+  hosts: k3s_server
+  become: true
+  environment:
+    KUBECONFIG: /etc/k3s/k3s.yaml
+
+  tasks:
+    - name: Add MetalLB Helm repo
+      command: helm repo add metallb https://metallb.github.io/metallb
+      register: helm_repo
+      changed_when: "'has been added' in helm_repo.stdout"
+      failed_when: helm_repo.rc != 0 and 'already exists' not in helm_repo.stderr
+
+    - name: Update Helm repos
+      command: helm repo update
+      changed_when: false
+
+    - name: Create metallb-system namespace
+      command: k3s kubectl create namespace metallb-system
+      register: ns_create
+      changed_when: ns_create.rc == 0
+      failed_when: ns_create.rc != 0 and 'already exists' not in ns_create.stderr
+
+    - name: Deploy MetalLB
+      command: >
+        helm upgrade --install metallb
+        metallb/metallb
+        --namespace metallb-system
+        --version 0.15.3
+        --wait --timeout 5m
+
+    - name: Wait for MetalLB controller to be ready
+      command: >
+        k3s kubectl -n metallb-system
+        rollout status deployment metallb-controller
+        --timeout=120s
+      changed_when: false
+
+    - name: Copy MetalLB config
+      copy:
+        src: files/metallb-config.yaml
+        dest: /tmp/metallb-config.yaml
+        mode: "0644"
+
+    - name: Apply MetalLB IP pool and L2 advertisement
+      command: k3s kubectl apply -f /tmp/metallb-config.yaml
+
+    - name: Clean up MetalLB config file
+      file:
+        path: /tmp/metallb-config.yaml
+        state: absent
