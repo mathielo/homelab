@@ -12,7 +12,7 @@
 #       letsencrypt_email: "your@email.com"  # receives renewal failure notifications
 
 - name: Deploy cert-manager with Let's Encrypt (Cloudflare DNS-01)
-  hosts: k3s_nodes
+  hosts: k3s_server
   become: true
   environment:
     KUBECONFIG: /etc/k3s/k3s.yaml

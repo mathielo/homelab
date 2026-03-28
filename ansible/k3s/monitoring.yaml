@@ -1,6 +1,6 @@
 ---
 - name: Deploy monitoring stack
-  hosts: k3s_nodes
+  hosts: k3s_server
   become: true
   environment:
     KUBECONFIG: /etc/k3s/k3s.yaml

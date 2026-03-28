@@ -16,7 +16,7 @@
 #   kubectl apply -f k3s/argocd/root-app.yaml
 
 - name: Deploy ArgoCD and prepare namespace secrets
-  hosts: k3s_nodes
+  hosts: k3s_server
   become: true
   environment:
     KUBECONFIG: /etc/k3s/k3s.yaml
