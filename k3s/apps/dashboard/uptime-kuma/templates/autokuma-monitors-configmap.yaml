@@ -26,12 +26,6 @@ data:
       "type": "group",
       "name": "Downloads"
     }
-  cloudflare-tunnel.json: |
-    {
-      "type": "group",
-      "name": "Cloudflare Tunnel"
-    }
-
   # --- Dashboard ---
   homepage.json: |
     {
@@ -131,20 +125,4 @@ data:
       "name": "SABnzbd",
       "url": "http://sabnzbd.media.svc.cluster.local:8080",
       "parent_name": "downloads"
-    }
-
-  # --- Cloudflare Tunnel ---
-  external-homepage.json: |
-    {
-      "type": "http",
-      "name": "[External] Homepage",
-      "url": "https://hl.mathielo.com",
-      "parent_name": "cloudflare-tunnel"
-    }
-  external-grafana.json: |
-    {
-      "type": "http",
-      "name": "[External] Grafana",
-      "url": "https://grafana.hl.mathielo.com",
-      "parent_name": "cloudflare-tunnel"
     }

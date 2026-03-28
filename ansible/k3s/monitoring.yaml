@@ -37,6 +37,7 @@
         src: "files/monitoring/grafana.values.yaml.j2"
         dest: "/tmp/grafana.values.yaml"
         mode: "0644"
+      no_log: true
 
     - name: Deploy Prometheus
       command: >
