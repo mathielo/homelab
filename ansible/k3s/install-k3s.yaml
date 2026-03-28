@@ -45,6 +45,20 @@
       until: k3s_ready.rc == 0
       changed_when: false
 
+    - name: Copy CoreDNS config file
+      copy:
+        src: files/coredns-corefile.yaml
+        dest: /tmp/coredns-corefile.yaml
+        mode: "0644"
+
+    - name: Enable CoreDNS query logging
+      command: k3s kubectl apply -f /tmp/coredns-corefile.yaml
+
+    - name: Clean up CoreDNS config file
+      file:
+        path: /tmp/coredns-corefile.yaml
+        state: absent
+
     - name: Read k3s join token
       slurp:
         src: /var/lib/k3s/server/node-token
