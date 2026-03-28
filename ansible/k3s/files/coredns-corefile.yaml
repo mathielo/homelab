@@ -14,13 +14,14 @@ data:
           pods insecure
           fallthrough in-addr.arpa ip6.arpa
         }
+        autopath @kubernetes
         hosts /etc/coredns/NodeHosts {
           ttl 60
           reload 15s
           fallthrough
         }
         prometheus :9153
-        cache 30
+        cache 300
         loop
         reload
         loadbalance
