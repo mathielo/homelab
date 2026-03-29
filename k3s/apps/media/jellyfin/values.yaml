@@ -19,7 +19,7 @@ app-template:
               memory: 4Gi
               # Uncomment to enable AMD GPU passthrough for hardware transcoding
               # (ThinkCentre M715Q has Radeon Vega 8):
-              # amd.com/gpu: "1"
+              amd.com/gpu: "1"
 
   service:
     jellyfin:
