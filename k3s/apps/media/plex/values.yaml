@@ -1,0 +1,80 @@
+# Plex Media Server with AMD VA-API hardware transcoding.
+#
+# Pinned to k3s-server (M75q-1) for its Ryzen 5 PRO 3400GE + Radeon Vega 10.
+# Hardware transcoding requires Plex Pass — enable in Settings → Transcoder
+# after initial setup.
+#
+# Post-deploy:
+#   1. Open https://plex.hl.mathielo.com and complete the setup wizard
+#   2. Add libraries: Movies → /media/library/movies, Shows → /media/library/shows
+#   3. Enable hardware transcoding in Settings → Transcoder
+app-template:
+  defaultPodOptions:
+    nodeSelector:
+      kubernetes.io/hostname: k3s-server
+
+  controllers:
+    plex:
+      containers:
+        plex:
+          image:
+            repository: ghcr.io/hotio/plex
+            tag: release-1.43.0.10492-121068a07
+          env:
+            PUID: "1000"
+            PGID: "1000"
+            TZ: Europe/Stockholm
+            # PLEX_CLAIM_TOKEN injected via values.sops.yaml
+            # Generate at https://plex.tv/claim — expires in ~4 minutes!
+            # Only needed for initial server claim; can be removed after first boot.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: 4000m
+              memory: 6Gi
+              # AMD VA-API hardware transcoding (Radeon Vega 10 on k3s-server).
+              # Requires Plex Pass + enabling "Use hardware acceleration" in
+              # Settings → Transcoder after initial setup.
+              amd.com/gpu: "1"
+
+  service:
+    plex:
+      controller: plex
+      ports:
+        http:
+          port: 32400
+
+  ingress:
+    plex:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      hosts:
+        - host: plex.hl.mathielo.com
+          paths:
+            - path: /
+              service:
+                identifier: plex
+                port: http
+      tls:
+        - hosts:
+            - plex.hl.mathielo.com
+          secretName: plex-hl-tls
+
+  persistence:
+    config:
+      suffix: config
+      type: persistentVolumeClaim
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      storageClass: local-path
+      globalMounts:
+        - path: /config
+    media:
+      type: persistentVolumeClaim
+      existingClaim: media-data
+      globalMounts:
+        - path: /media
+          readOnly: true

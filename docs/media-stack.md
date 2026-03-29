@@ -6,7 +6,7 @@ Automated media acquisition and streaming stack running on k3s, managed by ArgoC
 
 ```
 Request flow:
-  Seerr (requests) → Sonarr/Radarr (automation) → Prowlarr (indexer search) → SABnzbd (download) → Jellyfin (playback)
+  Seerr (requests) → Sonarr/Radarr (automation) → Prowlarr (indexer search) → SABnzbd (download) → Jellyfin/Plex (playback)
 
 Download flow:
   SABnzbd → Gluetun VPN → Usenet provider → NFS media library
@@ -26,6 +26,7 @@ DNS/indexer flow:
 | Sonarr   | `https://sonarr.hl.mathielo.com`   | 8989 | Shows automation        |
 | Bazarr   | `https://bazarr.hl.mathielo.com`   | 6767 | Subtitle automation     |
 | Jellyfin | `https://jellyfin.hl.mathielo.com` | 8096 | Media server / playback |
+| Plex     | `https://plex.hl.mathielo.com`     | 32400 | Media server / playback |
 | Seerr    | `https://seerr.hl.mathielo.com`    | 5055 | Media request portal    |
 
 > :exclamation: All URLs require Tailscale (or LAN) + Pi-hole DNS (`*.hl.mathielo.com → 10.10.50.3`).
@@ -186,14 +187,38 @@ Optional: enable VA-API hardware transcoding (AMD Radeon Vega 8 available via `a
 
 Note the **API key** from Dashboard → API Keys.
 
-### Step 7: Seerr
+### Step 7: Plex
+
+> :bulb: Plex is pinned to `k3s-server` (M75q-1) via hostname nodeSelector for access to the Radeon Vega 10 GPU.
+
+Complete the setup wizard at `https://plex.hl.mathielo.com`, then:
+
+1. **Claim server** — should auto-claim via `PLEX_CLAIM` env var on first boot. If the token expired, generate a new one at `https://plex.tv/claim`, re-encrypt `values.sops.yaml`, and redeploy.
+
+2. **Add libraries:**
+
+| Library | Content Type | Folder                  |
+| ------- | ------------ | ----------------------- |
+| Movies  | Movies       | `/media/library/movies` |
+| Shows   | TV Shows     | `/media/library/shows`  |
+
+3. **Enable hardware transcoding** (requires Plex Pass):
+   - Settings → Transcoder → check "Use hardware acceleration when available"
+   - The AMD Radeon Vega 10 GPU is passed through via `amd.com/gpu` resource request
+
+4. **Get API token** for Homepage widget:
+   - In Plex web UI, open any media item, click "Get Info", check the URL for `X-Plex-Token=`
+   - Update `HOMEPAGE_VAR_PLEX_TOKEN` in `k3s/apps/dashboard/homepage/values.sops.yaml`
+
+### Step 8: Seerr
 
 Sign in, then connect all services:
 
 | Service  | URL                                            | Extra Config                         |
 | -------- | ---------------------------------------------- | ------------------------------------ |
 | Jellyfin | `http://jellyfin.media.svc.cluster.local:8096` | Sync Movies + Shows libraries        |
+| Plex     | `http://plex.media.svc.cluster.local:32400`    | Sync Movies + Shows libraries        |
 | Radarr   | `http://radarr.media.svc.cluster.local:7878`   | Root folder: `/media/library/movies` |
 | Sonarr   | `http://sonarr.media.svc.cluster.local:8989`   | Root folder: `/media/library/shows`  |
 
-Each connection requires the respective API key and a quality profile selection.
+Each connection requires the respective API key and a quality profile selection. Connect either Jellyfin or Plex (or both) as media servers depending on your setup.
