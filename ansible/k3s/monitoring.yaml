@@ -45,7 +45,7 @@
         prometheus-community/prometheus
         --namespace kube-extra
         --values /tmp/prometheus.values.yaml
-        --version 28.14.0
+        --version 28.14.1
         --wait --timeout 5m
 
     - name: Deploy Loki
