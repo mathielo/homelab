@@ -25,6 +25,12 @@
         name: nfs-common
         state: present
 
+    - name: Write clean resolv.conf for CoreDNS (bypass Tailscale MagicDNS)
+      copy:
+        src: files/k3s-resolv.conf
+        dest: /etc/k3s/resolv.conf
+        mode: "0644"
+
     - name: Install k3s server using official install script
       shell:
         cmd: >
@@ -34,7 +40,8 @@
           --write-kubeconfig=/etc/k3s/k3s.yaml
           --write-kubeconfig-mode=0640
           --tls-san={{ ansible_host }}
-          --node-ip={{ ansible_host }}" sh -
+          --node-ip={{ ansible_host }}
+          --resolv-conf=/etc/k3s/resolv.conf" sh -
         creates: /usr/local/bin/k3s
 
     - name: Wait for k3s to be ready
@@ -45,18 +52,18 @@
       until: k3s_ready.rc == 0
       changed_when: false
 
-    - name: Copy CoreDNS config file
+    - name: Copy CoreDNS custom config
       copy:
-        src: files/coredns-corefile.yaml
-        dest: /tmp/coredns-corefile.yaml
+        src: files/coredns-custom.yaml
+        dest: /tmp/coredns-custom.yaml
         mode: "0644"
 
-    - name: Enable CoreDNS query logging
-      command: k3s kubectl apply -f /tmp/coredns-corefile.yaml
+    - name: Apply CoreDNS customizations (log + autopath)
+      command: k3s kubectl apply -f /tmp/coredns-custom.yaml
 
-    - name: Clean up CoreDNS config file
+    - name: Clean up CoreDNS custom config file
       file:
-        path: /tmp/coredns-corefile.yaml
+        path: /tmp/coredns-custom.yaml
         state: absent
 
     - name: Read k3s join token
@@ -162,6 +169,12 @@
         name: nfs-common
         state: present
 
+    - name: Write clean resolv.conf for kubelet (bypass Tailscale MagicDNS)
+      copy:
+        src: files/k3s-resolv.conf
+        dest: /etc/k3s/resolv.conf
+        mode: "0644"
+
     - name: Install k3s agent using official install script
       shell:
         cmd: >
@@ -169,7 +182,8 @@
           K3S_URL=https://{{ hostvars[groups['k3s_server'][0]]['ansible_host'] }}:6443
           K3S_TOKEN={{ hostvars[groups['k3s_server'][0]]['k3s_token'] }}
           INSTALL_K3S_EXEC="--data-dir=/var/lib/k3s
-          --node-ip={{ ansible_host }}" sh -
+          --node-ip={{ ansible_host }}
+          --resolv-conf=/etc/k3s/resolv.conf" sh -
         creates: /usr/local/bin/k3s-agent
       no_log: true
 

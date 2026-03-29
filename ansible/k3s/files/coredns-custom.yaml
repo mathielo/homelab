@@ -1,0 +1,14 @@
+# Custom CoreDNS config for k3s
+#
+# These settings enable query logging and automatic path resolution for kubernetes services.
+# They are merged with the default CoreDNS config by k3s.
+# @see https://docs.k3s.io/helm#coredns-custom
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  custom.override: |
+    log
+    autopath @kubernetes
