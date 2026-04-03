@@ -1,5 +1,105 @@
 alertmanager:
-  enabled: false
+  enabled: true
+  persistence:
+    enabled: true
+    storageClass: local-path
+    size: 1Gi
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+serverFiles:
+  alerting_rules.yml:
+    groups:
+      - name: pod-health
+        rules:
+          - alert: PodCrashLooping
+            expr: rate(kube_pod_container_status_restarts_total[15m]) > 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash looping"
+
+          - alert: PodOOMKilled
+            expr: increase(kube_pod_container_status_restarts_total[5m]) > 0 and on(namespace, pod, container) kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
+            for: 0m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} was OOM killed"
+
+      - name: node-health
+        rules:
+          - alert: NodeNotReady
+            expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Node {{ $labels.node }} is not ready"
+
+          - alert: NodeHighMemory
+            expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.85
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Node {{ $labels.instance }} memory usage above 85%"
+
+          - alert: NodeHighCPU
+            expr: 1 - avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) > 0.85
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Node {{ $labels.instance }} CPU usage above 85%"
+
+          - alert: NodeDiskPressure
+            expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) > 0.85
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Node {{ $labels.instance }} disk {{ $labels.mountpoint }} usage above 85%"
+
+      - name: cluster-health
+        rules:
+          - alert: IngressDown
+            expr: kube_deployment_status_replicas_available{namespace="kube-extra",deployment="ingress-nginx-controller"} < 1
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "No ingress-nginx replicas available"
+
+          - alert: DeploymentReplicasMismatch
+            expr: kube_deployment_spec_replicas != kube_deployment_status_replicas_available
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has {{ $value }} available vs {{ $labels.spec_replicas }} desired"
+
+          - alert: CertExpiringSoon
+            expr: certmanager_certificate_expiration_timestamp_seconds - time() < 7 * 24 * 3600
+            for: 1h
+            labels:
+              severity: warning
+            annotations:
+              summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in less than 7 days"
+
+          - alert: PVCAlmostFull
+            expr: kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes > 0.80
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} usage above 80%"
 
 pushgateway:
   enabled: false
