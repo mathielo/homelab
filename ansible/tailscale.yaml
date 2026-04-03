@@ -2,8 +2,12 @@
 - name: Install Tailscale
   hosts: all
   become: true
-
   tasks:
+    - name: Load Tailscale secrets
+      community.sops.load_vars:
+        file: tailscale.sops.yaml
+      no_log: true
+
     - name: Install Tailscale using official install script
       shell:
         cmd: curl -fsSL https://tailscale.com/install.sh | sh

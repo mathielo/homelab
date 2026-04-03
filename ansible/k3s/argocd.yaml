@@ -2,7 +2,7 @@
 # Installs ArgoCD (with helm-secrets plugin) and creates bootstrap secrets.
 #
 # Prerequisites:
-#   - Add the following to ansible/group_vars/all/secrets.sops.yaml (sops --decrypt to edit):
+#   - Add the following to ansible/k3s/argocd.sops.yaml (sops --decrypt to edit):
 #       argocd_admin_password_hash:      "<bcrypt hash — generate with: htpasswd -nbBC 10 '' 'password' | tr -d ':\n' | sed 's/$2y/$2a/'>"
 #       github_ssh_private_key:          "<private key of a read-only GitHub deploy key for this repo>"
 #         Generate: ssh-keygen -t ed25519 -C "argocd@k3s" -f ~/.ssh/argocd_deploy_key
@@ -22,6 +22,11 @@
     KUBECONFIG: /etc/k3s/k3s.yaml
 
   tasks:
+    - name: Load ArgoCD secrets
+      community.sops.load_vars:
+        file: argocd.sops.yaml
+      no_log: true
+
     - name: Add argo Helm repo
       command: helm repo add argo https://argoproj.github.io/argo-helm
       register: helm_repo

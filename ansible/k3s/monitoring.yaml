@@ -6,6 +6,11 @@
     KUBECONFIG: /etc/k3s/k3s.yaml
 
   tasks:
+    - name: Load monitoring secrets
+      community.sops.load_vars:
+        file: monitoring.sops.yaml
+      no_log: true
+
     - name: Add Helm repos
       command: helm repo add {{ item.name }} {{ item.url }}
       loop:

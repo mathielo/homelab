@@ -208,6 +208,15 @@
   environment:
     KUBECONFIG: /etc/k3s/k3s.yaml
 
+  vars:
+    k3s_node_labels:
+      - node: k3s-server
+        labels:
+          - workload=infra
+      - node: k3s-node-01
+        labels:
+          - workload=media
+
   tasks:
     - name: Apply node labels
       command: >

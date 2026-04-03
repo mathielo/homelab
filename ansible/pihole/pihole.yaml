@@ -2,7 +2,6 @@
 - name: Install Pi-hole
   hosts: pihole
   become: true
-
   vars:
     pihole_interface: eth0
     pihole_ipv4_address: "10.10.53.53/24"
@@ -10,6 +9,11 @@
     pihole_ipv6_gateway: "2001:2042:37b0:1c35::1"
 
   tasks:
+    - name: Load Pi-hole secrets
+      community.sops.load_vars:
+        file: pihole.sops.yaml
+      no_log: true
+
     - name: Disable WiFi via boot firmware config
       lineinfile:
         path: /boot/firmware/config.txt
