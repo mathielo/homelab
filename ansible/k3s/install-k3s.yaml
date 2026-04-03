@@ -36,6 +36,7 @@
         cmd: >
           curl -sfL https://get.k3s.io |
           INSTALL_K3S_EXEC="--disable=traefik
+          --disable=servicelb
           --data-dir=/var/lib/k3s
           --write-kubeconfig=/etc/k3s/k3s.yaml
           --write-kubeconfig-mode=0640

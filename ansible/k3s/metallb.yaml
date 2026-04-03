@@ -22,11 +22,18 @@
       changed_when: ns_create.rc == 0
       failed_when: ns_create.rc != 0 and 'already exists' not in ns_create.stderr
 
+    - name: Copy MetalLB values file
+      copy:
+        src: files/metallb.values.yaml
+        dest: /tmp/metallb.values.yaml
+        mode: "0644"
+
     - name: Deploy MetalLB
       command: >
         helm upgrade --install metallb
         metallb/metallb
         --namespace metallb-system
+        --values /tmp/metallb.values.yaml
         --version 0.15.3
         --wait --timeout 5m
 
@@ -48,5 +55,8 @@
 
     - name: Clean up MetalLB config file
       file:
-        path: /tmp/metallb-config.yaml
+        path: "{{ item }}"
         state: absent
+      loop:
+        - /tmp/metallb-config.yaml
+        - /tmp/metallb.values.yaml

@@ -52,6 +52,14 @@ chunksCache:
       memory: 128Mi
     limits:
       memory: 128Mi
+  exporter:
+    resources:
+      requests:
+        cpu: 5m
+        memory: 16Mi
+      limits:
+        cpu: 50m
+        memory: 32Mi
 
 resultsCache:
   resources:
@@ -60,6 +68,33 @@ resultsCache:
       memory: 64Mi
     limits:
       memory: 64Mi
+  exporter:
+    resources:
+      requests:
+        cpu: 5m
+        memory: 16Mi
+      limits:
+        cpu: 50m
+        memory: 32Mi
+
+lokiCanary:
+  resources:
+    requests:
+      cpu: 5m
+      memory: 32Mi
+    limits:
+      cpu: 50m
+      memory: 64Mi
+
+sidecar:
+  rules:
+    resources:
+      requests:
+        cpu: 5m
+        memory: 32Mi
+      limits:
+        cpu: 50m
+        memory: 64Mi
 
 # Disable microservices-mode components
 backend:

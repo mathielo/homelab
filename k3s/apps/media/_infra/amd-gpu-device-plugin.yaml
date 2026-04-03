@@ -30,6 +30,13 @@ spec:
       containers:
         - name: amdgpu-dp-cntr
           image: rocm/k8s-device-plugin:1.31.0.9
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
           securityContext:
             privileged: true
             capabilities:

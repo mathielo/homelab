@@ -4,6 +4,16 @@ alertmanager:
 pushgateway:
   enabled: false
 
+configmapReload:
+  prometheus:
+    resources:
+      requests:
+        cpu: 5m
+        memory: 16Mi
+      limits:
+        cpu: 50m
+        memory: 32Mi
+
 server:
   retention: 30d
   resources:
