@@ -1,0 +1,55 @@
+# Maintainerr — media library cleanup tool (the opposite of Seerr).
+# Post-deploy: connect to Jellyfin via http://jellyfin.media.svc.cluster.local:8096
+#              then add Radarr (http://radarr.media.svc.cluster.local:7878)
+#              and Sonarr (http://sonarr.media.svc.cluster.local:8989).
+app-template:
+  controllers:
+    maintainerr:
+      containers:
+        maintainerr:
+          image:
+            repository: ghcr.io/maintainerr/maintainerr
+            tag: 3.3.0
+          env:
+            TZ: Europe/Stockholm
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+  service:
+    maintainerr:
+      controller: maintainerr
+      ports:
+        http:
+          port: 6246
+
+  ingress:
+    maintainerr:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      hosts:
+        - host: maintainerr.hl.mathielo.com
+          paths:
+            - path: /
+              service:
+                identifier: maintainerr
+                port: http
+      tls:
+        - hosts:
+            - maintainerr.hl.mathielo.com
+          secretName: maintainerr-hl-tls
+
+  persistence:
+    data:
+      suffix: data
+      type: persistentVolumeClaim
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      storageClass: local-path
+      globalMounts:
+        - path: /opt/data

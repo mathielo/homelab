@@ -8,6 +8,9 @@ Automated media acquisition and streaming stack running on k3s, managed by ArgoC
 Request flow:
   Seerr (requests) → Sonarr/Radarr (automation) → Prowlarr (indexer search) → SABnzbd (download) → Jellyfin/Plex (playback)
 
+Cleanup flow:
+  Maintainerr (rules) → Radarr/Sonarr (remove entry) → deletes files from NFS media library
+
 Download flow:
   SABnzbd → Gluetun VPN → Usenet provider → NFS media library
 
@@ -18,16 +21,17 @@ DNS/indexer flow:
 
 ## Services
 
-| Service  | URL                                | Port | Purpose                 |
-| -------- | ---------------------------------- | ---- | ----------------------- |
-| SABnzbd  | `https://sabnzbd.hl.mathielo.com`  | 8080 | Usenet downloader       |
-| Prowlarr | `https://prowlarr.hl.mathielo.com` | 9696 | Indexer manager/proxy   |
-| Radarr   | `https://radarr.hl.mathielo.com`   | 7878 | Movie automation        |
-| Sonarr   | `https://sonarr.hl.mathielo.com`   | 8989 | Shows automation        |
-| Bazarr   | `https://bazarr.hl.mathielo.com`   | 6767 | Subtitle automation     |
-| Jellyfin | `https://jellyfin.hl.mathielo.com` | 8096 | Media server / playback |
-| Plex     | `https://plex.hl.mathielo.com`     | 32400 | Media server / playback |
-| Seerr    | `https://seerr.hl.mathielo.com`    | 5055 | Media request portal    |
+| Service     | URL                                   | Port  | Purpose                 |
+| ----------- | ------------------------------------- | ----- | ----------------------- |
+| SABnzbd     | `https://sabnzbd.hl.mathielo.com`     | 8080  | Usenet downloader       |
+| Prowlarr    | `https://prowlarr.hl.mathielo.com`    | 9696  | Indexer manager/proxy   |
+| Radarr      | `https://radarr.hl.mathielo.com`      | 7878  | Movie automation        |
+| Sonarr      | `https://sonarr.hl.mathielo.com`      | 8989  | Shows automation        |
+| Bazarr      | `https://bazarr.hl.mathielo.com`      | 6767  | Subtitle automation     |
+| Jellyfin    | `https://jellyfin.hl.mathielo.com`    | 8096  | Media server / playback |
+| Plex        | `https://plex.hl.mathielo.com`        | 32400 | Media server / playback |
+| Seerr       | `https://seerr.hl.mathielo.com`       | 5055  | Media request portal    |
+| Maintainerr | `https://maintainerr.hl.mathielo.com` | 6246  | Media library cleanup   |
 
 > :exclamation: All URLs require Tailscale (or LAN) + Pi-hole DNS (`*.hl.mathielo.com → 10.10.50.3`).
 
@@ -222,3 +226,16 @@ Sign in, then connect all services:
 | Sonarr   | `http://sonarr.media.svc.cluster.local:8989`   | Root folder: `/media/library/shows`  |
 
 Each connection requires the respective API key and a quality profile selection. Connect either Jellyfin or Plex (or both) as media servers depending on your setup.
+
+### Step 9: Maintainerr
+
+Complete the setup wizard, then connect all services:
+
+| Service  | URL                                            | Auth    |
+| -------- | ---------------------------------------------- | ------- |
+| Jellyfin | `http://jellyfin.media.svc.cluster.local:8096` | API key |
+| Radarr   | `http://radarr.media.svc.cluster.local:7878`   | API key |
+| Sonarr   | `http://sonarr.media.svc.cluster.local:8989`   | API key |
+| Seerr    | `http://seerr.media.svc.cluster.local:5055`    | API key |
+
+Then create cleanup rules under **Rules**. To use manual-only mode (no auto-delete), leave `action_after_days` empty — Maintainerr will build a collection of matched media that you can review and delete on demand.
