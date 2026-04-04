@@ -24,6 +24,7 @@ app-template:
             PUID: "1000"
             PGID: "1000"
             TZ: Europe/Stockholm
+            PLEX_ADVERTISE_URL: "https://plex.hl.mathielo.com:443"
             # PLEX_CLAIM_TOKEN injected via values.sops.yaml
             # Generate at https://plex.tv/claim — expires in ~4 minutes!
             # Only needed for initial server claim; can be removed after first boot.
@@ -51,6 +52,9 @@ app-template:
       className: nginx
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-prod
+        nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+        nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+        nginx.ingress.kubernetes.io/proxy-buffering: "off"
       hosts:
         - host: plex.hl.mathielo.com
           paths:
