@@ -17,8 +17,8 @@ app-template:
             limits:
               cpu: 2000m
               memory: 4Gi
-              # Uncomment to enable AMD GPU passthrough for hardware transcoding
-              # (ThinkCentre M715Q has Radeon Vega 8):
+              # AMD GPU passthrough for hardware transcoding
+              # (ThinkCentre M715Q has Radeon Vega 8)
               amd.com/gpu: "1"
 
   service:
