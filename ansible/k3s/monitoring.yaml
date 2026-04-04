@@ -58,7 +58,7 @@
         --namespace kube-extra
         --values /tmp/prometheus.values.yaml
         --values /tmp/alertmanager.config.yaml
-        --version 28.14.1
+        --version 28.15.0
         --wait --timeout 5m
 
     - name: Deploy Loki
