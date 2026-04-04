@@ -94,8 +94,8 @@ serverFiles:
               summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in less than 7 days"
 
           - alert: PVCAlmostFull
-            expr: kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes > 0.80
-            for: 5m
+            expr: kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes > 0.80 and kubelet_volume_stats_capacity_bytes > 10737418240
+            for: 15m
             labels:
               severity: warning
             annotations:
