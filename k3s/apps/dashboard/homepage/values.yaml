@@ -72,128 +72,35 @@ app-template:
     config:
       data:
         settings.yaml: |
+          base: https://hl.mathielo.com
           title: Homelab
           favicon: /icons/homelab.ico
-          headerStyle: clean
+          theme: dark
+          color: slate
+          background:
+            image: https://r2.m6o.dev/bg/neon-lasers-4k.jpg
+            opacity: 40
+            blur: md
+          headerStyle: boxedWidgets
+          cardBlur: md
+          pwa:
+            icons:
+              - src: https://r2.m6o.dev/8matchii/1024x1024.jpg
+                type: image/jpeg
+                sizes: 1024x1024
           layout:
-            Media:
-              style: row
-              columns: 4
-            Downloads:
+            Infrastructure:
+              useEqualHeights: true
               style: row
               columns: 2
-            Infrastructure:
+            Media:
+              initiallyCollapsed: true
+              useEqualHeights: true
               style: row
               columns: 4
 
-        services.yaml: |
-          - Media:
-              - Plex:
-                  href: https://plex.hl.mathielo.com
-                  description: Media server
-                  icon: plex.png
-                  widget:
-                    type: plex
-                    url: http://plex.media.svc.cluster.local:32400
-                    key: "{{ "{{HOMEPAGE_VAR_PLEX_TOKEN}}" }}"
-              - Jellyfin:
-                  href: https://jellyfin.hl.mathielo.com
-                  description: Media server
-                  icon: jellyfin.png
-                  widget:
-                    type: jellyfin
-                    url: http://jellyfin.media.svc.cluster.local:8096
-                    key: "{{ "{{HOMEPAGE_VAR_JELLYFIN_KEY}}" }}"
-                    enableNowPlaying: true
-              - Sonarr:
-                  href: https://sonarr.hl.mathielo.com
-                  description: TV series
-                  icon: sonarr.png
-                  widget:
-                    type: sonarr
-                    url: http://sonarr.media.svc.cluster.local:8989
-                    key: "{{ "{{HOMEPAGE_VAR_SONARR_KEY}}" }}"
-              - Radarr:
-                  href: https://radarr.hl.mathielo.com
-                  description: Movies
-                  icon: radarr.png
-                  widget:
-                    type: radarr
-                    url: http://radarr.media.svc.cluster.local:7878
-                    key: "{{ "{{HOMEPAGE_VAR_RADARR_KEY}}" }}"
-              - Bazarr:
-                  href: https://bazarr.hl.mathielo.com
-                  description: Subtitles
-                  icon: bazarr.png
-                  widget:
-                    type: bazarr
-                    url: http://bazarr.media.svc.cluster.local:6767
-                    key: "{{ "{{HOMEPAGE_VAR_BAZARR_KEY}}" }}"
-              - Seerr:
-                  href: https://seerr.hl.mathielo.com
-                  description: Media requests
-                  icon: overseerr.png
-                  widget:
-                    type: overseerr
-                    url: http://seerr.media.svc.cluster.local:5055
-                    key: "{{ "{{HOMEPAGE_VAR_SEERR_KEY}}" }}"
-          - Downloads:
-              - SABnzbd:
-                  href: https://sabnzbd.hl.mathielo.com
-                  description: Usenet downloader
-                  icon: sabnzbd.png
-                  widget:
-                    type: sabnzbd
-                    url: http://sabnzbd.media.svc.cluster.local:8080
-                    key: "{{ "{{HOMEPAGE_VAR_SABNZBD_KEY}}" }}"
-              - Prowlarr:
-                  href: https://prowlarr.hl.mathielo.com
-                  description: Indexer manager
-                  icon: prowlarr.png
-                  widget:
-                    type: prowlarr
-                    url: http://prowlarr.media.svc.cluster.local:9696
-                    key: "{{ "{{HOMEPAGE_VAR_PROWLARR_KEY}}" }}"
-          - Infrastructure:
-              - Pi-hole:
-                  href: http://10.10.53.53/admin
-                  description: DNS ad-blocking
-                  icon: pi-hole.png
-                  widget:
-                    type: pihole
-                    url: http://10.10.53.53
-                    version: 6
-                    key: "{{ "{{HOMEPAGE_VAR_PIHOLE_KEY}}" }}"
-              - Grafana:
-                  href: https://grafana.hl.mathielo.com
-                  description: Monitoring dashboards
-                  icon: grafana.png
-              - ArgoCD:
-                  href: https://argocd.hl.mathielo.com
-                  description: GitOps deployments
-                  icon: argocd.png
-                  widget:
-                    type: argocd
-                    url: http://argocd-server.argocd.svc.cluster.local:8080
-                    key: "{{ "{{HOMEPAGE_VAR_ARGOCD_KEY}}" }}"
-              - Uptime Kuma:
-                  href: https://status.hl.mathielo.com
-                  description: Service monitoring
-                  icon: uptime-kuma.png
-                  widget:
-                    type: uptimekuma
-                    url: http://uptime-kuma.dashboard.svc.cluster.local:3001
-                    slug: homelab
-                    key: "{{ "{{HOMEPAGE_VAR_UPTIMEKUMA_KEY}}" }}"
-              - UniFi:
-                  href: https://10.10.1.1
-                  description: Network controller
-                  icon: unifi.png
-                  widget:
-                    type: unifi
-                    url: https://10.10.1.1
-                    username: "{{ "{{HOMEPAGE_VAR_UNIFI_USER}}" }}"
-                    password: "{{ "{{HOMEPAGE_VAR_UNIFI_PASS}}" }}"
+        kubernetes.yaml: |
+          mode: cluster
 
         widgets.yaml: |
           - kubernetes:
@@ -205,12 +112,130 @@ app-template:
                 show: true
                 cpu: true
                 memory: true
-          - search:
-              provider: google
-              target: _blank
+          - datetime:
+              text_size: 3xl
+              format:
+                timeStyle: short
+                hourCycle: h23
+                dateStyle: long
 
-        kubernetes.yaml: |
-          mode: cluster
+        services.yaml: |
+          - Infrastructure:
+              - UniFi:
+                  href: https://10.10.1.1
+                  description: Network controller
+                  icon: unifi.png
+                  widget:
+                    type: unifi
+                    url: https://10.10.1.1
+                    username: "{{ "{{HOMEPAGE_VAR_UNIFI_USER}}" }}"
+                    password: "{{ "{{HOMEPAGE_VAR_UNIFI_PASS}}" }}"
+              - Pi-hole:
+                  href: http://10.10.53.53/admin
+                  description: DNS ad-blocking
+                  icon: pi-hole.png
+                  widget:
+                    type: pihole
+                    url: http://10.10.53.53
+                    version: 6
+                    key: "{{ "{{HOMEPAGE_VAR_PIHOLE_KEY}}" }}"
+              - ArgoCD:
+                  href: https://argocd.hl.mathielo.com
+                  description: GitOps deployments
+                  icon: argo-cd.png
+                  widget:
+                    type: argocd
+                    url: http://argocd-server.argocd.svc.cluster.local
+                    key: "{{ "{{HOMEPAGE_VAR_ARGOCD_KEY}}" }}"
+              - Uptime Kuma:
+                  href: https://status.hl.mathielo.com
+                  description: Service monitoring
+                  icon: uptime-kuma.png
+                  widget:
+                    type: uptimekuma
+                    url: http://uptime-kuma.dashboard.svc.cluster.local:3001
+                    slug: homelab
+                    key: "{{ "{{HOMEPAGE_VAR_UPTIMEKUMA_KEY}}" }}"
+              - Grafana:
+                  href: https://grafana.hl.mathielo.com/d/rYdddlPWk/node-exporter-full
+                  icon: grafana.png
+                  description: System & services monitoring
+                  widget:
+                    type: grafana
+                    version: 2
+                    url: http://grafana.kube-extra.svc.cluster.local
+                    username: "{{ "{{HOMEPAGE_VAR_GRAFANA_USERNAME}}" }}"
+                    password: "{{ "{{HOMEPAGE_VAR_GRAFANA_PASSWORD}}" }}"
+              - Grafana:
+                  href: https://grafana.hl.mathielo.com/d/liz0yRCZz/logs-app
+                  description: App logs
+                  icon: grafana.png
+          - Media:
+              - SABnzbd:
+                  href: https://sabnzbd.hl.mathielo.com
+                  description: Usenet downloader
+                  icon: sabnzbd.png
+                  widget:
+                    type: sabnzbd
+                    url: http://sabnzbd.media.svc.cluster.local:8080
+                    key: "{{ "{{HOMEPAGE_VAR_SABNZBD_KEY}}" }}"
+              - Seerr:
+                  href: https://seerr.hl.mathielo.com
+                  description: Media requests
+                  icon: overseerr.png
+                  widget:
+                    type: overseerr
+                    url: http://seerr.media.svc.cluster.local:5055
+                    key: "{{ "{{HOMEPAGE_VAR_SEERR_KEY}}" }}"
+              - Prowlarr:
+                  href: https://prowlarr.hl.mathielo.com
+                  description: Indexer manager
+                  icon: prowlarr.png
+                  widget:
+                    type: prowlarr
+                    url: http://prowlarr.media.svc.cluster.local:9696
+                    key: "{{ "{{HOMEPAGE_VAR_PROWLARR_KEY}}" }}"
+              - Radarr:
+                  href: https://radarr.hl.mathielo.com
+                  description: Movies
+                  icon: radarr.png
+                  widget:
+                    type: radarr
+                    url: http://radarr.media.svc.cluster.local:7878
+                    key: "{{ "{{HOMEPAGE_VAR_RADARR_KEY}}" }}"
+              - Sonarr:
+                  href: https://sonarr.hl.mathielo.com
+                  description: TV series
+                  icon: sonarr.png
+                  widget:
+                    type: sonarr
+                    url: http://sonarr.media.svc.cluster.local:8989
+                    key: "{{ "{{HOMEPAGE_VAR_SONARR_KEY}}" }}"
+              - Bazarr:
+                  href: https://bazarr.hl.mathielo.com
+                  description: Subtitles
+                  icon: bazarr.png
+                  widget:
+                    type: bazarr
+                    url: http://bazarr.media.svc.cluster.local:6767
+                    key: "{{ "{{HOMEPAGE_VAR_BAZARR_KEY}}" }}"
+              - Jellyfin:
+                  href: https://jellyfin.hl.mathielo.com
+                  description: Media server
+                  icon: jellyfin.png
+                  widget:
+                    type: jellyfin
+                    url: http://jellyfin.media.svc.cluster.local:8096
+                    key: "{{ "{{HOMEPAGE_VAR_JELLYFIN_KEY}}" }}"
+                    enableNowPlaying: true
+              - Plex:
+                  href: https://plex.hl.mathielo.com
+                  description: Media server
+                  icon: plex.png
+                  widget:
+                    type: plex
+                    url: http://plex.media.svc.cluster.local:32400
+                    key: "{{ "{{HOMEPAGE_VAR_PLEX_TOKEN}}" }}"
 
         bookmarks.yaml: |
           - Developer:
