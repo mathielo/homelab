@@ -93,10 +93,17 @@ app-template:
               useEqualHeights: true
               style: row
               columns: 2
-            Physical Nodes:
-              useEqualHeights: true
+            Kubernetes Nodes:
               style: row
-              columns: 3
+              columns: 1
+              k3s-server:
+                style: row
+                columns: 4
+                useEqualHeights: true
+              k3s-node-01:
+                style: row
+                columns: 4
+                useEqualHeights: true
             Media:
               initiallyCollapsed: true
               useEqualHeights: true
@@ -107,6 +114,16 @@ app-template:
           mode: cluster
 
         widgets.yaml: |
+          - glances:
+              url: http://10.10.53.53:61208
+              version: 4
+              cpu: true
+              mem: true
+              cputemp: true
+              uptime: true
+              disk: fs:/
+              expanded: true
+              label: pi-hole
           - kubernetes:
               cluster:
                 show: true
@@ -116,13 +133,6 @@ app-template:
                 show: true
                 cpu: true
                 memory: true
-          - datetime:
-              text_size: 3xl
-              format:
-                timeStyle: short
-                hourCycle: h23
-                dateStyle: long
-
         services.yaml: |
           - Infrastructure:
               - UniFi:
@@ -168,85 +178,133 @@ app-template:
                     type: grafana
                     version: 2
                     url: http://grafana.kube-extra.svc.cluster.local
+                    alerts: alertmanager
+                    alertmanagerUrl: http://prometheus-alertmanager.kube-extra.svc.cluster.local:9093
                     username: "{{ "{{HOMEPAGE_VAR_GRAFANA_USERNAME}}" }}"
                     password: "{{ "{{HOMEPAGE_VAR_GRAFANA_PASSWORD}}" }}"
               - Grafana:
                   href: https://grafana.hl.mathielo.com/d/liz0yRCZz/logs-app
                   description: App logs
                   icon: grafana.png
-          - Physical Nodes:
-              - Pi-hole CPU:
-                  icon: mdi-chip
-                  widget:
-                    type: glances
-                    url: http://10.10.53.53:61208
-                    version: 4
-                    metric: cpu
-                    refreshInterval: 10000
-              - k3s-server CPU:
-                  icon: mdi-chip
-                  widget:
-                    type: glances
-                    url: http://10.10.50.10:61208
-                    version: 4
-                    metric: cpu
-                    refreshInterval: 10000
-              - k3s-node-01 CPU:
-                  icon: mdi-chip
-                  widget:
-                    type: glances
-                    url: http://10.10.50.11:61208
-                    version: 4
-                    metric: cpu
-                    refreshInterval: 10000
-              - Pi-hole Memory:
-                  icon: mdi-memory
-                  widget:
-                    type: glances
-                    url: http://10.10.53.53:61208
-                    version: 4
-                    metric: memory
-                    refreshInterval: 10000
-              - k3s-server Memory:
-                  icon: mdi-memory
-                  widget:
-                    type: glances
-                    url: http://10.10.50.10:61208
-                    version: 4
-                    metric: memory
-                    refreshInterval: 10000
-              - k3s-node-01 Memory:
-                  icon: mdi-memory
-                  widget:
-                    type: glances
-                    url: http://10.10.50.11:61208
-                    version: 4
-                    metric: memory
-                    refreshInterval: 10000
-              - Pi-hole Disk:
-                  icon: mdi-harddisk
-                  widget:
-                    type: glances
-                    url: http://10.10.53.53:61208
-                    version: 4
-                    metric: fs:/
-                    refreshInterval: 60000
-              - k3s-server Disk:
-                  icon: mdi-harddisk
-                  widget:
-                    type: glances
-                    url: http://10.10.50.10:61208
-                    version: 4
-                    metric: fs:/
-                    refreshInterval: 60000
-              - k3s-node-01 Disk:
-                  icon: mdi-harddisk
-                  widget:
-                    type: glances
-                    url: http://10.10.50.11:61208
-                    version: 4
-                    metric: fs:/
-                    refreshInterval: 60000
+          - Kubernetes Nodes:
+              - k3s-server:
+                  icon: k8s
+                  href: http://10.10.50.10:61208
+                  widgets:
+                    - type: glances
+                      url: http://10.10.50.10:61208
+                      version: 4
+                      metric: info
+                      refreshInterval: 10000
+                    - type: glances
+                      url: http://10.10.50.10:61208
+                      version: 4
+                      metric: cpu
+                      cputemp: true
+                      chart: false
+                      refreshInterval: 10000
+                    - type: glances
+                      url: http://10.10.50.10:61208
+                      version: 4
+                      metric: memory
+                      chart: false
+                      refreshInterval: 10000
+                    - type: glances
+                      url: http://10.10.50.10:61208
+                      version: 4
+                      metric: network:enp2s0f0
+                      refreshInterval: 10000
+                    - type: glances
+                      url: http://10.10.50.10:61208
+                      version: 4
+                      metric: process
+                      refreshInterval: 10000
+                    - type: glances
+                      url: http://10.10.50.10:61208
+                      version: 4
+                      metric: sensor
+                      chart: false
+                      refreshInterval: 10000
+                    - type: glances
+                      url: http://10.10.50.10:61208
+                      version: 4
+                      metric: fs:/
+                      chart: false
+                      refreshInterval: 10000
+                    - type: glances
+                      url: http://10.10.50.10:61208
+                      version: 4
+                      metric: disk
+                      refreshInterval: 10000
+              - k3s-node-01:
+                  - Info:
+                      icon: mdi-chassi
+                      widget:
+                        type: glances
+                        url: http://10.10.50.11:61208
+                        version: 4
+                        metric: info
+                        refreshInterval: 10000
+                  - CPU:
+                      icon: mdi-chip
+                      widget:
+                        type: glances
+                        url: http://10.10.50.11:61208
+                        version: 4
+                        metric: cpu
+                        cputemp: true
+                        chart: true
+                        refreshInterval: 10000
+                  - Memory:
+                      icon: mdi-memory
+                      widget:
+                        type: glances
+                        url: http://10.10.50.11:61208
+                        version: 4
+                        metric: memory
+                        chart: true
+                        refreshInterval: 10000
+                  - Network:
+                      icon: mdi-network
+                      widget:
+                        type: glances
+                        url: http://10.10.50.11:61208
+                        version: 4
+                        metric: network:enp2s0f0
+                        refreshInterval: 10000
+                  - Processes:
+                      widget:
+                        type: glances
+                        url: http://10.10.50.11:61208
+                        version: 4
+                        metric: process
+                        refreshInterval: 10000
+                  - CPU Temp:
+                      icon: mdi-temperature
+                      widget:
+                        type: glances
+                        url: http://10.10.50.11:61208
+                        version: 4
+                        metric: sensor
+                        chart: true
+                        refreshInterval: 10000
+                  - Disk usage:
+                      icon: mdi-harddisk
+                      widget:
+                        type: glances
+                        url: http://10.10.50.11:61208
+                        version: 4
+                        metric: fs:/
+                        chart: true
+                        refreshInterval: 10000
+                  - Disk I/O:
+                      icon: mdi-harddisk
+                      widget:
+                        type: glances
+                        url: http://10.10.50.11:61208
+                        version: 4
+                        metric: disk
+                        refreshInterval: 10000
           - Media:
               - SABnzbd:
                   href: https://sabnzbd.hl.mathielo.com
