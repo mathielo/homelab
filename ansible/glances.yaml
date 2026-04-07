@@ -1,0 +1,47 @@
+---
+- name: Install Glances
+  hosts: all
+  become: true
+  tasks:
+    - name: Install system dependencies
+      apt:
+        name:
+          - python3-psutil
+        state: present
+        update_cache: true
+
+    - name: Install uv
+      become_user: "{{ ansible_user }}"
+      shell:
+        cmd: curl -LsSf https://astral.sh/uv/install.sh | sh
+        creates: "/home/{{ ansible_user }}/.local/bin/uv"
+
+    - name: Install Glances via uv (with web server dependencies)
+      become_user: "{{ ansible_user }}"
+      command: "/home/{{ ansible_user }}/.local/bin/uv tool install glances==4.5.3 --with fastapi --with uvicorn --with jinja2"
+      register: glances_install
+      changed_when: "'Installed' in glances_install.stdout"
+      failed_when: glances_install.rc != 0 and 'already installed' not in glances_install.stderr
+
+    - name: Deploy Glances systemd unit
+      template:
+        src: glances/files/glances.service.j2
+        dest: /etc/systemd/system/glances.service
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart Glances
+
+    - name: Enable and start Glances
+      systemd:
+        name: glances
+        enabled: true
+        state: started
+        daemon_reload: true
+
+  handlers:
+    - name: Restart Glances
+      systemd:
+        name: glances
+        state: restarted
+        daemon_reload: true

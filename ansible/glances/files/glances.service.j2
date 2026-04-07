@@ -1,0 +1,13 @@
+[Unit]
+Description=Glances system monitoring (web mode)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/home/{{ ansible_user }}/.local/bin/glances -w
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

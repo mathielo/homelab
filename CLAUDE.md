@@ -92,6 +92,7 @@ Claude has MCP access to Pi-hole and UniFi for **read-only purposes**:
 - **Always use the latest stable version** when adding new dependencies (Helm charts, container images, tools).
 - **Pin explicit versions** — never use `latest`, `stable`, or floating tags. Renovate tracks updates via pinned versions.
 - **Renovate** (GitHub App) monitors all dependencies and opens PRs for updates on weekends.
+- **Check Renovate config** — when adding any versioned dependency (Helm chart, container image, pip/uv package, etc.), verify that `renovate.json5` has a matching custom manager regex if the file/format isn't auto-detected. Add one if missing.
 - Look up current latest versions online before implementing — don't assume versions from memory or documentation are current.
 
 ## Planned Expansions

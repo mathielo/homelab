@@ -120,6 +120,17 @@
       datasourceTemplate: 'helm',
       registryUrlTemplate: 'https://grafana.github.io/helm-charts',
     },
+    {
+      customType: 'regex',
+      managerFilePatterns: [
+        '/ansible/glances\\.yaml$/',
+      ],
+      matchStrings: [
+        'uv tool install glances==(?<currentValue>[\\d.]+)',
+      ],
+      depNameTemplate: 'glances',
+      datasourceTemplate: 'pypi',
+    },
   ],
   packageRules: [
     {
