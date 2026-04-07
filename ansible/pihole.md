@@ -110,6 +110,31 @@ The admin panel is available at `http://10.10.53.53/admin` after installation.
 > - `/etc/dnsmasq.d/` is **ignored by default** (`misc.etc_dnsmasq_d = false`) — the playbook enables this to allow the `20-k3s.conf` wildcard record
 > - `pihole setpassword` replaces v5's `pihole -a -p <password>`
 
+## Upgrading Pi-hole
+
+Always use the upgrade script instead of `pihole -up` directly:
+
+```bash
+ssh pihole "sudo pihole-upgrade"
+```
+
+The script handles a circular DNS dependency: Tailscale manages `/etc/resolv.conf` and routes DNS through Pi-hole itself. When `pihole -up` restarts FTL mid-upgrade, DNS breaks and the upgrade can't reach GitHub to finish.
+
+The script:
+
+1. Verifies Unbound is healthy
+2. Stops Tailscale (breaks the circular dependency)
+3. Sets a temporary DNS fallback (`9.9.9.9`)
+4. Runs `pihole -up`
+5. Verifies critical settings (`dns.upstreams`, `misc.etc_dnsmasq_d`) and restores them if the upgrade reset them
+6. Restarts Tailscale (reclaims `/etc/resolv.conf` automatically)
+
+If the script reports warnings, run the full Ansible playbook to restore all settings:
+
+```bash
+ansible-playbook pihole/pihole.yaml
+```
+
 ## Tailscale
 
 Pi-hole is a member of the tailnet so it can serve DNS to all tailnet devices regardless of their physical location. See [docs/tailscale.md](../docs/tailscale.md) for the overall architecture (IP convention, subnet routing, DNS flow).

@@ -153,6 +153,12 @@
         mode: "0644"
       notify: Restart pihole-FTL
 
+    - name: Deploy Pi-hole upgrade script (handles Tailscale DNS conflict)
+      copy:
+        src: files/pihole-upgrade.sh
+        dest: /usr/local/bin/pihole-upgrade
+        mode: "0755"
+
   handlers:
     - name: Restart timesyncd
       systemd:
