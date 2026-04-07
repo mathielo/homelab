@@ -182,20 +182,7 @@ app-template:
                     url: http://10.10.53.53:61208
                     version: 4
                     metric: cpu
-              - Pi-hole Memory:
-                  icon: mdi-memory
-                  widget:
-                    type: glances
-                    url: http://10.10.53.53:61208
-                    version: 4
-                    metric: memory
-              - Pi-hole Disk:
-                  icon: mdi-harddisk
-                  widget:
-                    type: glances
-                    url: http://10.10.53.53:61208
-                    version: 4
-                    metric: fs:/
+                    refreshInterval: 10000
               - k3s-server CPU:
                   icon: mdi-chip
                   widget:
@@ -203,20 +190,7 @@ app-template:
                     url: http://10.10.50.10:61208
                     version: 4
                     metric: cpu
-              - k3s-server Memory:
-                  icon: mdi-memory
-                  widget:
-                    type: glances
-                    url: http://10.10.50.10:61208
-                    version: 4
-                    metric: memory
-              - k3s-server Disk:
-                  icon: mdi-harddisk
-                  widget:
-                    type: glances
-                    url: http://10.10.50.10:61208
-                    version: 4
-                    metric: fs:/
+                    refreshInterval: 10000
               - k3s-node-01 CPU:
                   icon: mdi-chip
                   widget:
@@ -224,6 +198,23 @@ app-template:
                     url: http://10.10.50.11:61208
                     version: 4
                     metric: cpu
+                    refreshInterval: 10000
+              - Pi-hole Memory:
+                  icon: mdi-memory
+                  widget:
+                    type: glances
+                    url: http://10.10.53.53:61208
+                    version: 4
+                    metric: memory
+                    refreshInterval: 10000
+              - k3s-server Memory:
+                  icon: mdi-memory
+                  widget:
+                    type: glances
+                    url: http://10.10.50.10:61208
+                    version: 4
+                    metric: memory
+                    refreshInterval: 10000
               - k3s-node-01 Memory:
                   icon: mdi-memory
                   widget:
@@ -231,6 +222,23 @@ app-template:
                     url: http://10.10.50.11:61208
                     version: 4
                     metric: memory
+                    refreshInterval: 10000
+              - Pi-hole Disk:
+                  icon: mdi-harddisk
+                  widget:
+                    type: glances
+                    url: http://10.10.53.53:61208
+                    version: 4
+                    metric: fs:/
+                    refreshInterval: 60000
+              - k3s-server Disk:
+                  icon: mdi-harddisk
+                  widget:
+                    type: glances
+                    url: http://10.10.50.10:61208
+                    version: 4
+                    metric: fs:/
+                    refreshInterval: 60000
               - k3s-node-01 Disk:
                   icon: mdi-harddisk
                   widget:
@@ -238,6 +246,7 @@ app-template:
                     url: http://10.10.50.11:61208
                     version: 4
                     metric: fs:/
+                    refreshInterval: 60000
           - Media:
               - SABnzbd:
                   href: https://sabnzbd.hl.mathielo.com
