@@ -1,14 +1,14 @@
-# SABnzbd with Gluetun VPN kill-switch sidecar (ProtonVPN / WireGuard).
+# qBittorrent with Gluetun VPN kill-switch sidecar (ProtonVPN / WireGuard).
 #
 # Network architecture:
-#   - Gluetun runs as a regular container alongside SABnzbd (same pod).
-#   - SABnzbd shares Gluetun's network namespace automatically (same pod).
-#   - All SABnzbd traffic exits through the ProtonVPN WireGuard tunnel.
+#   - Gluetun runs as a regular container alongside qBittorrent (same pod).
+#   - qBittorrent shares Gluetun's network namespace automatically (same pod).
+#   - All qBittorrent traffic exits through the ProtonVPN WireGuard tunnel.
 #   - FIREWALL_OUTBOUND_SUBNETS allows cluster-internal traffic (DNS, APIs)
 #     to bypass the VPN so in-cluster service discovery keeps working.
 app-template:
   controllers:
-    sabnzbd:
+    qbittorrent:
       strategy: Recreate
       pod:
         # Override k8s DNS to fix resolution inside Gluetun VPN.
@@ -24,21 +24,6 @@ app-template:
           options:
             - name: ndots
               value: "0"
-      initContainers:
-        # Runs once before gluetun/sabnzbd start. Seeds sabnzbd.ini with the
-        # host whitelist so the UI is accessible via the ingress hostname on
-        # first boot. Skipped on subsequent starts (file already exists).
-        config-init:
-          image:
-            repository: busybox
-            tag: "1.37.0"
-          command:
-            - sh
-            - -c
-            - |
-              if [ ! -f /config/sabnzbd.ini ]; then
-                printf '[misc]\nhost_whitelist = sabnzbd.hl.mathielo.com,\n' > /config/sabnzbd.ini
-              fi
 
       containers:
         # Gluetun VPN kill-switch. Runs as a regular container with a postStart
@@ -80,9 +65,6 @@ app-template:
             VPN_TYPE: wireguard
             # WIREGUARD_PRIVATE_KEY and WIREGUARD_ADDRESSES injected via values.sops.yaml
             SERVER_COUNTRIES: Sweden
-            # Allow traffic to k3s pod CIDR + service CIDR to bypass the VPN tunnel.
-            # This keeps in-cluster calls (SABnzbd → Sonarr, DNS, etc.) working.
-            FIREWALL_OUTBOUND_SUBNETS: "10.42.0.0/16,10.43.0.0/16"
           resources:
             requests:
               cpu: 10m
@@ -91,46 +73,47 @@ app-template:
               cpu: 2000m
               memory: 1Gi
 
-        sabnzbd:
+        qbittorrent:
           image:
-            repository: ghcr.io/hotio/sabnzbd
-            tag: release-4.5.5
+            repository: ghcr.io/hotio/qbittorrent
+            tag: release-5.1.4
           env:
             PUID: "1000"
             PGID: "1000"
+            UMASK: "002"
             TZ: Europe/Stockholm
+            WEBUI_PORTS: "8080/tcp"
           resources:
             requests:
               cpu: 50m
               memory: 256Mi
-            # Sabnzbd can spike CPU and RAM usage in post-processing and verification/repair jobs.
             limits:
               cpu: 1000m
-              memory: 4Gi
+              memory: 1Gi
 
   service:
-    sabnzbd:
-      controller: sabnzbd
+    qbittorrent:
+      controller: qbittorrent
       ports:
         http:
           port: 8080
 
   ingress:
-    sabnzbd:
+    qbittorrent:
       className: nginx
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-prod
       hosts:
-        - host: sabnzbd.hl.mathielo.com
+        - host: qbt.hl.mathielo.com
           paths:
             - path: /
               service:
-                identifier: sabnzbd
+                identifier: qbittorrent
                 port: http
       tls:
         - hosts:
-            - sabnzbd.hl.mathielo.com
-          secretName: sabnzbd-hl-tls
+            - qbt.hl.mathielo.com
+          secretName: qbittorrent-hl-tls
 
   persistence:
     config:
@@ -140,15 +123,6 @@ app-template:
       storageClass: local-path
       globalMounts:
         - path: /config
-    # Local SSD storage for in-progress downloads. SABnzbd writes here at full
-    # speed, then moves completed files to the NFS-backed /media mount.
-    local-ssd:
-      type: persistentVolumeClaim
-      accessMode: ReadWriteOnce
-      size: 120Gi
-      storageClass: local-path
-      globalMounts:
-        - path: /local-ssd/downloads/
     media:
       type: persistentVolumeClaim
       existingClaim: media-data

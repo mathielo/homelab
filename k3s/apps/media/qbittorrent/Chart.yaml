@@ -1,0 +1,8 @@
+apiVersion: v2
+name: qbittorrent
+description: Torrent client with Gluetun VPN kill-switch sidecar
+version: 1.0.0
+dependencies:
+  - name: app-template
+    repository: https://bjw-s-labs.github.io/helm-charts/
+    version: "4.*"
