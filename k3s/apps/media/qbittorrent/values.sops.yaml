@@ -1,11 +1,11 @@
 app-template:
     controllers:
         qbittorrent:
-            containers:
+            initContainers:
                 gluetun:
                     env:
-                        WIREGUARD_PRIVATE_KEY: ENC[AES256_GCM,data:sgEiJIVhSBJwynNUe0MSijtVIdVwFzmLdwYOcZy7QYLx8KrqUUquifMc4Qk=,iv:btaw4kkCNCmQD8nWnC+bLCksphY+GH+4NKSyD6oxgms=,tag:CEH8b0vFMkxFdYiuJzSGWQ==,type:str]
-                        WIREGUARD_ADDRESSES: ENC[AES256_GCM,data:vlHoJlr5faHUg30=,iv:6JhIOTDc5Ze7Ih32tyeCq9lfW52v84jDEnzrS1GNvyk=,tag:p2ZQKdZPefcWlSsToI1//A==,type:str]
+                        WIREGUARD_PRIVATE_KEY: ENC[AES256_GCM,data:UgZhup/sNXdrxIXqJbR5Pv6kSX4gyU0FgPLrqMWD0VxhA1/2TkZZXhDC5P0=,iv:/4UbQVZcsECNYUfWsTQ82o6uTe6OgPKeDdmJTr3SqNk=,tag:cRs8v6vjNWZHYww9tYHzCw==,type:str]
+                        WIREGUARD_ADDRESSES: ENC[AES256_GCM,data:iri8ZXaBH6uGATk=,iv:68JQCf4dR0sP9XtpWG3uPanHDqEgXZmP8sZYVoI/GsM=,tag:3y9qC8wGTQtMmo1tYCLJDQ==,type:str]
 sops:
     age:
         - recipient: age1gyywmz5ypukdr265ltj45s3vtnckyvd7qn5ddr8qepj8ktdzsers20cz6t
@@ -26,7 +26,7 @@ sops:
             cmRyY3VDTENWNEZiZGZOaVM5Unp0R3MK0AVM/aeiXDJbvgjewsjlI96EFw6cN+qa
             CjymPy7f8hoXc0NGI0K8FAGMVMhwt7ac9gMu3Fy4M6B/yPHxGDb/Lg==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2026-04-13T18:32:39Z"
-    mac: ENC[AES256_GCM,data:/ky7ULQcjDTx5glLvmeAZJL0Wcv73DeluCKIWW/e9nI6X8U8/5vVkfw749sgxzu6E7a+GqrS7gnVOIuYug3dTGnj/S3E4lRwAW6+TUaxeYeNsVjUzj06eKQBs5ZPQCfQvTjUEYk9Ww1k0e/fcgyLByO0/4m6GZWwnfwJ8M3jyCQ=,iv:wd1x6SEIqyj1TvyDljt00n6SG58J29ZlK0bzPZ0twlI=,tag:XL8L2xgvE7bxeCQyi5Jdmg==,type:str]
+    lastmodified: "2026-04-13T19:08:35Z"
+    mac: ENC[AES256_GCM,data:ya7+8U+CG30OY7CoG3e1/FYieY28lq+A6kUfk1aPppLTk3ZNRfmX1G8tw/XXl3fPi01kv1NtAx9Ec/ubzG5Y9/IdOS6iNr3/uZefMtfW82ce5df3NmBxpHap4gfFI3P2Eo0bdC43o6QYkAlrzE2Ynb4fyt6q2bAm6Gqr6UWY49s=,iv:keDWbKg7LsF3aBiZF2DoSqx93TILDvSsgp1SvW4wMhw=,tag:QclfxmBVROthlFohcW6fYQ==,type:str]
     unencrypted_suffix: _unencrypted
     version: 3.12.1

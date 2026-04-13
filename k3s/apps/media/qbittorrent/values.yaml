@@ -1,14 +1,19 @@
 # qBittorrent with Gluetun VPN kill-switch sidecar (ProtonVPN / WireGuard).
 #
 # Network architecture:
-#   - Gluetun runs as a regular container alongside qBittorrent (same pod).
+#   - Gluetun runs as a native k8s sidecar (initContainer with
+#     restartPolicy: Always). Guarantees Gluetun is started and ready
+#     BEFORE qBittorrent starts, and torn down AFTER qBittorrent stops —
+#     eliminating any startup/shutdown leak window.
 #   - qBittorrent shares Gluetun's network namespace automatically (same pod).
 #   - All qBittorrent traffic exits through the ProtonVPN WireGuard tunnel.
-#   - FIREWALL_OUTBOUND_SUBNETS allows cluster-internal traffic (DNS, APIs)
-#     to bypass the VPN so in-cluster service discovery keeps working.
 app-template:
   controllers:
     qbittorrent:
+      # Recreate strategy ensures old pod fully terminates before the new one
+      # starts, avoiding "adding IPv6 rule: file exists" from stale WireGuard
+      # rules left in the pod netns.
+      # See: https://github.com/qdm12/gluetun/issues/2471
       strategy: Recreate
       pod:
         # Override k8s DNS to fix resolution inside Gluetun VPN.
@@ -25,15 +30,21 @@ app-template:
             - name: ndots
               value: "0"
 
-      containers:
-        # Gluetun VPN kill-switch. Runs as a regular container with a postStart
-        # lifecycle hook that cleans up stale WireGuard IP rules left by previous
+      initContainers:
+        # Gluetun VPN kill-switch as a native k8s sidecar (k8s >= 1.29).
+        # restartPolicy: Always promotes this initContainer to a sidecar:
+        #   - Starts before main containers (qBittorrent waits for it to be Ready)
+        #   - Restarts independently on liveness failure
+        #   - Terminates AFTER main containers on pod shutdown
+        #
+        # The postStart hook cleans up stale WireGuard IP rules left by previous
         # pods — fixes "adding IPv6 rule: file exists" on Kubernetes.
         # See: https://github.com/qdm12/gluetun/issues/2471
         gluetun:
           image:
             repository: ghcr.io/qdm12/gluetun
             tag: v3.41.1
+          restartPolicy: Always
           securityContext:
             capabilities:
               add:
@@ -73,6 +84,7 @@ app-template:
               cpu: 2000m
               memory: 1Gi
 
+      containers:
         qbittorrent:
           image:
             repository: ghcr.io/hotio/qbittorrent
