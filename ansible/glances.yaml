@@ -16,6 +16,14 @@
         cmd: curl -LsSf https://astral.sh/uv/install.sh | sh
         creates: "/home/{{ ansible_user }}/.local/bin/uv"
 
+    - name: Fix ownership of Glances uv tools directory
+      file:
+        path: "/home/{{ ansible_user }}/.local/share/uv/tools/glances"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        recurse: true
+      ignore_errors: true
+
     - name: Install Glances via uv (with web server dependencies)
       become_user: "{{ ansible_user }}"
       command: "/home/{{ ansible_user }}/.local/bin/uv tool install glances==4.5.4 --with fastapi --with uvicorn --with jinja2"
