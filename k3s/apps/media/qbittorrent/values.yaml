@@ -76,6 +76,17 @@ app-template:
             VPN_TYPE: wireguard
             # WIREGUARD_PRIVATE_KEY and WIREGUARD_ADDRESSES injected via values.sops.yaml
             SERVER_COUNTRIES: Sweden
+            # SERVER_FEATURES=p2p selects only ProtonVPN P2P servers, which are
+            # the ones with NAT-PMP enabled (required for port forwarding).
+            # PORT_FORWARD_ONLY additionally ensures Gluetun won't fall back to
+            # a non-forwarding server if no P2P server is available.
+            SERVER_FEATURES: p2p
+            VPN_PORT_FORWARDING: "on"
+            PORT_FORWARD_ONLY: "on"
+            # The up command fires whenever Gluetun gets a forwarded port and
+            # pushes it to qBittorrent's API (localhost auth bypass must be
+            # enabled in qBittorrent WebUI → Options → Web UI).
+            VPN_PORT_FORWARDING_UP_COMMAND: /bin/sh -c 'wget -qO- --post-data "json={\"listen_port\":{{ "{{PORTS}}" }}}" http://localhost:8080/api/v2/app/setPreferences'
           resources:
             requests:
               cpu: 10m

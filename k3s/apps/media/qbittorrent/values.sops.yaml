@@ -4,7 +4,7 @@ app-template:
             initContainers:
                 gluetun:
                     env:
-                        WIREGUARD_PRIVATE_KEY: ENC[AES256_GCM,data:UgZhup/sNXdrxIXqJbR5Pv6kSX4gyU0FgPLrqMWD0VxhA1/2TkZZXhDC5P0=,iv:/4UbQVZcsECNYUfWsTQ82o6uTe6OgPKeDdmJTr3SqNk=,tag:cRs8v6vjNWZHYww9tYHzCw==,type:str]
+                        WIREGUARD_PRIVATE_KEY: ENC[AES256_GCM,data:D/tI0sYgkqLAu1hvGsQbbDinJMitvBB+Y+K6lt+/FfTXjYZaTo0zyrn8wfg=,iv:4VPV90mQjf7l5biBrh50JH5+i2jfzUdfRrkwI0h7fY4=,tag:9psDb2DIDH1bv+uKBw+NfQ==,type:str]
                         WIREGUARD_ADDRESSES: ENC[AES256_GCM,data:iri8ZXaBH6uGATk=,iv:68JQCf4dR0sP9XtpWG3uPanHDqEgXZmP8sZYVoI/GsM=,tag:3y9qC8wGTQtMmo1tYCLJDQ==,type:str]
 sops:
     age:
@@ -26,7 +26,7 @@ sops:
             cmRyY3VDTENWNEZiZGZOaVM5Unp0R3MK0AVM/aeiXDJbvgjewsjlI96EFw6cN+qa
             CjymPy7f8hoXc0NGI0K8FAGMVMhwt7ac9gMu3Fy4M6B/yPHxGDb/Lg==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2026-04-13T19:08:35Z"
-    mac: ENC[AES256_GCM,data:ya7+8U+CG30OY7CoG3e1/FYieY28lq+A6kUfk1aPppLTk3ZNRfmX1G8tw/XXl3fPi01kv1NtAx9Ec/ubzG5Y9/IdOS6iNr3/uZefMtfW82ce5df3NmBxpHap4gfFI3P2Eo0bdC43o6QYkAlrzE2Ynb4fyt6q2bAm6Gqr6UWY49s=,iv:keDWbKg7LsF3aBiZF2DoSqx93TILDvSsgp1SvW4wMhw=,tag:QclfxmBVROthlFohcW6fYQ==,type:str]
+    lastmodified: "2026-04-24T17:19:16Z"
+    mac: ENC[AES256_GCM,data:B1MIGuO3sAXr+F7/JbUK832heNkAMn1bafaZV57hpaNltgD9oYFQsVRdzn92oL8QZVM31L2akPYK8TdWBswZ2AfdfvlMkfAwLNAHd0ny+upTYQjJMQ8Cq43vUo4qYU8MIiSwCONEW5ZSULomTSMiFsYzNnzSN1JueJ6nTvKDkGU=,iv:JPLvWeE6/UHV5r+9apCBwEkF+mHX2JP7ZayCZp3ZUrc=,tag:3NRKtxsIHU1D/Kxzsy8P0w==,type:str]
     unencrypted_suffix: _unencrypted
-    version: 3.12.1
+    version: 3.12.2
