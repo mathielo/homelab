@@ -37,21 +37,29 @@ Some tools need to be installed locally to be able to manage the homelab setup, 
 - age
 - sops
 
+Run the install script to set everything up in one shot:
+
+```bash
+./scripts/install.sh
+```
+
+Or install manually:
+
 ```bash
 # Ansible + sshpass
-sudo add-apt-repository --yes ppa:ansible/ansible
-sudo apt update
-sudo apt install -y ansible software-properties-common sshpass
+sudo dnf install -y ansible sshpass
 
 # Docker + compose plugin
-curl -fsSL https://get.docker.com | sh
+sudo dnf config-manager addrepo --from-repofile https://download.docker.com/linux/fedora/docker-ce.repo
+sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo systemctl enable --now docker
 sudo usermod -aG docker $USER  # log out and back in after this
 
 # k9s
-curl -sS https://webinstall.dev/k9s | bash
+sudo dnf install -y k9s
 
 # age (encryption tool used by SOPS)
-sudo apt install -y age
+sudo dnf install -y age
 
 # sops (secret file encryption)
 SOPS_VERSION=$(curl -s https://api.github.com/repos/getsops/sops/releases/latest | grep tag_name | cut -d '"' -f 4)
