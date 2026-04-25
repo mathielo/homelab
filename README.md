@@ -18,6 +18,14 @@ Docs, config, scripts and _whatnots_ for everything being set up and experimente
 
 - [MCP Server](mcp/README.md) — Claude Code MCP integration for Pi-hole and UniFi
 
+# SSH: hosts, config & keys
+
+All homelab related host configuration and SSH keys can be found in [`./config/ssh.config`](.config/ssh.config). They can be simply symlinked into `~/.ssh/config`:
+
+```bash
+ln -sf ~/src/homelab/.config/ssh.config ~/.ssh/config
+```
+
 # Prerequisites
 
 Some tools need to be installed locally to be able to manage the homelab setup, namely:
