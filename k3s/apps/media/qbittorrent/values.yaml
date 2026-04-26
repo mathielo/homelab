@@ -128,7 +128,7 @@ app-template:
               cpu: 50m
               memory: 256Mi
             limits:
-              memory: 4Gi
+              memory: 6Gi
 
   service:
     qbittorrent:
