@@ -19,6 +19,11 @@ spec:
     - ReadWriteMany
   persistentVolumeReclaimPolicy: Retain
   storageClassName: ""
+  # Increase NFS mount options for better performance.
+  mountOptions:
+    - nconnect=4
+    - rsize=1048576
+    - wsize=1048576
   nfs:
     server: 10.10.1.4
     path: /var/nfs/shared/Media
