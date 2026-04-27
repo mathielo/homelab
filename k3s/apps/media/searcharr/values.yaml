@@ -1,0 +1,36 @@
+app-template:
+  controllers:
+    searcharr:
+      containers:
+        searcharr:
+          image:
+            repository: toddrob/searcharr
+            tag: v3.4.0
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+
+  persistence:
+    data:
+      suffix: data
+      type: persistentVolumeClaim
+      accessMode: ReadWriteOnce
+      size: 500Mi
+      storageClass: local-path
+      globalMounts:
+        - path: /app/data
+    settings:
+      type: configMap
+      name: searcharr
+      globalMounts:
+        - path: /app/data/settings.py
+          subPath: settings.py
+          readOnly: true
+    logs:
+      type: emptyDir
+      globalMounts:
+        - path: /app/logs

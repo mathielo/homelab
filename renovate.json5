@@ -167,6 +167,16 @@
       groupName: 'media-support',
     },
     {
+      description: 'Searcharr Telegram bot',
+      matchDatasources: [
+        'docker',
+      ],
+      matchPackageNames: [
+        'toddrob99/searcharr',
+      ],
+      groupName: 'media-bots',
+    },
+    {
       description: 'Seerr (digest-only, no semver tags)',
       matchDatasources: [
         'docker',
