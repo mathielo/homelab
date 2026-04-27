@@ -1,0 +1,8 @@
+apiVersion: v2
+name: watchlistarr
+description: Real-time Plex watchlist sync with Sonarr and Radarr
+version: 1.0.0
+dependencies:
+  - name: app-template
+    repository: https://bjw-s-labs.github.io/helm-charts/
+    version: "4.*"

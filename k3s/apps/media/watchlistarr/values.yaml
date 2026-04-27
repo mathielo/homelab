@@ -1,0 +1,28 @@
+app-template:
+  controllers:
+    watchlistarr:
+      containers:
+        watchlistarr:
+          image:
+            repository: nylonee/watchlistarr
+            tag: 0.2.6
+          env:
+            SONARR_BASE_URL: http://sonarr.media.svc.cluster.local:8989
+            RADARR_BASE_URL: http://radarr.media.svc.cluster.local:7878
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+
+  persistence:
+    config:
+      suffix: config
+      type: persistentVolumeClaim
+      accessMode: ReadWriteOnce
+      size: 256Mi
+      storageClass: local-path
+      globalMounts:
+        - path: /app/config

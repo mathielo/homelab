@@ -167,12 +167,13 @@
       groupName: 'media-support',
     },
     {
-      description: 'Searcharr Telegram bot',
+      description: 'Media bots (Searcharr, Watchlistarr)',
       matchDatasources: [
         'docker',
       ],
       matchPackageNames: [
         'toddrob99/searcharr',
+        'nylonee/watchlistarr',
       ],
       groupName: 'media-bots',
     },
