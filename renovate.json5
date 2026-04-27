@@ -134,7 +134,7 @@
   ],
   packageRules: [
     {
-      description: 'Hotio media stack images (excl. Jellyfin)',
+      description: 'Hotio media stack images (excl. Jellyfin and Plex)',
       matchDatasources: [
         'docker',
       ],
@@ -143,6 +143,18 @@
       matchPackageNames: [
         '/^ghcr\\.io/hotio//',
         '!ghcr.io/hotio/jellyfin',
+        '!ghcr.io/hotio/plex',
+      ],
+    },
+    {
+      description: 'Plex has a hex commit hash suffix: release-1.2.3.4567-abc123f',
+      matchDatasources: [
+        'docker',
+      ],
+      versioning: 'regex:^release-(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)-[0-9a-f]+$',
+      groupName: 'media-stack-hotio',
+      matchPackageNames: [
+        'ghcr.io/hotio/plex',
       ],
     },
     {
