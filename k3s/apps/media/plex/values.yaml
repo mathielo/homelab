@@ -76,6 +76,11 @@ app-template:
       storageClass: local-path
       globalMounts:
         - path: /config
+    transcode:
+      type: emptyDir
+      sizeLimit: 60Gi
+      globalMounts:
+        - path: /transcode
     media:
       type: persistentVolumeClaim
       existingClaim: media-data
