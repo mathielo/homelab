@@ -186,6 +186,7 @@
       matchPackageNames: [
         'toddrob99/searcharr',
         'nylonee/watchlistarr',
+        'ghcr.io/autobrr/autobrr',
       ],
       groupName: 'media-bots',
     },
