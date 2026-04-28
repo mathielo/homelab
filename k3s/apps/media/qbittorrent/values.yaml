@@ -136,6 +136,8 @@ app-template:
       ports:
         http:
           port: 8080
+        gluetun:
+          port: 8000
 
   ingress:
     qbittorrent:
