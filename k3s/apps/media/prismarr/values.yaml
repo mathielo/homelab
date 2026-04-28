@@ -1,0 +1,54 @@
+app-template:
+  defaultPodOptions:
+    nodeSelector:
+      kubernetes.io/hostname: k3s-node-01
+
+  controllers:
+    prismarr:
+      containers:
+        prismarr:
+          image:
+            repository: shoshuo/prismarr
+            tag: 1.0.5
+          env:
+            TRUSTED_PROXIES: "127.0.0.1,REMOTE_ADDR"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+  service:
+    prismarr:
+      controller: prismarr
+      ports:
+        http:
+          port: 7070
+
+  ingress:
+    prismarr:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      hosts:
+        - host: prismarr.hl.mathielo.com
+          paths:
+            - path: /
+              service:
+                identifier: prismarr
+                port: http
+      tls:
+        - hosts:
+            - prismarr.hl.mathielo.com
+          secretName: prismarr-hl-tls
+
+  persistence:
+    data:
+      type: persistentVolumeClaim
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      storageClass: local-path
+      globalMounts:
+        - path: /var/www/html/var/data
