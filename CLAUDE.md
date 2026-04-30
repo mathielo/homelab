@@ -63,9 +63,10 @@ Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
   - **Unbound** runs as recursive resolver on `127.0.0.1:5335`; Pi-hole uses it as upstream instead of Quad9 directly
   - DNS chain: Device → Pi-hole (`:53`) → Unbound (`127.0.0.1:5335`) → root nameservers
 - **UNAS-4** (UniFi NAS): Network-attached storage on VLAN 1 (`10.10.1.4`)
-  - 4×4 TB HDD in RAID 5 (~12 TB usable) + 500 GB M.2 SSD cache
-  - NFS share `Media` exported to k3s nodes (`10.10.50.10`, `10.10.50.11`) at `/var/nfs/shared/Media`
-  - Backs the `media-data` PVC used by all ARR apps and media servers
+  - 4×24 TB 7200RPM HDD in RAID 5 (~72 TB usable) + 2×500 GB M.2 SSD read-write cache
+  - NFS share `Media` (52 TB quota) exported to k3s nodes at `/var/nfs/shared/Media`
+  - NFS share `Backups` exported to k3s nodes at `/var/nfs/shared/Backups`
+  - `media-data` PVC mounts the full `Media` share; `dl/` and `lib/` are top-level subdirs — same mount enables hardlinks between download clients and ARR library moves
 - **k3s cluster**: Multi-node Kubernetes (server + agent) running Prometheus, Grafana, Loki, Promtail
   - Server: `k3s-server` (M75q-1) at `10.10.50.10`
   - Agent: `k3s-node-01` (M715Q) at `10.10.50.11`

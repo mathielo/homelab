@@ -1,12 +1,11 @@
 ---
 # ---------------------------------------------------------------------------
 # Static NFS PersistentVolume — UNAS-4
-#
-# Points to the "Media" share on the UniFi NAS (10.10.1.4, VLAN 1).
+# NAS specs: 4 × 24Tb 7200RPM HDD (RAID 5, ~72 TB usable) + 2x 500 GB M.2 SSD read-write cache
 # NFS access is restricted to k3s nodes (10.10.50.10, 10.10.50.11) on the NAS side.
 # No CSI driver or provisioner needed — k3s uses kernel NFS via nfs-common.
 #
-# NAS specs: 4×4 TB HDD (RAID 5, ~12 TB usable) + 500 GB M.2 SSD cache
+# PersistentVolume to the "Media" share on the UniFi NAS (10.10.1.4, VLAN 1).
 # ---------------------------------------------------------------------------
 apiVersion: v1
 kind: PersistentVolume
@@ -14,16 +13,13 @@ metadata:
   name: media-data
 spec:
   capacity:
-    storage: 8Ti
+    storage: 52Ti
   accessModes:
     - ReadWriteMany
   persistentVolumeReclaimPolicy: Retain
   storageClassName: ""
-  # Increase NFS mount options for better performance.
   mountOptions:
     - nconnect=4
-    - rsize=1048576
-    - wsize=1048576
   nfs:
     server: 10.10.1.4
     path: /var/nfs/shared/Media
@@ -32,20 +28,23 @@ spec:
 # ---------------------------------------------------------------------------
 # Shared media PVC
 #
-# All ARR apps and media servers mount this single volume.
-# Directory layout inside the volume (mirrors TRaSH Guide):
+# All ARR apps, download clients, and media servers mount this single volume.
+# Keeping dl/ and lib/ under the same NFS mount enables hardlinks — ARR apps
+# can "move" completed downloads into the library instantly with no data copy.
 #
-#   /media/
-#   ├── downloads/usenet/
-#   │   ├── incomplete/
-#   │   └── complete/
-#   │       ├── movies/
-#   │       ├── tv/
-#   │       └── music/
-#   └── library/
+# Directory layout inside the volume:
+#
+#   /
+#   ├── dl/                  ← download clients write here
+#   │   ├── books/
+#   │   ├── movies/
+#   │   ├── music/
+#   │   └── shows/
+#   └── lib/                 ← ARR apps hardlink here; media servers read here
+#       ├── books/
 #       ├── movies/
-#       ├── tv/
-#       └── music/
+#       ├── music/
+#       └── shows/
 # ---------------------------------------------------------------------------
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -59,4 +58,4 @@ spec:
     - ReadWriteMany
   resources:
     requests:
-      storage: 8Ti
+      storage: 52Ti

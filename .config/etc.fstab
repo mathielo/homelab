@@ -1,4 +1,6 @@
 # UNAS
 # The "_netdev" option makes the mount attempt happen only after network is available
-10.10.1.4:/var/nfs/shared/Media /mnt/nas-media nfs defaults,_netdev 0 0
-10.10.1.4:/var/nfs/shared/Backups /mnt/nas-backups nfs defaults,_netdev 0 0
+
+# sudo mkdir -p /mnt/nas/{backups,media}
+10.10.1.4:/var/nfs/shared/Backups /mnt/nas/backups nfs defaults,_netdev 0 0
+10.10.1.4:/var/nfs/shared/Media /mnt/nas/media nfs defaults,_netdev 0 0
