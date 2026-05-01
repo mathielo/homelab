@@ -180,13 +180,13 @@
       groupName: 'media-support',
     },
     {
-      description: 'Media bots (Searcharr, Watchlistarr)',
+      description: 'Media bots (Searcharr, Pulsarr)',
       matchDatasources: [
         'docker',
       ],
       matchPackageNames: [
         'toddrob99/searcharr',
-        'nylonee/watchlistarr',
+        'lakker/pulsarr',
         'ghcr.io/autobrr/autobrr',
       ],
       groupName: 'media-bots',

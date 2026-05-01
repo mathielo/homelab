@@ -1,5 +1,5 @@
 apiVersion: v2
-name: watchlistarr
+name: pulsarr
 description: Real-time Plex watchlist sync with Sonarr and Radarr
 version: 1.0.0
 dependencies:

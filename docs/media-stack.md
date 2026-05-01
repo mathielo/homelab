@@ -6,7 +6,7 @@ Automated media acquisition and streaming stack running on k3s, managed by ArgoC
 
 ```
 Request flow:
-  Watchlistarr/Searcharr (requests) → Sonarr/Radarr (automation) → Prowlarr (indexer search) → SABnzbd/qBittorrent (download) → Plex (playback)
+  Pulsarr/Searcharr (requests) → Sonarr/Radarr (automation) → Prowlarr (indexer search) → SABnzbd/qBittorrent (download) → Plex (playback)
 
 Cleanup flow:
   Maintainerr (rules) → Radarr/Sonarr (remove entry) → deletes files from NFS media library

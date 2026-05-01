@@ -15,7 +15,7 @@ kubectl -n <namespace> scale deploy/<app> --replicas=0
 
 # To stop all media and dashboard apps at once:
 kubectl -n argocd patch application autobrr bazarr plex prismarr prowlarr \
-  qbittorrent radarr sabnzbd searcharr sonarr watchlistarr uptime-kuma \
+  qbittorrent radarr sabnzbd searcharr sonarr pulsarr uptime-kuma \
   --type merge -p '{"spec":{"syncPolicy":null}}'
 kubectl -n media scale deploy --all --replicas=0
 kubectl -n dashboard scale deploy --all --replicas=0

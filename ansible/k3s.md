@@ -19,15 +19,15 @@ MetalLB VIP: `10.10.50.3` (ingress, DNS wildcard target)
 
 ## Namespaces
 
-| Namespace         | Purpose                                          | Services                                                                                           |
-| ----------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `kube-extra`      | Cluster infrastructure (monitoring, ingress)     | nginx-ingress, Prometheus, Grafana, Loki, Promtail                                                 |
-| `metallb-system`  | Load balancer                                    | MetalLB (L2 mode, VIP 10.10.50.3)                                                                  |
-| `media`           | Media stack (ARR + streaming, managed by ArgoCD) | Sonarr, Radarr, Prowlarr, Bazarr, SABnzbd, qBittorrent, Prismarr, Watchlistarr, Searcharr, AutoBrr |
-| `dashboard`       | User-facing dashboards and portals               | Homepage, Uptime Kuma                                                                              |
-| `argocd`          | GitOps controller                                | ArgoCD                                                                                             |
-| `cert-manager`    | TLS certificate management                       | cert-manager                                                                                       |
-| `longhorn-system` | Distributed k8s PVC storage                      | Longhorn detaches PVC from local nodes allowing for HA + pods moving freely between nodes          |
+| Namespace         | Purpose                                          | Services                                                                                      |
+| ----------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `kube-extra`      | Cluster infrastructure (monitoring, ingress)     | nginx-ingress, Prometheus, Grafana, Loki, Promtail                                            |
+| `metallb-system`  | Load balancer                                    | MetalLB (L2 mode, VIP 10.10.50.3)                                                             |
+| `media`           | Media stack (ARR + streaming, managed by ArgoCD) | Sonarr, Radarr, Prowlarr, Bazarr, SABnzbd, qBittorrent, Prismarr, Pulsarr, Searcharr, AutoBrr |
+| `dashboard`       | User-facing dashboards and portals               | Homepage, Uptime Kuma                                                                         |
+| `argocd`          | GitOps controller                                | ArgoCD                                                                                        |
+| `cert-manager`    | TLS certificate management                       | cert-manager                                                                                  |
+| `longhorn-system` | Distributed k8s PVC storage                      | Longhorn detaches PVC from local nodes allowing for HA + pods moving freely between nodes     |
 
 ## Bootstrap
 

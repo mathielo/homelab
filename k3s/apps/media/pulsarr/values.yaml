@@ -1,0 +1,47 @@
+app-template:
+  controllers:
+    pulsarr:
+      containers:
+        pulsarr:
+          image:
+            repository: lakker/pulsarr
+            tag: 0.15.4
+          env:
+            TZ: Europe/Stockholm
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+  service:
+    pulsarr:
+      controller: pulsarr
+      ports:
+        http:
+          port: 3003
+
+  ingress:
+    pulsarr:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      hosts:
+        - host: pulsarr.hl.mathielo.com
+          paths:
+            - path: /
+              service:
+                identifier: pulsarr
+                port: http
+      tls:
+        - hosts:
+            - pulsarr.hl.mathielo.com
+          secretName: pulsarr-hl-tls
+
+  persistence:
+    data:
+      existingClaim: pulsarr-data-lh
+      globalMounts:
+        - path: /app/data

@@ -2,7 +2,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: watchlistarr
+  name: pulsarr
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
@@ -11,11 +11,10 @@ spec:
   source:
     repoURL: git@github.com:mathielo/homelab.git
     targetRevision: main
-    path: k3s/apps/media/watchlistarr
+    path: k3s/apps/media/pulsarr
     helm:
       valueFiles:
         - values.yaml
-        - secrets://values.sops.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: media
