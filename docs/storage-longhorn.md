@@ -118,6 +118,8 @@ This is configured in `ansible/k3s/files/longhorn.values.yaml` and patched onto 
 
 ## Creating a backup
 
+A daily backup job is defined as `RecurringJob` CRs declared in `k3s/apps/media/_infra/`, which is managed by ArgoCD.
+
 **Via the UI** (`https://longhorn.hl.mathielo.com`):
 
 1. Go to **Volumes** — find the volume (named after the PVC, e.g. `pvc-b49ada02-...`)
@@ -127,8 +129,6 @@ This is configured in `ansible/k3s/files/longhorn.values.yaml` and patched onto 
 **Via recurring jobs** (recommended for automation):
 
 In the Longhorn UI: **Recurring Jobs** → **Create** — set `type=backup`, `cron` schedule (e.g. `0 2 * * *` for 2 AM daily), `retain` count, and attach it to the volumes you want covered.
-
-Recurring jobs can also be defined as `RecurringJob` CRs — add them to `k3s/apps/media/_infra/` to manage via ArgoCD.
 
 ## Viewing backups
 

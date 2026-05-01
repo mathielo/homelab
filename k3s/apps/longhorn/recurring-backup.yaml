@@ -1,0 +1,17 @@
+---
+# Daily backup of all Longhorn volumes to UNAS-4 NFS share.
+# All volumes are automatically enrolled via the 'default' group label
+# that Longhorn assigns to every new volume.
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: daily-backup
+  namespace: longhorn-system
+spec:
+  task: backup
+  # Every day at 0:15 AM
+  cron: "15 0 * * *"
+  retain: 14
+  concurrency: 2
+  groups:
+    - default
