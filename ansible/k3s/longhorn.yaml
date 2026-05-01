@@ -1,0 +1,78 @@
+---
+# Installs Longhorn distributed block storage on the k3s cluster.
+#
+# Prerequisites:
+#   - Both k3s nodes must have open-iscsi installed and iscsid running
+#     (handled by install-k3s.yaml).
+#   - Both nodes must have /mnt/ssd/longhorn mounted (ext4, fstab with UUID).
+#     Disk prep is documented in docs/storage-longhorn.md.
+#
+# After running this playbook:
+#   1. Longhorn becomes the default StorageClass (local-path loses its default).
+#   2. Pre-create Longhorn PVCs by pushing k3s/apps/media/_infra/longhorn-pvcs.yaml
+#      and letting ArgoCD sync.
+
+- name: Deploy Longhorn distributed block storage
+  hosts: k3s_server
+  become: true
+  environment:
+    KUBECONFIG: /etc/k3s/k3s.yaml
+
+  tasks:
+    - name: Add Longhorn Helm repo
+      command: helm repo add longhorn https://charts.longhorn.io
+      register: helm_repo
+      changed_when: "'has been added' in helm_repo.stdout"
+      failed_when: helm_repo.rc != 0 and 'already exists' not in helm_repo.stderr
+
+    - name: Update Helm repos
+      command: helm repo update
+      changed_when: false
+
+    - name: Copy Longhorn values file
+      copy:
+        src: files/longhorn.values.yaml
+        dest: /tmp/longhorn.values.yaml
+        mode: "0644"
+
+    - name: Deploy Longhorn
+      command: >
+        helm upgrade --install longhorn longhorn/longhorn
+        --namespace longhorn-system
+        --create-namespace
+        --values /tmp/longhorn.values.yaml
+        --version 1.11.1
+        --wait --timeout 10m
+
+    - name: Clean up Longhorn values file
+      file:
+        path: /tmp/longhorn.values.yaml
+        state: absent
+
+    - name: Wait for longhorn-manager DaemonSet rollout
+      command: kubectl rollout status daemonset/longhorn-manager -n longhorn-system --timeout=5m
+      changed_when: false
+
+    - name: Set backup target on default BackupTarget CR
+      # defaultSettings.backupTarget in values only applies on first install.
+      # Patching the CR directly makes this idempotent on re-runs.
+      command: >
+        kubectl patch backuptarget default -n longhorn-system
+        --type merge
+        -p '{"spec":{"backupTargetURL":"nfs://10.10.1.4:/var/nfs/shared/k3s?nfsOptions=vers=3,nolock,actimeo=1,soft,timeo=300,retry=2"}}'
+      changed_when: false
+
+    - name: Remove default annotation from local-path StorageClass
+      command: >
+        kubectl patch storageclass local-path
+        -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
+      changed_when: false
+
+    - name: Verify StorageClasses
+      command: kubectl get storageclass
+      changed_when: false
+      register: sc_list
+
+    - name: Show StorageClasses
+      debug:
+        msg: "{{ sc_list.stdout_lines }}"

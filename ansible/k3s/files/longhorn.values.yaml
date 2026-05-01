@@ -1,0 +1,33 @@
+defaultSettings:
+  defaultDataPath: /mnt/ssd/longhorn
+  defaultDataLocality: best-effort
+  defaultReplicaCount: 2
+  storageOverProvisioningPercentage: 100
+  storageMinimalAvailablePercentage: 10
+  replicaSoftAntiAffinity: false # 2 nodes — strict anti-affinity (no 2 replicas on same node)
+  allowVolumeCreationWithDegradedAvailability: true
+  guaranteedInstanceManagerCPU: 12
+  # The backup target needs to specify:
+  # - vers=3 (NFS version 3)
+  # - nolock (disable kernel-level locking)
+  # The other options are the defaults from Longhorn that get overwritten by the nfsOptions query string
+  # See https://oneuptime.com/blog/post/2026-03-20-configure-longhorn-backup-target-nfs/view
+  backupTarget: "nfs://10.10.1.4:/var/nfs/shared/k3s?nfsOptions=vers=3,nolock,actimeo=1,soft,timeo=300,retry=2"
+
+persistence:
+  defaultClass: true
+  defaultClassReplicaCount: 2
+  reclaimPolicy: Delete
+
+longhornManager:
+  priorityClass: system-node-critical
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  host: longhorn.hl.mathielo.com
+  tls: true
+  tlsSecret: longhorn-hl-tls
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/backend-protocol: HTTP

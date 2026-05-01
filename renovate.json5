@@ -123,6 +123,18 @@
     {
       customType: 'regex',
       managerFilePatterns: [
+        '/ansible/k3s/longhorn\\.yaml$/',
+      ],
+      matchStrings: [
+        'helm upgrade --install longhorn\\s+longhorn/longhorn[\\s\\S]*?--version\\s+(?<currentValue>[\\d.]+)',
+      ],
+      depNameTemplate: 'longhorn',
+      datasourceTemplate: 'helm',
+      registryUrlTemplate: 'https://charts.longhorn.io',
+    },
+    {
+      customType: 'regex',
+      managerFilePatterns: [
         '/ansible/glances\\.yaml$/',
       ],
       matchStrings: [
@@ -232,6 +244,7 @@
         'argo-cd',
         'cert-manager',
         'ingress-nginx',
+        'longhorn',
         'getsops/sops',
       ],
       groupName: 'cluster-infra',

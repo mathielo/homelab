@@ -25,6 +25,17 @@
         name: nfs-common
         state: present
 
+    - name: Install open-iscsi (required for Longhorn block storage)
+      apt:
+        name: open-iscsi
+        state: present
+
+    - name: Ensure iscsid is enabled and running
+      systemd:
+        name: iscsid
+        enabled: true
+        state: started
+
     - name: Write clean resolv.conf for CoreDNS (bypass Tailscale MagicDNS)
       copy:
         src: files/k3s-resolv.conf
@@ -169,6 +180,17 @@
       apt:
         name: nfs-common
         state: present
+
+    - name: Install open-iscsi (required for Longhorn block storage)
+      apt:
+        name: open-iscsi
+        state: present
+
+    - name: Ensure iscsid is enabled and running
+      systemd:
+        name: iscsid
+        enabled: true
+        state: started
 
     - name: Write clean resolv.conf for kubelet (bypass Tailscale MagicDNS)
       copy:

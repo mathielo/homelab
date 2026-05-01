@@ -66,6 +66,7 @@ Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
   - 4×24 TB 7200RPM HDD in RAID 5 (~72 TB usable) + 2×500 GB M.2 SSD read-write cache
   - NFS share `Media` (52 TB quota) exported to k3s nodes at `/var/nfs/shared/Media`
   - NFS share `Backups` exported to k3s nodes at `/var/nfs/shared/Backups`
+  - NFS share `k3s` exported to k3s nodes at `/var/nfs/shared/k3s` — dedicated Longhorn backup target
   - `media-data` PVC mounts the full `Media` share; `dl/` and `lib/` are top-level subdirs — same mount enables hardlinks between download clients and ARR library moves
 - **k3s cluster**: Multi-node Kubernetes (server + agent) running Prometheus, Grafana, Loki, Promtail
   - Server: `k3s-server` (M75q-1) at `10.10.50.10`
