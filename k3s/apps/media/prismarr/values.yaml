@@ -1,8 +1,4 @@
 app-template:
-  defaultPodOptions:
-    nodeSelector:
-      kubernetes.io/hostname: k3s-node-01
-
   controllers:
     prismarr:
       containers:
@@ -46,9 +42,6 @@ app-template:
 
   persistence:
     data:
-      type: persistentVolumeClaim
-      accessMode: ReadWriteOnce
-      size: 1Gi
-      storageClass: local-path
+      existingClaim: prismarr-config-lh
       globalMounts:
         - path: /var/www/html/var/data

@@ -8,6 +8,10 @@
 #   - qBittorrent shares Gluetun's network namespace automatically (same pod).
 #   - All qBittorrent traffic exits through the ProtonVPN WireGuard tunnel.
 app-template:
+  defaultPodOptions:
+    nodeSelector:
+      kubernetes.io/hostname: k3s-node-01
+
   controllers:
     qbittorrent:
       # Recreate strategy ensures old pod fully terminates before the new one
@@ -158,12 +162,15 @@ app-template:
 
   persistence:
     config:
-      type: persistentVolumeClaim
-      accessMode: ReadWriteOnce
-      size: 1Gi
-      storageClass: local-path
+      existingClaim: qbittorrent-config-lh
       globalMounts:
         - path: /config
+    incomplete:
+      type: hostPath
+      hostPath: /mnt/ssd/local/qbt-incomplete
+      hostPathType: DirectoryOrCreate
+      globalMounts:
+        - path: /incomplete
     media:
       type: persistentVolumeClaim
       existingClaim: media-data

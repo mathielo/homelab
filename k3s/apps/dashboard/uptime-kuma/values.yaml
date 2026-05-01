@@ -64,11 +64,7 @@ app-template:
 
   persistence:
     data:
-      suffix: data
-      type: persistentVolumeClaim
-      accessMode: ReadWriteOnce
-      size: 2Gi
-      storageClass: local-path
+      existingClaim: uptime-kuma-data-lh
       advancedMounts:
         uptime-kuma:
           uptime-kuma:

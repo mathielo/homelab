@@ -46,10 +46,6 @@ app-template:
 
   persistence:
     config:
-      suffix: config
-      type: persistentVolumeClaim
-      accessMode: ReadWriteOnce
-      size: 1Gi
-      storageClass: local-path
+      existingClaim: seerr-config-lh
       globalMounts:
         - path: /app/config

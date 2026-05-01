@@ -44,11 +44,7 @@ app-template:
 
   persistence:
     config:
-      suffix: config
-      type: persistentVolumeClaim
-      accessMode: ReadWriteOnce
-      size: 2Gi
-      storageClass: local-path
+      existingClaim: sonarr-config-lh
       globalMounts:
         - path: /config
     media:

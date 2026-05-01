@@ -19,10 +19,6 @@ app-template:
 
   persistence:
     config:
-      suffix: config
-      type: persistentVolumeClaim
-      accessMode: ReadWriteOnce
-      size: 256Mi
-      storageClass: local-path
+      existingClaim: watchlistarr-config-lh
       globalMounts:
         - path: /app/config

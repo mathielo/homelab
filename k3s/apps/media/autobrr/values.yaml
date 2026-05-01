@@ -1,8 +1,4 @@
 app-template:
-  defaultPodOptions:
-    nodeSelector:
-      kubernetes.io/hostname: k3s-node-01
-
   controllers:
     autobrr:
       containers:
@@ -46,10 +42,6 @@ app-template:
 
   persistence:
     config:
-      suffix: config
-      type: persistentVolumeClaim
-      accessMode: ReadWriteOnce
-      size: 1Gi
-      storageClass: local-path
+      existingClaim: autobrr-config-lh
       globalMounts:
         - path: /config

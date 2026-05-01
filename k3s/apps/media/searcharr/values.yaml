@@ -16,11 +16,7 @@ app-template:
 
   persistence:
     data:
-      suffix: data
-      type: persistentVolumeClaim
-      accessMode: ReadWriteOnce
-      size: 500Mi
-      storageClass: local-path
+      existingClaim: searcharr-config-lh
       globalMounts:
         - path: /app/data
     settings:

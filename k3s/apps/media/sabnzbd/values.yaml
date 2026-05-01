@@ -134,10 +134,7 @@ app-template:
 
   persistence:
     config:
-      type: persistentVolumeClaim
-      accessMode: ReadWriteOnce
-      size: 1Gi
-      storageClass: local-path
+      existingClaim: sabnzbd-config-lh
       globalMounts:
         - path: /config
     # Local SSD storage for in-progress downloads. SABnzbd writes here at full
