@@ -314,14 +314,6 @@ app-template:
                     type: sabnzbd
                     url: http://sabnzbd.media.svc.cluster.local:8080
                     key: "{{ "{{HOMEPAGE_VAR_SABNZBD_KEY}}" }}"
-              - Seerr:
-                  href: https://seerr.hl.mathielo.com
-                  description: Media requests
-                  icon: overseerr.png
-                  widget:
-                    type: overseerr
-                    url: http://seerr.media.svc.cluster.local:5055
-                    key: "{{ "{{HOMEPAGE_VAR_SEERR_KEY}}" }}"
               - Prowlarr:
                   href: https://prowlarr.hl.mathielo.com
                   description: Indexer manager
@@ -354,15 +346,6 @@ app-template:
                     type: bazarr
                     url: http://bazarr.media.svc.cluster.local:6767
                     key: "{{ "{{HOMEPAGE_VAR_BAZARR_KEY}}" }}"
-              - Jellyfin:
-                  href: https://jellyfin.hl.mathielo.com
-                  description: Media server
-                  icon: jellyfin.png
-                  widget:
-                    type: jellyfin
-                    url: http://jellyfin.media.svc.cluster.local:8096
-                    key: "{{ "{{HOMEPAGE_VAR_JELLYFIN_KEY}}" }}"
-                    enableNowPlaying: true
               - Plex:
                   href: https://plex.hl.mathielo.com
                   description: Media server

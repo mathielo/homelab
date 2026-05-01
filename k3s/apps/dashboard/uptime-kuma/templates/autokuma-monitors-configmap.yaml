@@ -96,25 +96,11 @@ data:
       "url": "http://bazarr.media.svc.cluster.local:6767",
       "parent_name": "media"
     }
-  jellyfin.json: |
-    {
-      "type": "http",
-      "name": "Jellyfin",
-      "url": "http://jellyfin.media.svc.cluster.local:8096",
-      "parent_name": "media"
-    }
   plex.json: |
     {
       "type": "http",
       "name": "Plex",
       "url": "http://plex.media.svc.cluster.local:32400/web",
-      "parent_name": "media"
-    }
-  seerr.json: |
-    {
-      "type": "http",
-      "name": "Seerr",
-      "url": "http://seerr.media.svc.cluster.local:5055",
       "parent_name": "media"
     }
 

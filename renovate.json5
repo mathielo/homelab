@@ -146,7 +146,7 @@
   ],
   packageRules: [
     {
-      description: 'Hotio media stack images (excl. Jellyfin and Plex)',
+      description: 'Hotio media stack images (excl. Plex)',
       matchDatasources: [
         'docker',
       ],
@@ -154,7 +154,6 @@
       groupName: 'media-stack-hotio',
       matchPackageNames: [
         '/^ghcr\\.io/hotio//',
-        '!ghcr.io/hotio/jellyfin',
         '!ghcr.io/hotio/plex',
       ],
     },
@@ -167,16 +166,6 @@
       groupName: 'media-stack-hotio',
       matchPackageNames: [
         'ghcr.io/hotio/plex',
-      ],
-    },
-    {
-      description: 'Jellyfin uses 10.x as a fixed prefix; treat the middle number as major',
-      matchDatasources: [
-        'docker',
-      ],
-      versioning: 'regex:^release-(?<compatibility>\\d+)\\.(?<major>\\d+)\\.(?<patch>\\d+)(-(?<build>\\d+))?$',
-      matchPackageNames: [
-        'ghcr.io/hotio/jellyfin',
       ],
     },
     {
@@ -201,16 +190,6 @@
         'ghcr.io/autobrr/autobrr',
       ],
       groupName: 'media-bots',
-    },
-    {
-      description: 'Seerr (digest-only, no semver tags)',
-      matchDatasources: [
-        'docker',
-      ],
-      matchPackageNames: [
-        'ghcr.io/seerr-team/seerr',
-      ],
-      pinDigests: true,
     },
     {
       description: 'Dashboard images',

@@ -50,18 +50,6 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: seerr-config-lh
-  namespace: media
-spec:
-  storageClassName: longhorn
-  accessModes: [ReadWriteOnce]
-  resources:
-    requests:
-      storage: 1Gi
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
   name: sabnzbd-config-lh
   namespace: media
 spec:

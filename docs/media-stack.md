@@ -6,13 +6,14 @@ Automated media acquisition and streaming stack running on k3s, managed by ArgoC
 
 ```
 Request flow:
-  Seerr (requests) → Sonarr/Radarr (automation) → Prowlarr (indexer search) → SABnzbd (download) → Jellyfin/Plex (playback)
+  Watchlistarr/Searcharr (requests) → Sonarr/Radarr (automation) → Prowlarr (indexer search) → SABnzbd/qBittorrent (download) → Plex (playback)
 
 Cleanup flow:
   Maintainerr (rules) → Radarr/Sonarr (remove entry) → deletes files from NFS media library
 
 Download flow:
-  SABnzbd → Gluetun VPN → Usenet provider → NFS media library
+  SABnzbd     → Gluetun VPN → Usenet provider  → NFS media library
+  qBittorrent → Gluetun VPN → Torrent trackers → NFS media library
 
 DNS/indexer flow:
   Prowlarr → DrunkenSlug / NZBFinder (NZB search)
@@ -24,13 +25,13 @@ DNS/indexer flow:
 | Service     | URL                                   | Port  | Purpose                 |
 | ----------- | ------------------------------------- | ----- | ----------------------- |
 | SABnzbd     | `https://sabnzbd.hl.mathielo.com`     | 8080  | Usenet downloader       |
+| qBittorrent | `https://qbt.hl.mathielo.com`         | 8080  | Torrent downloader      |
 | Prowlarr    | `https://prowlarr.hl.mathielo.com`    | 9696  | Indexer manager/proxy   |
 | Radarr      | `https://radarr.hl.mathielo.com`      | 7878  | Movie automation        |
 | Sonarr      | `https://sonarr.hl.mathielo.com`      | 8989  | Shows automation        |
 | Bazarr      | `https://bazarr.hl.mathielo.com`      | 6767  | Subtitle automation     |
-| Jellyfin    | `https://jellyfin.hl.mathielo.com`    | 8096  | Media server / playback |
 | Plex        | `https://plex.hl.mathielo.com`        | 32400 | Media server / playback |
-| Seerr       | `https://seerr.hl.mathielo.com`       | 5055  | Media request portal    |
+| Prismarr    | `https://prismarr.hl.mathielo.com`    | 7070  | Media request portal    |
 | Maintainerr | `https://maintainerr.hl.mathielo.com` | 6246  | Media library cleanup   |
 
 > :exclamation: All URLs require Tailscale (or LAN) + Pi-hole DNS (`*.hl.mathielo.com → 10.10.50.3`).
@@ -72,23 +73,23 @@ All services share the `media-data` PVC (NFS-backed from UNAS-4):
 │       ├── shows/               ← SABnzbd category output → Sonarr imports from here
 │       └── music/
 └── library/
-    ├── movies/                  ← Radarr root folder, Jellyfin movies library
-    ├── shows/                   ← Sonarr root folder, Jellyfin shows library
+    ├── movies/                  ← Radarr root folder, Plex movies library
+    ├── shows/                   ← Sonarr root folder, Plex shows library
     └── music/
 ```
 
 > :bulb: All services mount `/media` from the same NFS PVC. This enables hardlinks — when Sonarr/Radarr "import" a completed download, they hardlink instead of copying, which is instant and uses no extra disk space.
 
-## VPN Kill-Switch (SABnzbd + Gluetun)
+## VPN Kill-Switch (Gluetun)
 
-SABnzbd runs behind a Gluetun VPN sidecar for privacy:
+SABnzbd and qBittorrent both run behind a Gluetun VPN sidecar for privacy:
 
 - **VPN provider:** ProtonVPN (WireGuard)
 - **Server location:** Sweden
-- **Kill-switch:** If the VPN tunnel drops, all SABnzbd traffic is blocked (Gluetun firewall)
+- **Kill-switch:** If the VPN tunnel drops, all download traffic is blocked (Gluetun firewall)
 - **Bypass subnets:** `10.42.0.0/16` and `10.43.0.0/16` (k3s pod/service CIDRs) so in-cluster communication still works
 
-Credentials (`WIREGUARD_PRIVATE_KEY`, `WIREGUARD_ADDRESSES`) are encrypted in `k3s/apps/media/sabnzbd/values.sops.yaml`.
+Credentials (`WIREGUARD_PRIVATE_KEY`, `WIREGUARD_ADDRESSES`) are encrypted in each service's `values.sops.yaml`.
 
 ## Setting Up Services
 
@@ -178,20 +179,7 @@ Set up authentication, then connect to Sonarr and Radarr:
 
 Then configure **Settings → Languages** and add **OpenSubtitles.com** under **Settings → Providers** (requires account credentials + API key).
 
-### Step 6: Jellyfin
-
-Complete the setup wizard, then add media libraries:
-
-| Library | Content Type | Folder                  |
-| ------- | ------------ | ----------------------- |
-| Movies  | Movies       | `/media/library/movies` |
-| Shows   | Shows        | `/media/library/shows`  |
-
-Optional: enable VA-API hardware transcoding (AMD Radeon Vega 8 available via `amdgpu-device-plugin`, uncomment GPU resource requests in `k3s/apps/media/jellyfin/values.yaml`).
-
-Note the **API key** from Dashboard → API Keys.
-
-### Step 7: Plex
+### Step 6: Plex
 
 > :bulb: Plex is pinned to `k3s-server` (M75q-1) via hostname nodeSelector for access to the Radeon Vega 10 GPU.
 
@@ -214,28 +202,12 @@ Complete the setup wizard at `https://plex.hl.mathielo.com`, then:
    - In Plex web UI, open any media item, click "Get Info", check the URL for `X-Plex-Token=`
    - Update `HOMEPAGE_VAR_PLEX_TOKEN` in `k3s/apps/dashboard/homepage/values.sops.yaml`
 
-### Step 8: Seerr
+### Step 7: Prismarr
 
-Sign in, then connect all services:
+Complete the setup wizard, then connect media services:
 
-| Service  | URL                                            | Extra Config                         |
-| -------- | ---------------------------------------------- | ------------------------------------ |
-| Jellyfin | `http://jellyfin.media.svc.cluster.local:8096` | Sync Movies + Shows libraries        |
-| Plex     | `http://plex.media.svc.cluster.local:32400`    | Sync Movies + Shows libraries        |
-| Radarr   | `http://radarr.media.svc.cluster.local:7878`   | Root folder: `/media/library/movies` |
-| Sonarr   | `http://sonarr.media.svc.cluster.local:8989`   | Root folder: `/media/library/shows`  |
-
-Each connection requires the respective API key and a quality profile selection. Connect either Jellyfin or Plex (or both) as media servers depending on your setup.
-
-### Step 9: Maintainerr
-
-Complete the setup wizard, then connect all services:
-
-| Service  | URL                                            | Auth    |
-| -------- | ---------------------------------------------- | ------- |
-| Jellyfin | `http://jellyfin.media.svc.cluster.local:8096` | API key |
-| Radarr   | `http://radarr.media.svc.cluster.local:7878`   | API key |
-| Sonarr   | `http://sonarr.media.svc.cluster.local:8989`   | API key |
-| Seerr    | `http://seerr.media.svc.cluster.local:5055`    | API key |
-
-Then create cleanup rules under **Rules**. To use manual-only mode (no auto-delete), leave `action_after_days` empty — Maintainerr will build a collection of matched media that you can review and delete on demand.
+| Service | URL                                          | Auth                                          |
+| ------- | -------------------------------------------- | --------------------------------------------- |
+| Plex    | `http://plex.media.svc.cluster.local:32400`  | API key                                       |
+| Radarr  | `http://radarr.media.svc.cluster.local:7878` | API key + root folder `/media/library/movies` |
+| Sonarr  | `http://sonarr.media.svc.cluster.local:8989` | API key + root folder `/media/library/shows`  |
