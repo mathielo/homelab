@@ -6,10 +6,23 @@ All physical devices in the homelab.
 
 | Host          | Hardware                  | CPU                          | RAM       | Storage                        | VLAN | IP           |
 | ------------- | ------------------------- | ---------------------------- | --------- | ------------------------------ | ---- | ------------ |
-| k3s-server    | Lenovo ThinkCentre M75q-1 | Ryzen 5 PRO 3400GE @ 3.30GHz | 32GB DDR4 | 256GB NVMe SSD<br>1GB 2.5" SSD | 50   | 10.10.50.10  |
-| k3s-node-01   | Lenovo ThinkCentre M715Q  | Ryzen 3 2200GE @ 3.20GHz     | 32GB DDR4 | 256GB NVMe SSD<br>1GB 2.5" SSD | 50   | 10.10.50.11  |
+| k3s-server    | Lenovo ThinkCentre M75q-1 | Ryzen 5 PRO 3400GE @ 3.30GHz | 32GB DDR4 | 256GB NVMe SSD<br>1TB Kingston SATA SSD | 50   | 10.10.50.10  |
+| k3s-node-01   | Lenovo ThinkCentre M715Q  | Ryzen 3 2200GE @ 3.20GHz     | 32GB DDR4 | 256GB NVMe SSD<br>1TB Kingston SATA SSD | 50   | 10.10.50.11  |
 | pihole        | Raspberry Pi 5 Model B    | ARM Cortex-A76 (4-core)      | 8GB       | SD card                        | 53   | 10.10.53.53  |
 | homeassistant | Raspberry Pi 5 Model B    | ARM Cortex-A76 (4-core)      | 8GB       | SD card                        | 50   | 10.10.50.123 |
+
+### k3s SSD layout
+
+Each k3s node has a 1 TB Kingston SATA SSD partitioned for Longhorn and local hostPath mounts:
+
+| Node        | Partition   | Size    | Mount               | Purpose                           |
+| ----------- | ----------- | ------- | ------------------- | --------------------------------- |
+| k3s-server  | `/dev/sda1` | 300 GB  | `/mnt/ssd/longhorn` | Longhorn distributed block data   |
+| k3s-server  | `/dev/sda2` | ~654 GB | `/mnt/ssd/local`    | Plex transcode hostPath           |
+| k3s-node-01 | `/dev/sda1` | 100 GB  | `/mnt/ssd/longhorn` | Longhorn distributed block data   |
+| k3s-node-01 | `/dev/sda2` | ~854 GB | `/mnt/ssd/local`    | qBittorrent incomplete downloads  |
+
+See [Longhorn Storage](storage-longhorn.md) for disk preparation and Longhorn setup details.
 
 ## Storage
 
