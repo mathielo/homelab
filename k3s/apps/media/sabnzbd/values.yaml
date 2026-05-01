@@ -7,6 +7,10 @@
 #   - FIREWALL_OUTBOUND_SUBNETS allows cluster-internal traffic (DNS, APIs)
 #     to bypass the VPN so in-cluster service discovery keeps working.
 app-template:
+  defaultPodOptions:
+    nodeSelector:
+      kubernetes.io/hostname: k3s-node-01
+
   controllers:
     sabnzbd:
       strategy: Recreate
@@ -142,7 +146,7 @@ app-template:
     local-ssd:
       type: persistentVolumeClaim
       accessMode: ReadWriteOnce
-      size: 120Gi
+      size: 140Gi
       storageClass: local-path
       globalMounts:
         - path: /local-ssd/downloads/
