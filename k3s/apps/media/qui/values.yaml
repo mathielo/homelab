@@ -1,0 +1,47 @@
+app-template:
+  controllers:
+    qui:
+      containers:
+        qui:
+          image:
+            repository: ghcr.io/autobrr/qui
+            tag: v1.17.0
+          env:
+            TZ: Europe/Stockholm
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+
+  service:
+    qui:
+      controller: qui
+      ports:
+        http:
+          port: 7476
+
+  ingress:
+    qui:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      hosts:
+        - host: qui.hl.mathielo.com
+          paths:
+            - path: /
+              service:
+                identifier: qui
+                port: http
+      tls:
+        - hosts:
+            - qui.hl.mathielo.com
+          secretName: qui-hl-tls
+
+  persistence:
+    config:
+      existingClaim: qui-config-lh
+      globalMounts:
+        - path: /config

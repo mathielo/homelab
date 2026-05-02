@@ -188,6 +188,7 @@
         'toddrob99/searcharr',
         'lakker/pulsarr',
         'ghcr.io/autobrr/autobrr',
+        'ghcr.io/autobrr/qui',
       ],
       groupName: 'media-bots',
     },
