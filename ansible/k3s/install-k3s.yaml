@@ -20,6 +20,15 @@
         mode: "0644"
       notify: Apply sysctl settings
 
+    - name: Tune inotify limits for Kubernetes workloads
+      copy:
+        dest: /etc/sysctl.d/99-kubernetes.conf
+        content: |
+          fs.inotify.max_user_instances = 512
+          fs.inotify.max_user_watches = 524288
+        mode: "0644"
+      notify: Apply sysctl settings
+
     - name: Install NFS client (required for NFS PersistentVolumes)
       apt:
         name: nfs-common
@@ -173,6 +182,15 @@
         content: |
           net.ipv6.conf.all.disable_ipv6 = 1
           net.ipv6.conf.default.disable_ipv6 = 1
+        mode: "0644"
+      notify: Apply sysctl settings
+
+    - name: Tune inotify limits for Kubernetes workloads
+      copy:
+        dest: /etc/sysctl.d/99-kubernetes.conf
+        content: |
+          fs.inotify.max_user_instances = 512
+          fs.inotify.max_user_watches = 524288
         mode: "0644"
       notify: Apply sysctl settings
 
