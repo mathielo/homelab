@@ -15,11 +15,11 @@ All pods have their config + data set in Longhorn PVCs. A few services have some
 
 ### What stays pinned (not on Longhorn)
 
-| App             | Why pinned                                                         | Storage                                                                                  |
-| --------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| **qBittorrent** | Pinned to `k3s-node-01`; needs local SSD for incomplete downloads  | config: Longhorn; incomplete: `hostPath /mnt/ssd/local/qbt-incomplete`                   |
-| **SABnzbd**     | Single-file downloads; 120 Gi staging PVC on local SSD is adequate | config: Longhorn; staging: `local-path` 120 Gi                                           |
-| **Plex**        | Pinned to `k3s-server` for AMD GPU transcoding                     | config: `plex-config-lh` (Longhorn); transcode: `hostPath /mnt/ssd/local/plex-transcode` |
+| App             | Why pinned                                                        | Storage                                                                                  |
+| --------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **qBittorrent** | Pinned to `k3s-node-01`; needs local SSD for incomplete downloads | config: Longhorn; incomplete: `hostPath /mnt/ssd/local/qbt-incomplete`                   |
+| **SABnzbd**     | Pinned to `k3s-node-01`; needs local SSD for incomplete downloads | config: Longhorn; incomplete: `hostPath /mnt/ssd/local/sabnzbd-incomplete`               |
+| **Plex**        | Pinned to `k3s-server` for AMD GPU transcoding                    | config: `plex-config-lh` (Longhorn); transcode: `hostPath /mnt/ssd/local/plex-transcode` |
 
 The `media-data` NFS PVC (UNAS-4) is untouched — Longhorn is only for app config volumes.
 
@@ -27,12 +27,12 @@ The `media-data` NFS PVC (UNAS-4) is untouched — Longhorn is only for app conf
 
 Each node has a 1 TB Kingston SATA SSD at `/dev/sda`, partitioned as:
 
-| Node        | Partition   | Size    | Mount               | Purpose                           |
-| ----------- | ----------- | ------- | ------------------- | --------------------------------- |
-| k3s-server  | `/dev/sda1` | 300 GB  | `/mnt/ssd/longhorn` | Longhorn data path                |
-| k3s-server  | `/dev/sda2` | ~654 GB | `/mnt/ssd/local`    | Plex transcode + future hostPaths |
-| k3s-node-01 | `/dev/sda1` | 100 GB  | `/mnt/ssd/longhorn` | Longhorn data path                |
-| k3s-node-01 | `/dev/sda2` | ~854 GB | `/mnt/ssd/local`    | qbt incomplete downloads          |
+| Node        | Partition   | Size    | Mount               | Purpose                                    |
+| ----------- | ----------- | ------- | ------------------- | ------------------------------------------ |
+| k3s-server  | `/dev/sda1` | 300 GB  | `/mnt/ssd/longhorn` | Longhorn data path                         |
+| k3s-server  | `/dev/sda2` | ~654 GB | `/mnt/ssd/local`    | Plex transcode + future hostPaths          |
+| k3s-node-01 | `/dev/sda1` | 100 GB  | `/mnt/ssd/longhorn` | Longhorn data path                         |
+| k3s-node-01 | `/dev/sda2` | ~854 GB | `/mnt/ssd/local`    | qBittorrent + SABnzbd incomplete downloads |
 
 ## Disk preparation (manual, per node)
 
@@ -65,8 +65,8 @@ df -h /mnt/ssd/longhorn /mnt/ssd/local
 Same commands, with two differences — `300GiB → 100GiB` in both `parted mkpart` lines, and:
 
 ```bash
-sudo mkdir -p /mnt/ssd/longhorn /mnt/ssd/local/qbt-incomplete
-sudo chown 1000:1000 /mnt/ssd/local/qbt-incomplete
+sudo mkdir -p /mnt/ssd/longhorn /mnt/ssd/local/qbt-incomplete /mnt/ssd/local/sabnzbd-incomplete
+sudo chown 1000:1000 /mnt/ssd/local/qbt-incomplete /mnt/ssd/local/sabnzbd-incomplete
 ```
 
 # Longhorn installation and setup

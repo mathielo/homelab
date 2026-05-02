@@ -86,10 +86,10 @@ All services share the `media-data` PVC (NFS-backed from UNAS-4, mounted at `/me
 
 In-progress downloads land on **local SSDs** (not NFS) for speed, then move to `dl/` when complete:
 
-| Client      | In-progress path       | Storage                                                   |
-| ----------- | ---------------------- | --------------------------------------------------------- |
-| qBittorrent | `/incomplete`          | hostPath `/mnt/ssd/local/qbt-incomplete` on `k3s-node-01` |
-| SABnzbd     | `/local-ssd/downloads` | Longhorn `local-path` PVC (140 GiB, `k3s-node-01`)        |
+| Client      | In-progress path | Storage                                                       |
+| ----------- | ---------------- | ------------------------------------------------------------- |
+| qBittorrent | `/incomplete`    | hostPath `/mnt/ssd/local/qbt-incomplete` on `k3s-node-01`     |
+| SABnzbd     | `/incomplete`    | hostPath `/mnt/ssd/local/sabnzbd-incomplete` on `k3s-node-01` |
 
 ### qBittorrent Categories → ARR Correlation
 
@@ -137,10 +137,10 @@ Complete the setup wizard, then configure:
 
 **Config → Folders:**
 
-| Setting                   | Path                   |
-| ------------------------- | ---------------------- |
-| Temporary Download Folder | `/local-ssd/downloads` |
-| Completed Download Folder | `/media/dl`            |
+| Setting                   | Path          |
+| ------------------------- | ------------- |
+| Temporary Download Folder | `/incomplete` |
+| Completed Download Folder | `/media/dl`   |
 
 **Config → Categories:**
 
@@ -155,7 +155,13 @@ Note the **API key** from Config → General → Security.
 
 qBittorrent's `qBittorrent.conf` is managed declaratively (see `files/qBittorrent.conf` in the chart). The categories below must be configured in the web UI; they are stored on the config PVC and survive pod restarts.
 
-**Tools → Options → Downloads → Default Save Path:** `/media/dl`
+**Tools → Options → Downloads → Saving Management**
+
+| Setting                | Path                   |
+| ---------------------- | ---------------------- |
+| Keep incomplete in     | `/incomplete`          |
+| Default save path      | `/media/dl`            |
+| Copy .torrent files to | `/media/_dl/_torrents` |
 
 **Tags & Categories** — create each category with its save path:
 

@@ -168,13 +168,12 @@ app-template:
         - path: /config
     # Local SSD storage for in-progress downloads. SABnzbd writes here at full
     # speed, then moves completed files to the NFS-backed /media mount.
-    local-ssd:
-      type: persistentVolumeClaim
-      accessMode: ReadWriteOnce
-      size: 140Gi
-      storageClass: local-path
+    incomplete:
+      type: hostPath
+      hostPath: /mnt/ssd/local/sabnzbd-incomplete
+      hostPathType: DirectoryOrCreate
       globalMounts:
-        - path: /local-ssd/downloads/
+        - path: /incomplete
     media:
       type: persistentVolumeClaim
       existingClaim: media-data
