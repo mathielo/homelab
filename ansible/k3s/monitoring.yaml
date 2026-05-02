@@ -58,7 +58,7 @@
         --namespace kube-extra
         --values /tmp/prometheus.values.yaml
         --values /tmp/alertmanager.config.yaml
-        --version 28.16.0
+        --version 29.5.0
         --wait --timeout 5m
 
     - name: Deploy Loki
@@ -67,7 +67,7 @@
         grafana/loki
         --namespace kube-extra
         --values /tmp/loki.values.yaml
-        --version 6.55.0
+        --version 7.0.0
         --wait --timeout 5m
 
     - name: Deploy Promtail
