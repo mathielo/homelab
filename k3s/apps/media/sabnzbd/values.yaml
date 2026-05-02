@@ -135,7 +135,7 @@ app-template:
               memory: 256Mi
             # Sabnzbd can spike CPU and RAM usage in post-processing and verification/repair jobs.
             limits:
-              memory: 4Gi
+              memory: 6Gi
 
   service:
     sabnzbd:
