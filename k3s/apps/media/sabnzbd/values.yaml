@@ -1,7 +1,8 @@
 # SABnzbd with Gluetun VPN kill-switch sidecar (ProtonVPN / WireGuard).
 #
 # Network architecture:
-#   - Gluetun runs as a regular container alongside SABnzbd (same pod).
+#   - Gluetun runs as a native k8s sidecar (initContainer with restartPolicy: Always).
+#     Starts and becomes Ready before SABnzbd, guaranteeing VPN+DNS are healthy first.
 #   - SABnzbd shares Gluetun's network namespace automatically (same pod).
 #   - All SABnzbd traffic exits through the ProtonVPN WireGuard tunnel.
 #   - FIREWALL_OUTBOUND_SUBNETS allows cluster-internal traffic (DNS, APIs)
@@ -44,20 +45,43 @@ app-template:
                 printf '[misc]\nhost_whitelist = sabnzbd.hl.mathielo.com,\n' > /config/sabnzbd.ini
               fi
 
-      containers:
-        # Gluetun VPN kill-switch. Runs as a regular container with a postStart
-        # lifecycle hook that cleans up stale WireGuard IP rules left by previous
+        # Gluetun VPN kill-switch as a native k8s sidecar (k8s >= 1.29).
+        # restartPolicy: Always promotes this initContainer to a sidecar:
+        #   - Starts before main containers (SABnzbd waits for it to be Ready)
+        #   - Restarts independently on liveness failure
+        #   - Terminates AFTER main containers on pod shutdown
+        #
+        # The readiness probe ensures SABnzbd doesn't start until gluetun's
+        # VPN tunnel and DNS forwarder are both confirmed healthy. Without this
+        # ordering guarantee, SABnzbd fires DNS queries while gluetun's DoT
+        # resolver is still initialising — causing the forwarder to fall back to
+        # 127.0.0.1:53 (itself), which creates a self-sustaining DNS loop that
+        # pegs gluetun's CPU at its limit.
+        #
+        # The postStart hook cleans up stale WireGuard IP rules left by previous
         # pods — fixes "adding IPv6 rule: file exists" on Kubernetes.
         # See: https://github.com/qdm12/gluetun/issues/2471
         gluetun:
           image:
             repository: ghcr.io/qdm12/gluetun
             tag: v3.41.1
+          restartPolicy: Always
           securityContext:
             capabilities:
               add:
                 - NET_ADMIN
           probes:
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - /gluetun-entrypoint
+                    - healthcheck
+                initialDelaySeconds: 5
+                periodSeconds: 5
+                failureThreshold: 12
             liveness:
               enabled: true
               custom: true
@@ -87,8 +111,6 @@ app-template:
             # Allow traffic to k3s pod CIDR + service CIDR to bypass the VPN tunnel.
             # This keeps in-cluster calls (SABnzbd → Sonarr, DNS, etc.) working.
             FIREWALL_OUTBOUND_SUBNETS: "10.42.0.0/16,10.43.0.0/16"
-            # Two DoT upstreams so a Cloudflare blip falls back to Quad9 instead of
-            # hitting gluetun's loopback fallback (127.0.0.1:53 = itself → CPU spin).
             DNS_UPSTREAM_RESOLVERS: "cloudflare,quad9"
           resources:
             requests:
@@ -98,6 +120,7 @@ app-template:
               cpu: 500m
               memory: 1Gi
 
+      containers:
         sabnzbd:
           image:
             repository: ghcr.io/hotio/sabnzbd
