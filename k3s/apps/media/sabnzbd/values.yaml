@@ -87,12 +87,15 @@ app-template:
             # Allow traffic to k3s pod CIDR + service CIDR to bypass the VPN tunnel.
             # This keeps in-cluster calls (SABnzbd → Sonarr, DNS, etc.) working.
             FIREWALL_OUTBOUND_SUBNETS: "10.42.0.0/16,10.43.0.0/16"
+            # Two DoT upstreams so a Cloudflare blip falls back to Quad9 instead of
+            # hitting gluetun's loopback fallback (127.0.0.1:53 = itself → CPU spin).
+            DNS_UPSTREAM_RESOLVERS: "cloudflare,quad9"
           resources:
             requests:
               cpu: 10m
               memory: 64Mi
             limits:
-              cpu: 2000m
+              cpu: 500m
               memory: 1Gi
 
         sabnzbd:
@@ -109,7 +112,6 @@ app-template:
               memory: 256Mi
             # Sabnzbd can spike CPU and RAM usage in post-processing and verification/repair jobs.
             limits:
-              cpu: 1000m
               memory: 4Gi
 
   service:

@@ -88,6 +88,9 @@ app-template:
             SERVER_FEATURES: p2p
             VPN_PORT_FORWARDING: "on"
             PORT_FORWARD_ONLY: "on"
+            # Two DoT upstreams so a Cloudflare blip falls back to Quad9 instead of
+            # hitting gluetun's loopback fallback (127.0.0.1:53 = itself → CPU spin).
+            DNS_UPSTREAM_RESOLVERS: "cloudflare,quad9"
             # The up command fires whenever Gluetun gets a forwarded port and
             # pushes it to qBittorrent's API (localhost auth bypass must be
             # enabled in qBittorrent WebUI → Options → Web UI).
@@ -97,7 +100,7 @@ app-template:
               cpu: 10m
               memory: 64Mi
             limits:
-              cpu: 2000m
+              cpu: 500m
               memory: 1Gi
 
       containers:
@@ -129,7 +132,7 @@ app-template:
                   - wget -qO- --post-data "hashes=all" http://localhost:8080/api/v2/torrents/stop; sleep 5
           resources:
             requests:
-              cpu: 50m
+              cpu: 200m
               memory: 256Mi
             limits:
               memory: 6Gi
