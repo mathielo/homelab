@@ -115,13 +115,16 @@ app-template:
             TZ: Europe/Stockholm
             WEBUI_PORTS: "8080/tcp"
           lifecycle:
-            postStart:
-              exec:
-                command:
-                  - /bin/sh
-                  - -c
-                  # Wait for WebUI, then start all torrents stopped by the preStop hook.
-                  - until wget -qO- http://localhost:8080/api/v2/app/version >/dev/null 2>&1; do sleep 2; done; wget -qO- --post-data "hashes=all" http://localhost:8080/api/v2/torrents/start
+            # Disabled to prevent spamming announcements on pod restart.
+            # TODO: Create a custom script to progressively resume torrents on restart.
+            #
+            # postStart:
+            #   exec:
+            #     command:
+            #       - /bin/sh
+            #       - -c
+            #       # Wait for WebUI, then start all torrents stopped by the preStop hook.
+            #       - until wget -qO- http://localhost:8080/api/v2/app/version >/dev/null 2>&1; do sleep 2; done; wget -qO- --post-data "hashes=all" http://localhost:8080/api/v2/torrents/start
             preStop:
               exec:
                 command:
