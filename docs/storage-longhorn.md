@@ -170,6 +170,59 @@ EOF
 
 The backup URL is shown in `kubectl get backup -n longhorn-system <backup-name> -o yaml` under `.status.url`.
 
+## Recovering an accidentally-deleted PVC
+
+Because `reclaimPolicy: Delete`, deleting a PVC propagates: the PV and the Longhorn volume go with it. The recovery path uses the latest backup on UNAS-4 and pre-binds a freshly-restored volume back to the original PVC name (the one declared in `k3s/apps/media/_infra/longhorn-pvcs.yaml`), so ArgoCD's reconcile finishes the job.
+
+The PVC manifest is still in git, so step zero is "don't panic — Argo will recreate the PVC; it'll just be empty until we point it at restored data."
+
+1. **Pause Argo auto-sync for the affected app** (so it doesn't bind the empty PVC to a fresh, blank Longhorn volume before you can intervene). UI → app → App Details → disable auto-sync. Or:
+
+   ```bash
+   kubectl -n argocd patch application <app> --type merge -p '{"spec":{"syncPolicy":{"automated":null}}}'
+   ```
+
+2. **Identify the backup.** UI → Backup → find the backup volume (named after the old PV, e.g. `pvc-b49ada02-...`). Note its size and the most recent backup point's URL (`kubectl -n longhorn-system get backup <name> -o jsonpath='{.status.url}'`).
+
+3. **Restore the backup into a new Longhorn volume.** UI → Backup → select the backup → **Restore Latest Backup** → give it a distinctive name, e.g. `<pvc-name>-restored`, replicas `2`. Wait for the volume to become `Detached` (ready).
+
+4. **Create a PV that wraps the restored volume and pre-binds to the original PVC name:**
+
+   ```yaml
+   apiVersion: v1
+   kind: PersistentVolume
+   metadata:
+     name: <pvc-name>-restored # any name; not user-visible after binding
+   spec:
+     capacity:
+       storage: <original-size> # e.g. 2Gi — match the PVC's request
+     accessModes: [ReadWriteOnce]
+     storageClassName: longhorn
+     persistentVolumeReclaimPolicy: Delete
+     csi:
+       driver: driver.longhorn.io
+       fsType: ext4
+       volumeHandle: <pvc-name>-restored # MUST equal the Longhorn volume name from step 3
+     claimRef:
+       apiVersion: v1
+       kind: PersistentVolumeClaim
+       namespace: media
+       name: <pvc-name> # original PVC name — what's in longhorn-pvcs.yaml
+   ```
+
+   Apply with `kubectl apply -f restored-pv.yaml`. The pre-set `claimRef` (without `uid`) reserves the PV for that namespaced name.
+
+5. **Re-enable Argo auto-sync.** Argo recreates the PVC from `longhorn-pvcs.yaml`; the PVC controller sees the matching `claimRef` on the restored PV and binds. The pod starts and sees its data.
+
+   ```bash
+   kubectl -n argocd patch application <app> --type merge \
+     -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}'
+   ```
+
+6. **Verify** in the app's UI that history/library/config came back; check `kubectl -n media get pvc <pvc-name>` shows `Bound` to the restored PV.
+
+If you skipped step 1 and Argo already created the PVC bound to a blank volume: delete that PVC + PV (the blank volume will be cleaned up via `Delete`), then proceed from step 2 — `claimRef` pre-binding only works if no PVC is currently in flight for that name.
+
 # Operational notes
 
 ## 2-node fragility
