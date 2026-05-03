@@ -8,9 +8,39 @@
 #     Disk prep is documented in docs/storage-longhorn.md.
 #
 # After running this playbook:
-#   1. Longhorn becomes the default StorageClass (local-path loses its default).
-#   2. Pre-create Longhorn PVCs by pushing k3s/apps/media/_infra/longhorn-pvcs.yaml
+#   1. Both nodes have a multipath blacklist for Longhorn iSCSI LUNs
+#      (IET,VIRTUAL-DISK), preventing multipathd from claiming them.
+#   2. Longhorn becomes the default StorageClass (local-path loses its default).
+#   3. Pre-create Longhorn PVCs by pushing k3s/apps/media/_infra/longhorn-pvcs.yaml
 #      and letting ArgoCD sync.
+
+- name: Configure multipath blacklist for Longhorn iSCSI LUNs
+  hosts: k3s_nodes
+  become: true
+
+  handlers:
+    - name: Reload multipathd
+      command: multipathd reconfigure
+      changed_when: true
+
+  tasks:
+    - name: Ensure multipath-tools is present
+      apt:
+        name: multipath-tools
+        state: present
+
+    - name: Install Longhorn-aware multipath config
+      copy:
+        src: files/multipath-longhorn.conf
+        dest: /etc/multipath.conf
+        mode: "0644"
+      notify: Reload multipathd
+
+    - name: Ensure multipathd is enabled and running
+      systemd:
+        name: multipathd
+        enabled: true
+        state: started
 
 - name: Deploy Longhorn distributed block storage
   hosts: k3s_server

@@ -210,6 +210,24 @@ If a node shows `SCHEDULABLE=False`, check disk pressure or that Longhorn's disk
 ssh <node> 'df -h /mnt/ssd/longhorn'
 ```
 
+## Multipath conflicts (`mke2fs ... apparently in use`)
+
+Symptom: a freshly-bound Longhorn PVC sticks in `ContainerCreating`, with kubelet events:
+
+```
+MountVolume.MountDevice failed ... format of disk "/dev/longhorn/pvc-..." failed
+mke2fs ... /dev/longhorn/pvc-... is apparently in use by the system; will not make a filesystem here!
+```
+
+Cause: `multipathd` on the node has wrapped Longhorn's iSCSI LUN (`IET,VIRTUAL-DISK`) as an `mpath` device. The CSI driver's `mkfs.ext4` then fails because the kernel reports the underlying `sd*` busy. PVCs that were already formatted skip the mkfs path and keep working — only newly-created Longhorn volumes hit this.
+
+```bash
+ssh <node> 'sudo multipath -ll'
+# Any mpath* entry showing IET,VIRTUAL-DISK confirms the issue.
+```
+
+For this reason multipath blacklist was added to Longhorn's Ansible playbook. It installs a vendor blacklist for `IET` LUNs at `/etc/multipath.conf` and reloads `multipathd`:
+
 ## iscsid health
 
 ```bash
