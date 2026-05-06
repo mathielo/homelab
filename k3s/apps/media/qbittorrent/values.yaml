@@ -36,6 +36,20 @@ app-template:
               value: "0"
 
       initContainers:
+        # Removes stale lockfile + IPC socket left behind when qBittorrent
+        # was killed without a graceful SIGTERM to prevent startup loop.
+        cleanup-stale-lock:
+          image:
+            repository: busybox
+            tag: "1.37.0"
+          command:
+            - sh
+            - -c
+            - rm -fv /config/config/lockfile /config/config/ipc-socket
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+
         # Gluetun VPN kill-switch as a native k8s sidecar (k8s >= 1.29).
         # restartPolicy: Always promotes this initContainer to a sidecar:
         #   - Starts before main containers (qBittorrent waits for it to be Ready)
