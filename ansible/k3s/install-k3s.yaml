@@ -1,10 +1,10 @@
 ---
-# Play 1 — Install k3s server (control plane)
-- name: Install k3s server
-  hosts: k3s_server
+# Play 1 — Host prep (server + agents)
+# Sysctl, packages, and resolv.conf are identical on every k3s node, so we
+# do them once across both groups instead of duplicating per play.
+- name: Prepare k3s hosts
+  hosts: k3s_server:k3s_agents
   become: true
-  environment:
-    KUBECONFIG: /etc/k3s/k3s.yaml
 
   handlers:
     - name: Apply sysctl settings
@@ -45,16 +45,31 @@
         enabled: true
         state: started
 
-    - name: Write clean resolv.conf for CoreDNS (bypass Tailscale MagicDNS)
+    - name: Write clean resolv.conf for k3s (bypass Tailscale MagicDNS)
       copy:
         src: files/k3s-resolv.conf
         dest: /etc/k3s/resolv.conf
         mode: "0644"
 
-    - name: Install k3s server using official install script
+# Play 2 — Install k3s server (control plane)
+- name: Install k3s server
+  hosts: k3s_server
+  become: true
+  environment:
+    KUBECONFIG: /etc/k3s/k3s.yaml
+
+  tasks:
+    - name: Check installed k3s version
+      command: /usr/local/bin/k3s --version
+      register: k3s_installed
+      failed_when: false
+      changed_when: false
+
+    - name: Install or upgrade k3s server using official install script
       shell:
         cmd: >
           curl -sfL https://get.k3s.io |
+          INSTALL_K3S_VERSION="{{ k3s_version }}"
           INSTALL_K3S_EXEC="--disable=traefik
           --disable=servicelb
           --data-dir=/var/lib/k3s
@@ -63,7 +78,7 @@
           --tls-san={{ ansible_host }}
           --node-ip={{ ansible_host }}
           --resolv-conf=/etc/k3s/resolv.conf" sh -
-        creates: /usr/local/bin/k3s
+      when: k3s_installed.rc != 0 or k3s_version not in (k3s_installed.stdout | default(''))
 
     - name: Wait for k3s to be ready
       command: k3s kubectl get nodes
@@ -166,66 +181,29 @@
           Kubeconfig written to ~/.kube/config-k3s.
           Export it with: export KUBECONFIG=~/.kube/config-k3s
 
-# Play 2 — Install k3s agents
+# Play 3 — Install k3s agents
 - name: Install k3s agents
   hosts: k3s_agents
   become: true
 
-  handlers:
-    - name: Apply sysctl settings
-      command: sysctl --system
-
   tasks:
-    - name: Disable IPv6 at node level (required for Gluetun VPN sidecar)
-      copy:
-        dest: /etc/sysctl.d/99-disable-ipv6.conf
-        content: |
-          net.ipv6.conf.all.disable_ipv6 = 1
-          net.ipv6.conf.default.disable_ipv6 = 1
-        mode: "0644"
-      notify: Apply sysctl settings
+    - name: Check installed k3s agent version
+      command: /usr/local/bin/k3s --version
+      register: k3s_installed
+      failed_when: false
+      changed_when: false
 
-    - name: Tune inotify limits for Kubernetes workloads
-      copy:
-        dest: /etc/sysctl.d/99-kubernetes.conf
-        content: |
-          fs.inotify.max_user_instances = 512
-          fs.inotify.max_user_watches = 524288
-        mode: "0644"
-      notify: Apply sysctl settings
-
-    - name: Install NFS client (required for NFS PersistentVolumes)
-      apt:
-        name: nfs-common
-        state: present
-
-    - name: Install open-iscsi (required for Longhorn block storage)
-      apt:
-        name: open-iscsi
-        state: present
-
-    - name: Ensure iscsid is enabled and running
-      systemd:
-        name: iscsid
-        enabled: true
-        state: started
-
-    - name: Write clean resolv.conf for kubelet (bypass Tailscale MagicDNS)
-      copy:
-        src: files/k3s-resolv.conf
-        dest: /etc/k3s/resolv.conf
-        mode: "0644"
-
-    - name: Install k3s agent using official install script
+    - name: Install or upgrade k3s agent using official install script
       shell:
         cmd: >
           curl -sfL https://get.k3s.io |
+          INSTALL_K3S_VERSION="{{ k3s_version }}"
           K3S_URL=https://{{ hostvars[groups['k3s_server'][0]]['ansible_host'] }}:6443
           K3S_TOKEN={{ hostvars[groups['k3s_server'][0]]['k3s_token'] }}
           INSTALL_K3S_EXEC="--data-dir=/var/lib/k3s
           --node-ip={{ ansible_host }}
           --resolv-conf=/etc/k3s/resolv.conf" sh -
-        creates: /usr/local/bin/k3s-agent
+      when: k3s_installed.rc != 0 or k3s_version not in (k3s_installed.stdout | default(''))
       no_log: true
 
     - name: Wait for agent to join cluster
@@ -241,7 +219,34 @@
       until: agent_ready.rc == 0
       changed_when: false
 
-# Play 3 — Label all k3s nodes
+# Play 4 — Configure kubelet (graceful node shutdown)
+# Runs on every node after k3s is installed. The KubeletConfiguration drop-in
+# replaces the deprecated --kubelet-arg=shutdown-grace-period* CLI flags
+# (removed from kubelet in k8s 1.35). k3s reads any *.conf in this directory
+# and merges it with its own defaults.
+- name: Configure kubelet
+  hosts: k3s_server:k3s_agents
+  become: true
+
+  handlers:
+    - name: Restart k3s
+      systemd:
+        name: "{{ 'k3s' if inventory_hostname in groups['k3s_server'] else 'k3s-agent' }}"
+        state: restarted
+
+  tasks:
+    - name: Drop graceful-shutdown KubeletConfiguration
+      copy:
+        dest: /var/lib/k3s/agent/etc/kubelet.conf.d/90-shutdown.conf
+        mode: "0600"
+        content: |
+          apiVersion: kubelet.config.k8s.io/v1beta1
+          kind: KubeletConfiguration
+          shutdownGracePeriod: 60s
+          shutdownGracePeriodCriticalPods: 10s
+      notify: Restart k3s
+
+# Play 5 — Label all k3s nodes
 - name: Label k3s nodes
   hosts: k3s_server
   become: true

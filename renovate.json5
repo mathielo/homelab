@@ -75,6 +75,17 @@
     {
       customType: 'regex',
       managerFilePatterns: [
+        '/ansible/group_vars/all/k3s\\.yml$/',
+      ],
+      matchStrings: [
+        'k3s_version:\\s*"(?<currentValue>v[\\d.]+\\+k3s\\d+)"',
+      ],
+      depNameTemplate: 'k3s-io/k3s',
+      datasourceTemplate: 'github-releases',
+    },
+    {
+      customType: 'regex',
+      managerFilePatterns: [
         '/ansible/k3s/monitoring\\.yaml$/',
       ],
       matchStrings: [
