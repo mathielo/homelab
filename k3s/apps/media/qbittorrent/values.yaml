@@ -114,7 +114,7 @@ app-template:
               cpu: 10m
               memory: 64Mi
             limits:
-              cpu: 500m
+              cpu: 1000m
               memory: 1Gi
 
       containers:
@@ -152,7 +152,7 @@ app-template:
               cpu: 500m
               memory: 6Gi
             limits:
-              memory: 8Gi
+              memory: 12Gi
 
   service:
     qbittorrent:
