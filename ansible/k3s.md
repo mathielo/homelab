@@ -98,6 +98,16 @@ export KUBECONFIG=~/.kube/config-k3s
 kubectl get nodes
 ```
 
+## Host I/O tuning
+
+Applies kernel, udev, and mount tunings to keep slow remote I/O (NFS to UNAS-4) from cascading into node-wide stalls, and to deepen block-layer queues on the IOPS-limited Kingston SSD in `k3s-node-01`.
+
+```bash
+ansible-playbook host-tuning.yaml
+```
+
+Idempotent — safe to re-run. See [docs/storage-tuning.md](../docs/storage-tuning.md) for what gets applied and why.
+
 ## Monitoring Stack
 
 Deploys a lean observability stack into the `kube-extra` namespace:
