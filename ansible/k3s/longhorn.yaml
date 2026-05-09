@@ -71,7 +71,7 @@
         --namespace longhorn-system
         --create-namespace
         --values /tmp/longhorn.values.yaml
-        --version 1.11.1
+        --version 1.11.2
         --wait --timeout 10m
 
     - name: Clean up Longhorn values file
