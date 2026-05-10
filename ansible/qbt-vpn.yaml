@@ -1,0 +1,207 @@
+---
+# Workstation setup for qbt-vpn (qBittorrent behind ProtonVPN via Gluetun).
+# Targets the local Fedora workstation. Idempotent — safe to re-run.
+#
+# Run with:
+#   sops-age-key                  # load AGE key from 1Password into env
+#   cd ansible
+#   ansible-playbook qbt-vpn.yaml
+#
+# Requires the community.general and community.sops collections:
+#   ansible-galaxy collection install community.general community.sops
+#
+# See workstation/qbt-vpn/README.md for what this deploys and why.
+
+- name: Provision qbt-vpn on local Fedora workstation
+  hosts: localhost
+  connection: local
+  gather_facts: true
+
+  vars:
+    qbt_vpn_src: "{{ playbook_dir }}/../workstation/qbt-vpn"
+    user_home: "{{ ansible_facts['env']['HOME'] }}"
+    user_name: "{{ ansible_facts['env']['USER'] }}"
+    quadlet_dir: "{{ user_home }}/.config/containers/systemd"
+    qbt_config_dir: "{{ user_home }}/.config/qbt-vpn"
+    state_dir: "{{ user_home }}/.local/share/qbt-vpn"
+
+  handlers:
+    - name: Apply sysctl settings
+      become: true
+      ansible.builtin.command: sysctl --system
+
+    - name: Reload user systemd
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+        scope: user
+
+  tasks:
+    # --- System packages -------------------------------------------------
+
+    - name: Install podman and flatpak
+      become: true
+      ansible.builtin.dnf:
+        name:
+          - podman
+          - flatpak
+        state: present
+
+    # Allows rootless containers to access device nodes like /dev/net/tun
+    # (required by gluetun for the WireGuard tunnel). Without this, SELinux
+    # blocks the container with avc: denied { read write } on chr_file tun.
+    - name: Allow containers to use device nodes (for /dev/net/tun)
+      become: true
+      ansible.posix.seboolean:
+        name: container_use_devices
+        state: true
+        persistent: true
+
+    - name: Place sysctl drop-in for power seeding
+      become: true
+      ansible.builtin.copy:
+        src: "{{ qbt_vpn_src }}/99-qbt-conntrack.conf"
+        dest: /etc/sysctl.d/99-qbt-conntrack.conf
+        mode: "0644"
+        owner: root
+        group: root
+      notify: Apply sysctl settings
+
+    - name: Enable user lingering (so user systemd units run without login)
+      become: true
+      ansible.builtin.command: "loginctl enable-linger {{ user_name }}"
+      args:
+        creates: "/var/lib/systemd/linger/{{ user_name }}"
+
+    # --- Flatpak / Podman Desktop ---------------------------------------
+
+    - name: Add Flathub remote (user scope)
+      community.general.flatpak_remote:
+        name: flathub
+        state: present
+        flatpakrepo_url: https://flathub.org/repo/flathub.flatpakrepo
+        method: user
+
+    - name: Install Podman Desktop (user scope)
+      community.general.flatpak:
+        name: io.podman_desktop.PodmanDesktop
+        state: present
+        method: user
+
+    # --- User dirs ------------------------------------------------------
+
+    - name: Create state and config directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ quadlet_dir }}"
+        - "{{ qbt_config_dir }}"
+        - "{{ state_dir }}/gluetun"
+        - "{{ state_dir }}/qbt-config"
+        - "{{ state_dir }}/scripts"
+        - "{{ user_home }}/_qbt"
+
+    # --- Quadlet + script symlinks --------------------------------------
+
+    - name: Symlink Quadlet units into ~/.config/containers/systemd
+      ansible.builtin.file:
+        src: "{{ qbt_vpn_src }}/{{ item }}"
+        dest: "{{ quadlet_dir }}/{{ item }}"
+        state: link
+        force: true
+      loop:
+        - gluetun.container
+        - qbittorrent.container
+      notify: Reload user systemd
+
+    # The previous design used a Podman pod, but UserNS=keep-id at the pod
+    # level breaks gluetun (it can't run iptables as non-root). The current
+    # design has qBt borrow gluetun's netns directly. Clean up the old pod
+    # if a previous run created it; otherwise this is a no-op.
+    - name: Remove stale qbt-vpn.pod quadlet symlink (migration cleanup)
+      ansible.builtin.file:
+        path: "{{ quadlet_dir }}/qbt-vpn.pod"
+        state: absent
+      notify: Reload user systemd
+
+    - name: Check for stale qbt-vpn podman pod
+      ansible.builtin.command: podman pod exists qbt-vpn
+      register: stale_pod
+      changed_when: false
+      failed_when: false
+
+    - name: Stop services and remove stale qbt-vpn pod
+      when: stale_pod.rc == 0
+      block:
+        - name: Stop services that may be attached to the stale pod
+          ansible.builtin.systemd_service:
+            name: "{{ item }}"
+            state: stopped
+            scope: user
+          loop:
+            - qbittorrent.service
+            - gluetun.service
+          failed_when: false
+
+        - name: Remove stale qbt-vpn pod
+          ansible.builtin.command: podman pod rm -f qbt-vpn
+
+    # The script must be a real file (not a symlink) so podman's :Z relabel
+    # applies to the actual content; :Z does not follow symlinks for relabel.
+    - name: Copy port-update script into state dir
+      ansible.builtin.copy:
+        src: "{{ qbt_vpn_src }}/update-qbt-port.sh"
+        dest: "{{ state_dir }}/scripts/update-qbt-port.sh"
+        mode: "0755"
+
+    # --- Secrets (from SOPS) --------------------------------------------
+
+    - name: Load WireGuard secrets from SOPS
+      community.sops.load_vars:
+        file: "{{ playbook_dir }}/qbt-vpn.sops.yaml"
+      no_log: true
+
+    # load_vars returns vars under ansible_facts. With inject_facts_as_vars=False
+    # (in ansible.cfg) they are not auto-injected at the top level, so we
+    # reference them as ansible_facts['<name>'].
+    - name: Write secrets.env for gluetun
+      ansible.builtin.copy:
+        dest: "{{ qbt_config_dir }}/secrets.env"
+        mode: "0600"
+        content: |
+          WIREGUARD_PRIVATE_KEY={{ ansible_facts['wireguard_private_key'] }}
+          WIREGUARD_ADDRESSES={{ ansible_facts['wireguard_addresses'] }}
+      no_log: true
+
+    # --- Pre-pull images so first start doesn't time out ----------------
+
+    - name: Read image references from .container files
+      ansible.builtin.shell: "grep -h '^Image=' {{ qbt_vpn_src }}/*.container | sed 's/^Image=//'"
+      register: container_images
+      changed_when: false
+
+    - name: Pre-pull container images (rootless)
+      ansible.builtin.command: "podman pull {{ item }}"
+      loop: "{{ container_images.stdout_lines }}"
+      changed_when: false
+
+    # --- Podman socket + service start ----------------------------------
+
+    - name: Enable Podman user socket (so Podman Desktop can connect)
+      ansible.builtin.systemd_service:
+        name: podman.socket
+        state: started
+        enabled: true
+        scope: user
+
+    - name: Force a daemon-reload before first start
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+        scope: user
+
+    - name: Start qBittorrent (and the rest of the stack via deps)
+      ansible.builtin.systemd_service:
+        name: qbittorrent.service
+        state: started
+        scope: user

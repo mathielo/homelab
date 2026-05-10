@@ -154,6 +154,16 @@
       depNameTemplate: 'glances',
       datasourceTemplate: 'pypi',
     },
+    {
+      customType: 'regex',
+      managerFilePatterns: [
+        '/workstation/.*\\.container$/',
+      ],
+      matchStrings: [
+        'Image=(?<depName>[^\\s:]+):(?<currentValue>[^\\s]+)',
+      ],
+      datasourceTemplate: 'docker',
+    },
   ],
   packageRules: [
     {
