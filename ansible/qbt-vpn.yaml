@@ -35,15 +35,21 @@
         daemon_reload: true
         scope: user
 
+    - name: Restore SELinux contexts on /mnt/r0
+      become: true
+      ansible.builtin.command: restorecon -R /mnt/r0
+
   tasks:
     # --- System packages -------------------------------------------------
 
-    - name: Install podman and flatpak
+    - name: Install podman, flatpak, and SELinux management tools
       become: true
       ansible.builtin.dnf:
         name:
           - podman
           - flatpak
+          # Provides `semanage`, required by community.general.sefcontext below.
+          - policycoreutils-python-utils
         state: present
 
     # Allows rootless containers to access device nodes like /dev/net/tun
@@ -55,6 +61,19 @@
         name: container_use_devices
         state: true
         persistent: true
+
+    # Files dropped into /mnt/r0 (e.g. .torrent files moved in from ~/Downloads)
+    # default to user_home_t and are unreadable by container_t. Setting the
+    # fcontext to container_file_t at the path level makes new files inherit
+    # the right type automatically; the :Z mount adds the per-container
+    # category on top.
+    - name: Set persistent SELinux fcontext for /mnt/r0 (qBt download tree)
+      become: true
+      community.general.sefcontext:
+        target: '/mnt/r0(/.*)?'
+        setype: container_file_t
+        state: present
+      notify: Restore SELinux contexts on /mnt/r0
 
     - name: Place sysctl drop-in for power seeding
       become: true
