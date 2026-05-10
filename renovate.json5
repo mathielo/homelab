@@ -21,7 +21,7 @@
         '/ansible/k3s/files/.*\\.j2$/',
       ],
       matchStrings: [
-        'github\\.com/getsops/sops/releases/download/(?<currentValue>v[\\d.]+)/sops-',
+        'SOPS=(?<currentValue>v[\\d.]+)',
       ],
       depNameTemplate: 'getsops/sops',
       datasourceTemplate: 'github-releases',
