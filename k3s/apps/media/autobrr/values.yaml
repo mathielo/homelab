@@ -5,7 +5,7 @@ app-template:
         autobrr:
           image:
             repository: ghcr.io/autobrr/autobrr
-            tag: v1.77.1
+            tag: v1.78.0
           env:
             TZ: Europe/Stockholm
           resources:
