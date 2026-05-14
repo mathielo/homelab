@@ -147,7 +147,7 @@ Update `docs/storage-longhorn.md` and `docs/hardware.md` partition tables to ref
 
 > :warning: **Reconcile this into the cluster BEFORE running `install-k3s.yaml`.** The values file change is inert until the Longhorn helm release picks it up. `defaultDataPath` is also a cluster-wide Longhorn **Setting CR** — until that setting is updated, every new node that registers will get a default disk at the **old** path. Run `ansible-playbook ansible/k3s/longhorn.yaml` (or `helm upgrade`) first.
 
-> `defaultDataPath` only takes effect on a node's **first registration** with Longhorn. Because we deleted node-01 from k3s in step 1.2, its re-join counts as a first registration, so the new path is picked up automatically — *provided the setting was reconciled first*.
+> `defaultDataPath` only takes effect on a node's **first registration** with Longhorn. Because we deleted node-01 from k3s in step 1.2, its re-join counts as a first registration, so the new path is picked up automatically — _provided the setting was reconciled first_.
 
 ### 1.7 Rejoin the cluster
 
@@ -159,6 +159,7 @@ ansible-playbook ansible/k3s/longhorn.yaml         # multipath blacklist, helm r
 > :warning: **If you skipped reconciling Longhorn first** (or the setting didn't propagate in time), the node will register with a default disk at `/mnt/ssd/longhorn` — which doesn't exist as a mount, so Longhorn creates the directory on the **rootfs** and schedules stub replicas there. Symptoms: rootfs `/` fills with `longhorn-disk.cfg` + empty `replicas/` dirs; `kubectl -n longhorn-system get nodes.longhorn.io <node> -o yaml` shows two disks; volumes show `degraded` even after rebuild.
 >
 > Recovery (run with the node cordoned + drained):
+>
 > 1. Confirm every volume has a healthy replica on the other node: `kubectl -n longhorn-system get replicas -o wide`.
 > 2. Add the new disk via UI: Node → Edit node and disks → add `/mnt/nvme/longhorn`.
 > 3. Clear node-level eviction (the UI's "drain disk" sometimes sets this on the node too): `kubectl -n longhorn-system patch nodes.longhorn.io <node> --type=merge -p '{"spec":{"evictionRequested":false}}'`.
@@ -228,8 +229,8 @@ df -h /mnt/nvme/longhorn /mnt/ssd/local
 lsblk
 
 # Plex transcode hostPath
-sudo mkdir -p /mnt/ssd/local/plex-transcode
-sudo chown -R 1000:1000 /mnt/ssd/local/plex-transcode
+sudo mkdir -p /mnt/ssd/local/plex
+sudo chown -R 1000:1000 /mnt/ssd/local/plex
 ```
 
 ### 2.6 Reinstall k3s server, then restore from snapshot
@@ -269,7 +270,7 @@ kubectl uncordon k3s-server
 
 ### 2.10 Wait for all volumes `Healthy` (2 replicas)
 
-Plex comes back automatically once the server is uncordoned, replicas exist on local Longhorn disk, and `/mnt/ssd/local/plex-transcode` is in place.
+Plex comes back automatically once the server is uncordoned, replicas exist on local Longhorn disk, and `/mnt/ssd/local/plex` is in place.
 
 ## Critical files
 

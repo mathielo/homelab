@@ -15,11 +15,11 @@ All pods have their config + data set in Longhorn PVCs. A few services have some
 
 ### What stays pinned (not on Longhorn)
 
-| App             | Why pinned                                                        | Storage                                                                                  |
-| --------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| **qBittorrent** | Pinned to `k3s-node-01`; needs local SSD for incomplete downloads | config: Longhorn; incomplete: `hostPath /mnt/ssd/local/qbt-incomplete`                   |
-| **SABnzbd**     | Pinned to `k3s-node-01`; needs local SSD for incomplete downloads | config: Longhorn; incomplete: `hostPath /mnt/ssd/local/sabnzbd-incomplete`               |
-| **Plex**        | Pinned to `k3s-server` for AMD GPU transcoding                    | config: `plex-config-lh` (Longhorn); transcode: `hostPath /mnt/ssd/local/plex-transcode` |
+| App             | Why pinned                                                        | Storage                                                                        |
+| --------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| **qBittorrent** | Pinned to `k3s-node-01`; needs local SSD for incomplete downloads | config: Longhorn; incomplete: `hostPath /mnt/ssd/local/qbt-incomplete`         |
+| **SABnzbd**     | Pinned to `k3s-node-01`; needs local SSD for incomplete downloads | config: Longhorn; incomplete: `hostPath /mnt/ssd/local/sabnzbd-incomplete`     |
+| **Plex**        | Pinned to `k3s-server` for AMD GPU transcoding                    | config: `plex-config-lh` (Longhorn); transcode: `hostPath /mnt/ssd/local/plex` |
 
 The `media-data` NFS PVC (UNAS-4) is untouched — Longhorn is only for app config volumes.
 
@@ -47,8 +47,8 @@ After first boot on each node, create the app-owned hostPath directories:
 ```bash
 df -h /mnt/nvme/longhorn /mnt/ssd/local   # verify mounts came up
 
-sudo mkdir -p /mnt/ssd/local/plex-transcode
-sudo chown 1000:1000 /mnt/ssd/local/plex-transcode
+sudo mkdir -p /mnt/ssd/local/plex
+sudo chown 1000:1000 /mnt/ssd/local/plex
 ```
 
 ### k3s-node-01

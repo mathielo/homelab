@@ -74,7 +74,7 @@ app-template:
         - path: /config
     transcode:
       type: hostPath
-      hostPath: /mnt/ssd/local/plex-transcode
+      hostPath: /mnt/ssd/local/plex
       hostPathType: DirectoryOrCreate
       globalMounts:
         - path: /transcode
