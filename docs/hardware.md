@@ -21,18 +21,25 @@ All physical devices in the homelab.
 - **k3s-node-02** — qBittorrent clients (incomplete downloads on local NVMe)
 - Everything else is free to schedule anywhere.
 
-### k3s SSD layout
+### k3s disk layout
 
-**k3s-server** and **k3s-node-01** each have a 1 TB Kingston SATA SSD partitioned for Longhorn and local hostPath mounts:
+**k3s-server** and **k3s-node-01** each have a 256 GB NVMe (rootfs + Longhorn) and a 1 TB Kingston SATA SSD (node-specific local hostPath).
 
-| Node        | Partition   | Size    | Mount               | Purpose                         |
-| ----------- | ----------- | ------- | ------------------- | ------------------------------- |
-| k3s-server  | `/dev/sda1` | 300 GB  | `/mnt/ssd/longhorn` | Longhorn distributed block data |
-| k3s-server  | `/dev/sda2` | ~654 GB | `/mnt/ssd/local`    | Plex transcode hostPath         |
-| k3s-node-01 | `/dev/sda1` | 100 GB  | `/mnt/ssd/longhorn` | Longhorn distributed block data |
-| k3s-node-01 | `/dev/sda2` | ~854 GB | `/mnt/ssd/local`    | SABnzbd incomplete downloads    |
+NVMe layout (identical on both nodes):
 
-> A planned migration moves Longhorn off the SATA SSDs onto each node's NVMe — see [`plans/upgrade-k3s-nvme.md`](../plans/upgrade-k3s-nvme.md).
+| Partition        | Size     | FS   | Mount                | Purpose                              |
+| ---------------- | -------- | ---- | -------------------- | ------------------------------------ |
+| `/dev/nvme0n1p1` | 1 GiB    | vfat | `/boot/efi`          | Ubuntu boot                          |
+| `/dev/nvme0n1p2` | 2 GiB    | ext4 | `/boot`              | Kernel/initramfs                     |
+| `/dev/nvme0n1p3` | 40 GiB   | ext4 | `/`                  | Ubuntu + k3s + container image cache |
+| `/dev/nvme0n1p4` | ~195 GiB | ext4 | `/mnt/nvme/longhorn` | Longhorn distributed block data      |
+
+SATA SSD layout (node-specific purpose):
+
+| Node        | Partition   | Size     | Mount            | Purpose                      |
+| ----------- | ----------- | -------- | ---------------- | ---------------------------- |
+| k3s-server  | `/dev/sda1` | ~931 GiB | `/mnt/ssd/local` | Plex transcode hostPath      |
+| k3s-node-01 | `/dev/sda1` | ~931 GiB | `/mnt/ssd/local` | SABnzbd incomplete downloads |
 
 **k3s-node-02** has a single 2 TB Samsung 990 Pro NVMe with no SATA SSD. Partitioning:
 

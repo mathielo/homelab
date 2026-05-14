@@ -1,5 +1,5 @@
 defaultSettings:
-  defaultDataPath: /mnt/ssd/longhorn
+  defaultDataPath: /mnt/nvme/longhorn
   defaultDataLocality: best-effort
   defaultReplicaCount: 2
   storageOverProvisioningPercentage: 100

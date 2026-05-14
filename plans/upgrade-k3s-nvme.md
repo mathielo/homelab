@@ -18,12 +18,12 @@ The multipath blacklist for Longhorn iSCSI LUNs (`ansible/k3s/files/multipath-lo
 
 Per node, on the existing 256 GB NVMe (~238 GiB usable):
 
-| Mount                | Size      | FS    | Purpose                                       |
-| -------------------- | --------- | ----- | --------------------------------------------- |
-| `/boot/efi`          | 1 GiB     | vfat  | Ubuntu boot                                   |
-| `/boot`              | 2 GiB     | ext4  | Kernel/initramfs                              |
-| `/` (rootfs)         | 40 GiB    | ext4  | Ubuntu + k3s + container image cache          |
-| `/mnt/nvme/longhorn` | ~195 GiB  | ext4  | Longhorn distributed block data               |
+| Mount                | Size     | FS   | Purpose                              |
+| -------------------- | -------- | ---- | ------------------------------------ |
+| `/boot/efi`          | 1 GiB    | vfat | Ubuntu boot                          |
+| `/boot`              | 2 GiB    | ext4 | Kernel/initramfs                     |
+| `/` (rootfs)         | 40 GiB   | ext4 | Ubuntu + k3s + container image cache |
+| `/mnt/nvme/longhorn` | ~195 GiB | ext4 | Longhorn distributed block data      |
 
 Notes:
 
@@ -45,15 +45,15 @@ Per node, the **1 TB SATA SSD** (`/dev/sda`) is wiped and repartitioned as a sin
 1. **Confirm Longhorn replicas are healthy on both nodes** (so wiping a node leaves a valid surviving replica for every volume):
 
    ```bash
-   sudo KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl -n longhorn-system get volumes \
+   kubectl -n longhorn-system get volumes \
      | awk '$2!="attached" || $3!="healthy"'   # should print only the header
-   sudo KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl -n longhorn-system get replicas -o wide
+   kubectl -n longhorn-system get replicas -o wide
    ```
 
 2. **Trigger a fresh backup for every Longhorn volume.** UI → Volumes → select all → Create Backup. Verify:
 
    ```bash
-   sudo KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl -n longhorn-system get backups
+   kubectl -n longhorn-system get backups
    ```
 
 3. **Save a k3s etcd snapshot and copy it off-cluster:**
@@ -88,8 +88,8 @@ Outage scope: **qBittorrent + SABnzbd** (pinned to this node). Everything else s
 In the Longhorn UI: Node → `k3s-node-01` → Edit Node → set **Node Scheduling: Disable** and leave **Eviction Requested: false** (we're wiping the disk anyway — don't waste cycles evacuating). Then:
 
 ```bash
-sudo KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl cordon k3s-node-01
-sudo KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl drain k3s-node-01 \
+kubectl cordon k3s-node-01
+kubectl drain k3s-node-01 \
   --ignore-daemonsets --delete-emptydir-data --force
 ```
 
@@ -98,7 +98,7 @@ With `replicaSoftAntiAffinity: false`, replicas on the surviving server will sta
 ### 1.2 Remove the node from k3s
 
 ```bash
-sudo KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl delete node k3s-node-01
+kubectl delete node k3s-node-01
 ```
 
 Longhorn-manager will mark the agent's replicas as `failed` after the stale replica timeout — fine, they'll be rebuilt fresh on the new disk.
@@ -157,7 +157,7 @@ ansible-playbook ansible/k3s/longhorn.yaml         # multipath blacklist, helm r
 ### 1.8 Verify Longhorn picked up the new disk
 
 ```bash
-sudo KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl -n longhorn-system \
+kubectl -n longhorn-system \
   get nodes.longhorn.io k3s-node-01 -o yaml | yq '.spec.disks'
 ```
 
@@ -166,7 +166,7 @@ Should show a disk entry for `/mnt/nvme/longhorn`. If it doesn't, or if the stal
 ### 1.9 Uncordon + re-enable scheduling
 
 ```bash
-sudo KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl uncordon k3s-node-01
+kubectl uncordon k3s-node-01
 ```
 
 Longhorn UI: Node → `k3s-node-01` → Node Scheduling: Enable (if it didn't come up enabled).
@@ -191,8 +191,8 @@ rsync -av k3s-server:/var/lib/k3s/server/db/snapshots/pre-server-reinstall-* ~/B
 Longhorn UI: Node → `k3s-server` → Node Scheduling: Disable.
 
 ```bash
-sudo KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl cordon k3s-server
-sudo KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl drain k3s-server \
+kubectl cordon k3s-server
+kubectl drain k3s-server \
   --ignore-daemonsets --delete-emptydir-data --force
 ```
 
@@ -251,7 +251,7 @@ Same as 1.8 but for `k3s-server`. In the UI: add `/mnt/nvme/longhorn`, remove th
 ### 2.9 Uncordon
 
 ```bash
-sudo KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl uncordon k3s-server
+kubectl uncordon k3s-server
 ```
 
 ### 2.10 Wait for all volumes `Healthy` (2 replicas)
@@ -260,23 +260,23 @@ Plex comes back automatically once the server is uncordoned, replicas exist on l
 
 ## Critical files
 
-| File                                       | Change                                                                       |
-| ------------------------------------------ | ---------------------------------------------------------------------------- |
-| `ansible/k3s/files/longhorn.values.yaml`   | `defaultDataPath: /mnt/ssd/longhorn` → `/mnt/nvme/longhorn`                  |
-| `docs/storage-longhorn.md`                 | Update partition tables, disk-prep section, mount points (NVMe-based layout) |
-| `docs/hardware.md`                         | Partition tables; SATA role per node (downloads on node-01, transcode on server) |
-| `ansible/inventory.ini`                    | No change (IPs preserved via UniFi MAC reservations)                         |
+| File                                     | Change                                                                           |
+| ---------------------------------------- | -------------------------------------------------------------------------------- |
+| `ansible/k3s/files/longhorn.values.yaml` | `defaultDataPath: /mnt/ssd/longhorn` → `/mnt/nvme/longhorn`                      |
+| `docs/storage-longhorn.md`               | Update partition tables, disk-prep section, mount points (NVMe-based layout)     |
+| `docs/hardware.md`                       | Partition tables; SATA role per node (downloads on node-01, transcode on server) |
+| `ansible/inventory.ini`                  | No change (IPs preserved via UniFi MAC reservations)                             |
 
 The multipath conf is already in place — it rides along but requires no per-phase changes.
 
 ## Verification (after each phase)
 
 ```bash
-sudo KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl get nodes
-sudo KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl -n longhorn-system get nodes.longhorn.io
+kubectl get nodes
+kubectl -n longhorn-system get nodes.longhorn.io
 
 # All Longhorn volumes Healthy with 2 replicas
-sudo KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl -n longhorn-system get volumes \
+kubectl -n longhorn-system get volumes \
   | awk '$2!="attached" || $3!="healthy"'    # should print only the header
 
 # New data paths visible
@@ -284,7 +284,7 @@ ssh <node> 'df -h /mnt/nvme/longhorn /mnt/ssd/local'
 ssh <node> 'sudo multipath -ll'              # no IET,VIRTUAL-DISK lines
 
 # All pods Running, Argo apps Synced/Healthy
-sudo KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl get pods -A | grep -vE 'Running|Completed'
+kubectl get pods -A | grep -vE 'Running|Completed'
 ```
 
 End-to-end: open the qBt, SAB, ARR, and Plex web UIs and confirm history/library/config intact.

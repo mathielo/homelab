@@ -25,47 +25,38 @@ The `media-data` NFS PVC (UNAS-4) is untouched — Longhorn is only for app conf
 
 ## Disk layout
 
-Each node has a 1 TB Kingston SATA SSD at `/dev/sda`, partitioned as:
+Longhorn data lives on each node's NVMe (`/mnt/nvme/longhorn`). The SATA SSD is a single-partition local hostPath for node-specific workloads.
 
-| Node        | Partition   | Size    | Mount               | Purpose                                    |
-| ----------- | ----------- | ------- | ------------------- | ------------------------------------------ |
-| k3s-server  | `/dev/sda1` | 300 GB  | `/mnt/ssd/longhorn` | Longhorn data path                         |
-| k3s-server  | `/dev/sda2` | ~654 GB | `/mnt/ssd/local`    | Plex transcode + future hostPaths          |
-| k3s-node-01 | `/dev/sda1` | 100 GB  | `/mnt/ssd/longhorn` | Longhorn data path                         |
-| k3s-node-01 | `/dev/sda2` | ~854 GB | `/mnt/ssd/local`    | qBittorrent + SABnzbd incomplete downloads |
+| Node        | Disk | Mount                | Purpose                                 |
+| ----------- | ---- | -------------------- | --------------------------------------- |
+| k3s-server  | NVMe | `/mnt/nvme/longhorn` | Longhorn data path (~195 GiB)           |
+| k3s-server  | SATA | `/mnt/ssd/local`     | Plex transcode hostPath (~931 GiB)      |
+| k3s-node-01 | NVMe | `/mnt/nvme/longhorn` | Longhorn data path (~195 GiB)           |
+| k3s-node-01 | SATA | `/mnt/ssd/local`     | SABnzbd incomplete downloads (~931 GiB) |
 
-## Disk preparation (manual, per node)
+See [Hardware](hardware.md) for the full NVMe partition table.
 
-Run on each node via SSH. **Verify reboot persistence before moving on** (`sudo reboot`, then `df -h /mnt/ssd/*`).
+## Disk preparation
+
+The NVMe partition layout is set during OS install (Ubuntu Server, manual partitioning). The SATA SSD is wiped and formatted as a single partition during the same install window.
+
+After first boot on each node, create the app-owned hostPath directories:
 
 ### k3s-server
 
 ```bash
-sudo wipefs -a /dev/sda
-sudo parted -s /dev/sda mklabel gpt
-sudo parted -s -a optimal /dev/sda mkpart longhorn ext4 0% 300GiB
-sudo parted -s -a optimal /dev/sda mkpart local    ext4 300GiB 100%
-sudo mkfs.ext4 -L longhorn /dev/sda1
-sudo mkfs.ext4 -L local    /dev/sda2
-sudo mkdir -p /mnt/ssd/longhorn /mnt/ssd/local/plex-transcode
+df -h /mnt/nvme/longhorn /mnt/ssd/local   # verify mounts came up
+
+sudo mkdir -p /mnt/ssd/local/plex-transcode
 sudo chown 1000:1000 /mnt/ssd/local/plex-transcode
-
-LH_UUID=$(sudo blkid -s UUID -o value /dev/sda1)
-LO_UUID=$(sudo blkid -s UUID -o value /dev/sda2)
-echo "UUID=$LH_UUID /mnt/ssd/longhorn ext4 defaults,nofail,x-systemd.device-timeout=10s 0 2" | sudo tee -a /etc/fstab
-echo "UUID=$LO_UUID /mnt/ssd/local    ext4 defaults,nofail,x-systemd.device-timeout=10s 0 2" | sudo tee -a /etc/fstab
-
-sudo systemctl daemon-reload
-sudo mount -a
-df -h /mnt/ssd/longhorn /mnt/ssd/local
 ```
 
 ### k3s-node-01
 
-Same commands, with two differences — `300GiB → 100GiB` in both `parted mkpart` lines, and:
-
 ```bash
-sudo mkdir -p /mnt/ssd/longhorn /mnt/ssd/local/qbt-incomplete /mnt/ssd/local/sabnzbd-incomplete
+df -h /mnt/nvme/longhorn /mnt/ssd/local   # verify mounts came up
+
+sudo mkdir -p /mnt/ssd/local/qbt-incomplete /mnt/ssd/local/sabnzbd-incomplete
 sudo chown 1000:1000 /mnt/ssd/local/qbt-incomplete /mnt/ssd/local/sabnzbd-incomplete
 ```
 
@@ -243,7 +234,7 @@ kubectl -n longhorn-system get volumes | grep -v Healthy
 
 ```bash
 kubectl -n longhorn-system patch setting default-data-path --type merge \
-  -p '{"value":"/mnt/ssd/longhorn"}'
+  -p '{"value":"/mnt/nvme/longhorn"}'
 ```
 
 # Troubleshooting
@@ -260,7 +251,7 @@ kubectl -n longhorn-system get nodes.longhorn.io
 If a node shows `SCHEDULABLE=False`, check disk pressure or that Longhorn's disk path is mounted:
 
 ```bash
-ssh <node> 'df -h /mnt/ssd/longhorn'
+ssh <node> 'df -h /mnt/nvme/longhorn'
 ```
 
 ## Multipath conflicts (`mke2fs ... apparently in use`)
