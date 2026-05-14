@@ -4,7 +4,7 @@
 # Prerequisites:
 #   - Both k3s nodes must have open-iscsi installed and iscsid running
 #     (handled by install-k3s.yaml).
-#   - Both nodes must have /mnt/ssd/longhorn mounted (ext4, fstab with UUID).
+#   - Both nodes must have /mnt/nvme/longhorn mounted (ext4, fstab with UUID).
 #     Disk prep is documented in docs/storage-longhorn.md.
 #
 # After running this playbook:
