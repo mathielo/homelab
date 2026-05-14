@@ -92,6 +92,16 @@
         -p '{"spec":{"backupTargetURL":"nfs://10.10.1.4:/var/nfs/shared/k3s?nfsOptions=vers=3,nolock,actimeo=1,soft,timeo=300,retry=2"}}'
       changed_when: false
 
+    - name: Set default-data-path on cluster Setting CR
+      # Same caveat: defaultSettings.defaultDataPath is one-shot on first install.
+      # Without this patch, re-registering a node after OS reinstall picks the
+      # stale path and Longhorn auto-creates a ghost disk there.
+      command: >
+        kubectl patch setting default-data-path -n longhorn-system
+        --type merge
+        -p '{"value":"/mnt/nvme/longhorn"}'
+      changed_when: false
+
     - name: Remove default annotation from local-path StorageClass
       command: >
         kubectl patch storageclass local-path
