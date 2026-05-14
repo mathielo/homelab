@@ -258,6 +258,7 @@
       - node: k3s-server
         labels:
           - workload=infra
+          - amd.com/gpu=true
       - node: k3s-node-01
         labels:
           - workload=media
