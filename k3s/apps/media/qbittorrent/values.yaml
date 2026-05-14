@@ -187,7 +187,7 @@ app-template:
         - path: /config
     incomplete:
       type: hostPath
-      hostPath: /mnt/ssd/local/qbt-incomplete
+      hostPath: /mnt/ssd/local/qbt
       hostPathType: DirectoryOrCreate
       globalMounts:
         - path: /incomplete

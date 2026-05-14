@@ -170,7 +170,7 @@ app-template:
     # speed, then moves completed files to the NFS-backed /media mount.
     incomplete:
       type: hostPath
-      hostPath: /mnt/ssd/local/sabnzbd-incomplete
+      hostPath: /mnt/ssd/local/sab
       hostPathType: DirectoryOrCreate
       globalMounts:
         - path: /incomplete

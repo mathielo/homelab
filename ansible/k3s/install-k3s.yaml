@@ -1,4 +1,21 @@
 ---
+# Reinstalling a node with the same hostname requires clearing the stale node-password
+# trust on BOTH sides before running this playbook, otherwise the agent gets
+# stuck in: "Node password rejected, duplicate hostname or contents of
+# /etc/rancher/node/password may not match server node-passwd entry".
+#
+#   # On the agent host (after a fresh OS install, this is usually already gone):
+#   sudo systemctl stop k3s-agent 2>/dev/null
+#   sudo rm -f /etc/rancher/node/password
+#
+#   # From your workstation (or the server):
+#   kubectl delete node <hostname> --ignore-not-found
+#   kubectl delete secret -n kube-system <hostname>.node-password.k3s --ignore-not-found
+#
+# `kubectl delete node` alone is unreliable — a k3s controller eventually
+# cleans up the password secret, but it races with the agent's retry loop.
+# Deleting the secret explicitly avoids the race.
+
 # Play 1 — Host prep (server + agents)
 # Sysctl, packages, and resolv.conf are identical on every k3s node, so we
 # do them once across both groups instead of duplicating per play.
@@ -44,6 +61,12 @@
         name: iscsid
         enabled: true
         state: started
+
+    - name: Ensure /etc/k3s exists
+      file:
+        path: /etc/k3s
+        state: directory
+        mode: "0755"
 
     - name: Write clean resolv.conf for k3s (bypass Tailscale MagicDNS)
       copy:
