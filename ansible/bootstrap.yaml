@@ -1,3 +1,11 @@
+# Bootstrap new hosts with a passwordless SSH key and sudo access
+#
+# Troubleshooting "Timeout waiting for privilege escalation prompt"
+# Ubuntu Server 26.04 ships with `sudo-rs` alternative to `sudo`. For the playbook to work,
+# the alternative must be set to the default `sudo`:
+#
+#   ssh m8hl@<host-ip>
+#   sudo update-alternatives --set sudo /usr/bin/sudo.ws
 ---
 - name: Bootstrap host
   hosts: all
