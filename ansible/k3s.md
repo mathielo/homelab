@@ -79,10 +79,14 @@ Pi-hole has a wildcard DNS record pointing `*.hl.mathielo.com` to the MetalLB VI
 Installs k3s server and agents, and sets up cluster-level infrastructure:
 
 ```bash
-# Install server + agents (run without --limit to set up the full cluster)
+cd ansible
+
+# Install server + agents
 ansible-playbook k3s/install-k3s.yaml
 
-# Install MetalLB load balancer
+# Install MetalLB load balancer — required for ingress-nginx LoadBalancer Service
+# to get a real IP. install-k3s.yaml deploys ingress-nginx but no longer waits
+# on the LoadBalancer; MetalLB assigns the VIP (10.10.50.3) once installed.
 ansible-playbook k3s/metallb.yaml
 ```
 
@@ -119,8 +123,10 @@ Deploys a lean observability stack into the `kube-extra` namespace:
 | Loki       | `grafana/loki`                    | Log storage and query engine        |
 | Promtail   | `grafana/promtail`                | Ships pod logs from nodes into Loki |
 
+Run from the **repo root** (playbook that decrypts SOPS files needs to be run from the repo root):
+
 ```bash
-ansible-playbook k3s/monitoring.yaml
+ansible-playbook -i ansible/inventory.ini ansible/k3s/monitoring.yaml
 ```
 
 ### Accessing Grafana
