@@ -2,16 +2,20 @@
 
 This runbook turns the existing single `qbittorrent` deployment (Sweden VPN exit) into the first of a multi-region setup. The new instance is `qbt-br` (Brazil VPN exit). A future `qbt-se` will be added the same way later.
 
-The approach is **destroy-and-rebuild**, not rename. Both instances run side-by-side briefly during migration, then the old one is removed. Torrent state moves across via the qBittorrent WebUI API (export from old, import into new), so trackers see a clean re-add rather than a rename.
+The approach is **destroy-and-rebuild**, not rename. Both instances run side-by-side briefly during migration (on different nodes — see node pinning below), then the old one is removed. Torrent state moves across via the qBittorrent WebUI API (export from old, import into new), so trackers see a clean re-add rather than a rename.
+
+## Node pinning
+
+The legacy `qbittorrent` runs on `k3s-node-01` with its incomplete dir on the SATA SSD at `/mnt/ssd/local/qbt`. The new `qbt-br` (and the future `qbt-se`) pin to `k3s-node-02`, which has the 2 TB Samsung 990 Pro NVMe and a partition at `/mnt/nvme/local` (~1.6 TiB) reserved for qBittorrent incomplete/staging. The Samsung 990 Pro has DRAM and is not SLC-cache constrained the way the Kingston SATA SSDs on the other nodes are, so the per-instance disk tuning (preallocate off, capped concurrent downloads, dl_limit ceiling) can be relaxed later if needed — but the values shipped here are conservative and fine to keep on node-02.
 
 ## What this PR ships
 
-- New chart `k3s/apps/media/qbt-br/` (chart name `qbt-br`, release `qbt-br`, ingress `qbt-br.hl.mathielo.com`).
+- New chart `k3s/apps/media/qbt-br/` (chart name `qbt-br`, release `qbt-br`, ingress `qbt-br.hl.mathielo.com`). Pinned to `k3s-node-02` via `nodeSelector`; `incomplete` hostPath is `/mnt/nvme/local/qbt-br-incomplete`. Chart depends on `app-template: "5.*"` (matches the current `qbittorrent` chart on `main`).
 - New ArgoCD app `k3s/argocd/apps/qbt-br.yaml`.
 - New Longhorn PVC `qbt-br-config-lh` in `k3s/apps/media/_infra/longhorn-pvcs.yaml`. The legacy `qbittorrent-config-lh` is left alone so the old instance keeps running until you cut over.
 - Declarative-preferences pipeline: `values-prefs.yaml` + `templates/configmap-prefs.yaml` + qbittorrent-container `postStart` hook + `scripts/qbt/apply-prefs.sh` for hot reload.
 - Migration scripts: `scripts/qbt/export-state.sh`, `scripts/qbt/import-state.sh`.
-- `scripts/qbt/backup.sh` now takes the instance label as `$1`.
+- `scripts/qbt/backup.sh` replaces the old top-level `scripts/qbt-backup.sh` and takes the instance label as `$1`.
 
 The PR does **not** delete `k3s/apps/media/qbittorrent/`, `k3s/argocd/apps/qbittorrent.yaml`, or `qbittorrent-config-lh`. That happens in a small follow-up commit after the cutover succeeds.
 
@@ -69,7 +73,7 @@ Push the PR, merge, let ArgoCD reconcile. New objects appear:
 - ConfigMap `qbt-br-prefs`
 - TLS secret `qbt-br-hl-tls` (cert-manager issues against Cloudflare DNS-01)
 
-The old `qbittorrent` deployment keeps running; it shares the same node and SSD with the new one, so expect elevated pressure on `k3s-node-01` until cutover finishes.
+The old `qbittorrent` deployment keeps running on `k3s-node-01`; the new `qbt-br` lands on `k3s-node-02`. Different nodes, different disks, different VPN sessions — no contention between them. The only shared resource is the NFS `media-data` PVC for completed-library hardlinks, which is read/write on both and fine.
 
 Watch the rollout:
 
@@ -137,7 +141,7 @@ git rm -r k3s/apps/media/qbittorrent/
 
 Removing the ArgoCD app file triggers cascade deletion via the resource finalizer — Pod, Service, Ingress, TLS secret all go. The PVC removal in `longhorn-pvcs.yaml` deletes the volume and its data; only do this once you're sure the export was complete.
 
-The hostPath `/mnt/ssd/local/qbt-incomplete` on `k3s-node-01` doesn't auto-clean — `ssh k3s-node-01 sudo rm -rf /mnt/ssd/local/qbt-incomplete` once you've confirmed nothing in there is needed.
+The hostPath `/mnt/ssd/local/qbt` on `k3s-node-01` doesn't auto-clean — `ssh k3s-node-01 sudo rm -rf /mnt/ssd/local/qbt` once you've confirmed nothing in there is needed.
 
 ## Rollback
 
@@ -145,5 +149,5 @@ If qbt-br misbehaves before Step 8, the old `qbittorrent` is still running and u
 
 ## Resource considerations
 
-- Both instances on `k3s-node-01` doubles VPN encryption + libtorrent CPU and roughly doubles the SLC-cache pressure on the DRAM-less Kingston OCP0S31 SSD. Cutover quickly; don't run both for days.
-- When you later add `qbt-se`, pin it to `k3s-server` (Ryzen 5 PRO 3400GE has more headroom) via `nodeSelector` and use `k3s-server`'s `/mnt/ssd/local` for its `qbt-se-incomplete` hostPath.
+- The legacy `qbittorrent` (k3s-node-01, Ryzen 3 2200GE, SATA SSD) and the new `qbt-br` (k3s-node-02, i5-14500T, NVMe) live on separate hardware during the side-by-side window — no shared CPU, memory, or disk. Two concurrent ProtonVPN WireGuard sessions on the same account is the only thing to watch for; if Proton drops one, it's almost always the second-newest session.
+- When you later add `qbt-se`, pin it to `k3s-node-02` as well (i5-14500T is the strongest CPU in the cluster and the only node with the right disk for qbt staging). Both `qbt-br` and `qbt-se` will share `k3s-node-02`'s NVMe at `/mnt/nvme/local` — give each its own subdir (`/mnt/nvme/local/qbt-br-incomplete`, `/mnt/nvme/local/qbt-se-incomplete`). The Samsung 990 Pro has DRAM and handles parallel writes well, so two instances on it is fine; just keep an eye on the `/mnt/nvme/local` partition's free space (~1.6 TiB total).
