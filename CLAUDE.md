@@ -33,6 +33,10 @@ This repository is **public**. When making changes:
 - `docs/` - Hardware inventory, network architecture, service guides
 - `k3s/` - Kubernetes cluster setup, manifests, and Ansible playbooks
 
+## Runbooks
+
+- **PVC operations** (scaling apps down/up, stopping pods, restoring from Longhorn backup or host tarball) → read [`docs/pvc-maintenance.md`](docs/pvc-maintenance.md) first. PVCs and Deployments are owned by different Argo apps (`*-infra` vs per-service) and the root `media-apps` reconciles patches — naive `kubectl scale` or `selfHeal: false` will get reverted.
+
 ## Network Architecture
 
 Router: R18 UGC Max (UniFi)
