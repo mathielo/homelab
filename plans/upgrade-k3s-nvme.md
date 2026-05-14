@@ -145,7 +145,9 @@ Edit `ansible/k3s/files/longhorn.values.yaml`:
 
 Update `docs/storage-longhorn.md` and `docs/hardware.md` partition tables to reflect the new NVMe + SATA layout.
 
-> `defaultDataPath` only takes effect on a node's **first registration** with Longhorn. Because we deleted node-01 from k3s in step 1.2, its re-join counts as a first registration, so the new path is picked up automatically.
+> :warning: **Reconcile this into the cluster BEFORE running `install-k3s.yaml`.** The values file change is inert until the Longhorn helm release picks it up. `defaultDataPath` is also a cluster-wide Longhorn **Setting CR** — until that setting is updated, every new node that registers will get a default disk at the **old** path. Run `ansible-playbook ansible/k3s/longhorn.yaml` (or `helm upgrade`) first.
+
+> `defaultDataPath` only takes effect on a node's **first registration** with Longhorn. Because we deleted node-01 from k3s in step 1.2, its re-join counts as a first registration, so the new path is picked up automatically — *provided the setting was reconciled first*.
 
 ### 1.7 Rejoin the cluster
 
@@ -153,6 +155,17 @@ Update `docs/storage-longhorn.md` and `docs/hardware.md` partition tables to ref
 ansible-playbook ansible/k3s/install-k3s.yaml      # k3s agent install, iscsid, sysctls, NFS client
 ansible-playbook ansible/k3s/longhorn.yaml         # multipath blacklist, helm reconcile
 ```
+
+> :warning: **If you skipped reconciling Longhorn first** (or the setting didn't propagate in time), the node will register with a default disk at `/mnt/ssd/longhorn` — which doesn't exist as a mount, so Longhorn creates the directory on the **rootfs** and schedules stub replicas there. Symptoms: rootfs `/` fills with `longhorn-disk.cfg` + empty `replicas/` dirs; `kubectl -n longhorn-system get nodes.longhorn.io <node> -o yaml` shows two disks; volumes show `degraded` even after rebuild.
+>
+> Recovery (run with the node cordoned + drained):
+> 1. Confirm every volume has a healthy replica on the other node: `kubectl -n longhorn-system get replicas -o wide`.
+> 2. Add the new disk via UI: Node → Edit node and disks → add `/mnt/nvme/longhorn`.
+> 3. Clear node-level eviction (the UI's "drain disk" sometimes sets this on the node too): `kubectl -n longhorn-system patch nodes.longhorn.io <node> --type=merge -p '{"spec":{"evictionRequested":false}}'`.
+> 4. Delete all replicas pinned to the ghost disk's `diskUUID` (find it in `.status.diskStatus.<id>.diskUUID`): `kubectl -n longhorn-system get replicas -o json | jq -r '.items[] | select(.spec.diskID=="<UUID>") | .metadata.name' | xargs kubectl -n longhorn-system delete replica`.
+> 5. Remove the ghost disk entry from the node spec: `kubectl -n longhorn-system patch nodes.longhorn.io <node> --type=json -p '[{"op":"remove","path":"/spec/disks/<ghost-disk-id>"}]'`.
+> 6. SSH to the node and `sudo rm -rf /mnt/ssd/longhorn` to reclaim rootfs.
+> 7. Re-enable scheduling: `kubectl uncordon <node>` and patch `allowScheduling: true` on the Longhorn node CR.
 
 ### 1.8 Verify Longhorn picked up the new disk
 
