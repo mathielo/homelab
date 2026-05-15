@@ -8,10 +8,22 @@ This is a homelab repository for documenting, configuring, and automating a home
 
 ## Working Style
 
-- **Ask before assuming**: When requirements are ambiguous or unclear, ask clarifying questions before starting work. It's better to clarify upfront than waste effort on incorrect assumptions.
-- **Target environment**: Linux (Pop_OS!) unless otherwise specified.
+- **Ask before assuming**: When _requirements_ are ambiguous, ask clarifying questions before starting. But for facts about the _existing setup_, read the repo's config/manifests/docs directly — the repo is the source of truth, don't ask what you can look up.
+- **Target environment**: Commands run from a Fedora Linux workstation; k3s nodes run Ubuntu Server. Assume this unless otherwise specified.
 - **User context**: Seasoned developer comfortable with code, learning networking specifics and advanced features.
-- **No git operations**: Do not commit, push, or perform other git operations unless explicitly asked. The user prefers to review all changes and commit themselves.
+- **No git operations**: Do not commit, push, or perform other git operations unless explicitly asked. The user reviews and commits all changes themselves.
+- **Scripts stay simple**: Flat, sequential commands. No logging helpers, no idempotency/exists guards inside scripts — readability over cleverness (idempotency belongs in the Ansible/GitOps layer, not shell scripts).
+- **Planning docs live in the repo**: Commit planning/runbook docs under the repo (e.g. `docs/` or `plans/`), never in a workstation-only local path.
+
+## Infrastructure Changes (IaC Only)
+
+Everything is GitOps: tracked in code, idempotent, replayable. **Never mutate live infrastructure directly** — this generalizes the MCP read-only policy below to _all_ infrastructure.
+
+- **No mutating commands**: no `kubectl apply/edit/patch/scale`, no `helm upgrade/install`, no direct file/sysctl edits on nodes, no write calls to the qBittorrent / Pi-hole / UniFi APIs. Propose every change as code (Ansible, Helm values, k8s manifests) and hand the user the exact command to run. Read-only inspection (`kubectl get`, SSH `vmstat`/`cat /proc/...`) is fine.
+- **Prefer**: ConfigMaps over PVCs for config, Ansible over manual steps, checked-in manifests over imperative `kubectl`.
+- **kubectl/helm run locally**: the workstation kubeconfig talks to the cluster — run them directly, never SSH-wrapped. Use bare `kubectl` (no `sudo`, no `KUBECONFIG=` override). SSH to nodes only for read-only OS inspection.
+- **Ansible playbooks** (k3s, cert-manager, argocd, monitoring) run from the repo root with `-i ansible/inventory.ini`.
+- **Ad-hoc Longhorn snapshots/backups** via the Longhorn UI, not `kubectl` Snapshot/Backup CRs (Argo ownership/reconciliation fights CR-based ones).
 
 ## Security (Public Repository)
 
@@ -22,6 +34,8 @@ This repository is **public**. When making changes:
 - **Audit new templates** — Jinja2 templates (`.j2`) should use `{{ variable }}` references, never hardcoded secret values.
 - **Sensitive operations** — use `no_log: true` in Ansible tasks that handle secrets.
 - **Internal details are acceptable** — private IPs, VLAN layout, domain names, and public keys are fine to include; they are non-exploitable without network access.
+- **SOPS workflow** — never run `sops -d` or decrypt secrets; the user handles all decryption with their own AGE key (not in the repo). Do not create, populate, or encrypt `*.sops.yaml` files: build everything else (Chart, values, ArgoCD app), then tell the user exactly which sops file to create and which keys it must contain.
+- **No redundant filename prefixes** — don't prefix what the extension/convention already conveys: `argocd.sops.yaml`, not `secrets-argocd.sops.yaml`.
 
 ## Domain
 
