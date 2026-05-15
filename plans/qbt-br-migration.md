@@ -107,6 +107,8 @@ kubectl -n media exec deploy/qbt-br -c qbittorrent -- \
 
 You should see `async_io_threads: 2`, `preallocate_all: false`, `disk_cache: -1`, `max_active_downloads: 2`, `dl_limit: 62914560`.
 
+> The `dl_limit` value above is a starting ceiling, not a tuned one. See **Performance findings (NAS write bottleneck)** below — on node-02 it should be tied to measured NAS sustained write, and budgeted across instances once `qbt-se` is added.
+
 ## Step 6 — Import state into `qbt-br`
 
 ```sh
@@ -151,3 +153,25 @@ If qbt-br misbehaves before Step 8, the old `qbittorrent` is still running and u
 
 - The legacy `qbittorrent` (k3s-node-01, Ryzen 3 2200GE, SATA SSD) and the new `qbt-br` (k3s-node-02, i5-14500T, NVMe) live on separate hardware during the side-by-side window — no shared CPU, memory, or disk. Two concurrent ProtonVPN WireGuard sessions on the same account is the only thing to watch for; if Proton drops one, it's almost always the second-newest session.
 - When you later add `qbt-se`, pin it to `k3s-node-02` as well (i5-14500T is the strongest CPU in the cluster and the only node with the right disk for qbt staging). Both `qbt-br` and `qbt-se` will share `k3s-node-02`'s NVMe at `/mnt/nvme/local` — give each its own subdir (`/mnt/nvme/local/qbt-br-incomplete`, `/mnt/nvme/local/qbt-se-incomplete`). The Samsung 990 Pro has DRAM and handles parallel writes well, so two instances on it is fine; just keep an eye on the `/mnt/nvme/local` partition's free space (~1.6 TiB total).
+
+## Performance findings (NAS write bottleneck) — investigated 2026-05-15
+
+Diagnosed while the legacy `qbittorrent` was on `k3s-node-01` with active torrents + a backlog of completed torrents moving to the NAS. The whole node showed load ~10 with every co-located pod slow. Findings that affect how `qbt-br` (and later `qbt-se`) should be configured on node-02:
+
+- **Move serialization is already solved upstream — do not build an external mover.** qBittorrent moves torrent storages **one at a time** via an internal queue since v4.2.2 (PR [qbittorrent/qBittorrent#12035](https://github.com/qbittorrent/qBittorrent/issues/9407), closes #9407). We run 5.2.0, so this is active. Torrents waiting in the move queue still report `state=moving` over the API/WebUI — there is no distinct "queued-to-move" state, so e.g. "6 moving" = 1 actively copying + 5 queued, not 6 parallel copies. Caveat: a *manual* multi-select **Set location** can still bypass the queue (regression #22323, 5.0.3+); the automatic completion-move path qbt-br uses is unaffected.
+
+- **The hard ceiling is the UNAS-4 write path, and node-02 does not raise it.** UNAS-4 is 4×24 TB 7200 RPM **RAID5** fronted by a read-write SSD cache that is ~90 % full on **consumer QLC** (Intel 660p) in RAID1 (observed write-hit ~15 %, read-hit ~33 %). Sustained completion-move throughput ≈ **30 MB/s** with multi-second latency. node-02's 990 Pro fixes the *incomplete/staging* disk and removes the writeback blast radius from node-01, **but the completion copy still lands on the same NAS share** — treat ~30 MB/s as a fixed constraint, not something the migration improves.
+
+- **Tie `dl_limit` to NAS sustained write, not to link speed.** libtorrent blocks *all* of an instance's other disk I/O while a move runs; if aggregate download rate exceeds the serialized move-drain rate the queue grows without bound (the "days behind" failure mode in #9407). The shipped `dl_limit: 62914560` (60 MB/s) is above the measured ~30 MB/s NAS write — acceptable as an initial ceiling, but **if the qbt-br move queue backlogs on node-02, lower `dl_limit` toward ~30–40 MB/s**. Once `qbt-se` is added, it is the *combined* download rate of both instances that must stay under NAS write throughput — budget per-instance (≈20–25 MB/s each) rather than 60 MB/s each.
+
+- **Dirty-page sysctl is shipped as IaC (no manual step).** The "every co-located pod stalls" symptom is Linux dirty-page writeback throttling, not CPU/RAM/local-disk: with default `vm.dirty_ratio` (~20 % of RAM) the kernel buffers multiple GB destined for a 30 MB/s NAS, then hard-throttles every writer on the node for minutes (the global dirty limit is not per-filesystem, so pods writing to fast local disk get trapped behind the NAS backlog too). Fixed by `ansible/k3s/install-k3s.yaml` → task *"Bound dirty page-cache…"*, which writes `/etc/sysctl.d/99-nfs-writeback.conf`:
+
+  ```
+  vm.dirty_background_bytes = 67108864     # 64 MiB — start flushing early
+  vm.dirty_bytes            = 268435456    # 256 MiB — hard cap (~8 s drain @30 MB/s)
+  vm.dirty_writeback_centisecs = 500
+  ```
+
+  The host-prep play targets `k3s_server:k3s_agents`, so **node-02 picks this up automatically** the first time `install-k3s.yaml` runs against it after it's added to `ansible/inventory.ini` — no extra step in this runbook. It also already applies to node-01, which still needs it after cutover because **SABnzbd stays on node-01** and also moves completed files to the same NFS share, so node-01's NAS-writeback pressure does not fully disappear when qbt migrates. Re-running the host-prep play on existing nodes is safe and idempotent (`copy` + `sysctl --system`, no k3s restart).
+
+- **NFS mount options are low-leverage here.** The `media-data` PV sets only `nconnect=4`; effective opts are `vers=3,rsize=wsize=512K,hard,timeo=600,retrans=2`. `nconnect` helps bandwidth-bound mounts, not a disk-bound NAS — it is neither helping nor hurting; leave it. No client mount option fixes a server-side RAID5 + saturated-QLC-cache write ceiling. Leverage is `dl_limit` + the dirty-page sysctl + node isolation, not mount tuning.

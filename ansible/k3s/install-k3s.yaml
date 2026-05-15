@@ -46,6 +46,22 @@
         mode: "0644"
       notify: Apply sysctl settings
 
+    - name: Bound dirty page-cache so a slow NFS target can't stall every writer on the node
+      # With default vm.dirty_ratio the kernel buffers multiple GB of un-flushed writes headed
+      # for the NAS, then hard-throttles ALL writers node-wide (the global limit is not per-fs),
+      # so download clients moving completed files **freeze every co-located pod**.
+      #
+      # dirty_background_bytes = 64MiB
+      # dirty_bytes = 256MiB
+      copy:
+        dest: /etc/sysctl.d/99-nfs-writeback.conf
+        content: |
+          vm.dirty_background_bytes = 67108864
+          vm.dirty_bytes = 268435456
+          vm.dirty_writeback_centisecs = 500
+        mode: "0644"
+      notify: Apply sysctl settings
+
     - name: Install NFS client (required for NFS PersistentVolumes)
       apt:
         name: nfs-common
