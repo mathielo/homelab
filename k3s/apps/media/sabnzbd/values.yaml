@@ -124,7 +124,7 @@ app-template:
         sabnzbd:
           image:
             repository: ghcr.io/hotio/sabnzbd
-            tag: release-5.0.1
+            tag: release-5.0.3
           env:
             PUID: "1000"
             PGID: "1000"
