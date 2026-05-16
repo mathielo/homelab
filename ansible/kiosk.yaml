@@ -1,0 +1,73 @@
+---
+# Provisions the DeskPi 7.84" rack touchscreen as an OS-level kiosk on
+# k3s-node-01 (headless Ubuntu Server, no DE): cage (Wayland single-app
+# compositor) running Chromium pointed at the in-cluster kiosk dashboard.
+#
+# The browser is sandboxed so a leak/crash can't disturb k3s on this node.
+# Run from repo root:  ansible-playbook -i ansible/inventory.ini ansible/kiosk.yaml
+- name: Rack touchscreen kiosk
+  hosts: kiosk
+  become: true
+  vars:
+    kiosk_url: https://kiosk.hl.mathielo.com
+    kiosk_idle_seconds: 900 # blank panel after 15 min idle; touch wakes it
+
+  tasks:
+    - name: Install kiosk packages
+      apt:
+        name:
+          - cage # Wayland single-app kiosk compositor
+          - chromium-browser # the dashboard browser
+          - seatd # seat management on a headless box
+          - swayidle # idle → screen blank
+          - wlopm # wlroots output power (DPMS) for cage
+          - fonts-noto-color-emoji # tab/status icons in the UI
+        state: present
+        update_cache: true
+
+    - name: Create unprivileged kiosk user
+      user:
+        name: kiosk
+        system: true
+        shell: /usr/sbin/nologin
+        home: /var/lib/kiosk
+        groups: video,render,input,seat
+        append: true
+
+    - name: Enable and start seatd
+      systemd:
+        name: seatd
+        enabled: true
+        state: started
+
+    - name: Deploy kiosk session script
+      template:
+        src: kiosk/files/kiosk-session.sh.j2
+        dest: /usr/local/bin/kiosk-session
+        owner: root
+        group: root
+        mode: "0755"
+      notify: Restart kiosk
+
+    - name: Deploy kiosk systemd unit
+      template:
+        src: kiosk/files/kiosk.service.j2
+        dest: /etc/systemd/system/kiosk.service
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart kiosk
+
+    - name: Enable and start kiosk
+      systemd:
+        name: kiosk
+        enabled: true
+        state: started
+        daemon_reload: true
+
+  handlers:
+    - name: Restart kiosk
+      systemd:
+        name: kiosk
+        state: restarted
+        daemon_reload: true

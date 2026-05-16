@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Managed by ansible/kiosk.yaml — do not edit on the node.
+# cage runs this as its single Wayland client.
+set -euo pipefail
+
+# Blank the panel after idle; any touch/input wakes it (libinput resume).
+swayidle -w \
+  timeout {{ kiosk_idle_seconds }} 'wlopm --off "*"' \
+  resume 'wlopm --on "*"' &
+
+exec chromium \
+  --kiosk \
+  --ozone-platform=wayland \
+  --enable-features=UseOzonePlatform \
+  --no-first-run \
+  --noerrdialogs \
+  --disable-translate \
+  --disable-infobars \
+  --disable-session-crashed-bubble \
+  --check-for-update-interval=31536000 \
+  --user-data-dir=/var/lib/kiosk/chromium \
+  "{{ kiosk_url }}"

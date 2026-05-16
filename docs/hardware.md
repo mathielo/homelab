@@ -17,7 +17,7 @@ All physical devices in the homelab.
 ### Workload pinning
 
 - **k3s-server** — Plex (pinned for AMD GPU transcoding)
-- **k3s-node-01** — SABnzbd (incomplete downloads on local SATA)
+- **k3s-node-01** — SABnzbd (incomplete downloads on local SATA); also drives the DeskPi 7.84" rack touchscreen as an OS-level kiosk (`ansible/kiosk.yaml`, sandboxed systemd service — does not affect scheduled workloads)
 - **k3s-node-02** — qBittorrent clients (incomplete downloads on local NVMe)
 - Everything else is free to schedule anywhere.
 

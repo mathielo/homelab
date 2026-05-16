@@ -222,6 +222,7 @@
         'ghcr.io/gethomepage/homepage',
         'louislam/uptime-kuma',
         'ghcr.io/bigboot/autokuma',
+        'ghcr.io/mathielo/homelab-kiosk',
       ],
       groupName: 'dashboard',
     },

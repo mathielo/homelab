@@ -1,0 +1,46 @@
+# Managed by ansible/kiosk.yaml — do not edit on the node.
+[Unit]
+Description=DeskPi rack touchscreen kiosk (Chromium via cage)
+After=seatd.service systemd-user-sessions.service network-online.target
+Wants=seatd.service network-online.target
+
+[Service]
+User=kiosk
+Group=kiosk
+SupplementaryGroups=video render input seat
+PAMName=login
+TTYPath=/dev/tty7
+TTYReset=yes
+TTYVHangup=yes
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
+
+RuntimeDirectory=kiosk
+StateDirectory=kiosk
+Environment=XDG_RUNTIME_DIR=/run/kiosk
+Environment=XDG_SEAT=seat0
+Environment=WLR_BACKENDS=drm
+
+ExecStart=/usr/bin/cage -s -- /usr/local/bin/kiosk-session
+Restart=always
+RestartSec=5
+
+# --- cluster-safety sandbox: a leaking/crashing browser must not disturb the
+# k3s/containerd workloads sharing this node. They run in their own cgroups
+# and are unaffected by these limits. ---
+MemoryAccounting=yes
+MemoryMax=768M
+CPUQuota=60%
+TasksMax=400
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/kiosk /run/kiosk
+DeviceAllow=/dev/dri rw
+DeviceAllow=/dev/input rw
+DeviceAllow=char-drm rw
+
+[Install]
+WantedBy=multi-user.target

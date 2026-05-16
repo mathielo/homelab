@@ -1,0 +1,72 @@
+app-template:
+  controllers:
+    kiosk:
+      containers:
+        kiosk:
+          image:
+            # Built from the separate `homelab-kiosk` repo. STUB TAG — bump to
+            # the first tag that repo publishes, then let Renovate track it
+            # (see renovate.json5 "Dashboard images" group).
+            repository: ghcr.io/mathielo/homelab-kiosk
+            tag: 0.1.0
+          env:
+            TZ: Europe/Stockholm
+            # Reads (proxied by the BFF so Prometheus stays cluster-internal):
+            KIOSK_PROM_URL: http://prometheus-server.kube-extra.svc.cluster.local
+            KIOSK_KUMA_BASE_URL: http://uptime-kuma.dashboard.svc.cluster.local:3001
+            KIOSK_KUMA_SLUG: homelab
+            # Action targets (creds come from values.sops.yaml):
+            KIOSK_ALLOW_ACTIONS: "true"
+            KIOSK_SAB_URL: http://sabnzbd.media.svc.cluster.local:8080
+            KIOSK_QBT_NAMES: se
+            KIOSK_QBT_SE_URL: http://qbittorrent.media.svc.cluster.local:8080
+            KIOSK_QBT_FREELEECH_CAT: freeleech
+            KIOSK_PIHOLE_URL: http://10.10.53.53
+            KIOSK_PIHOLE_DISABLE_SECONDS: "60"
+            # * secret env vars injected via values.sops.yaml
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /healthz
+                  port: 8080
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /healthz
+                  port: 8080
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+
+  service:
+    kiosk:
+      controller: kiosk
+      ports:
+        http:
+          port: 8080
+
+  ingress:
+    kiosk:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      hosts:
+        - host: kiosk.hl.mathielo.com
+          paths:
+            - path: /
+              service:
+                identifier: kiosk
+                port: http
+      tls:
+        - hosts:
+            - kiosk.hl.mathielo.com
+          secretName: kiosk-hl-tls
