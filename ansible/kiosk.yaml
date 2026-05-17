@@ -31,7 +31,10 @@
         system: true
         shell: /usr/sbin/nologin
         home: /var/lib/kiosk
-        groups: video,render,input,seat
+        # No `seat`/`_seatd` group on Ubuntu — seatd ships its socket as
+        # root:video (srwxrwx---), so `video` membership grants seat access.
+        # (`seat` is the Arch/Alpine group name and doesn't exist here.)
+        groups: video,render,input
         append: true
 
     - name: Enable and start seatd
