@@ -6,10 +6,10 @@ Automated media acquisition and streaming stack running on k3s, managed by ArgoC
 
 ```
 Request flow:
-  Pulsarr/Searcharr (requests) → Sonarr/Radarr (automation) → Prowlarr (indexer search) → SABnzbd/qBittorrent (download) → Plex (playback)
+  Pulsarr/Prismarr/Searcharr (requests) → Sonarr/Radarr (automation) → Prowlarr (indexer search) → SABnzbd/qBittorrent (download) → Plex (playback)
 
-Cleanup flow:
-  Maintainerr (rules) → Radarr/Sonarr (remove entry) → deletes files from NFS media library
+Push flow:
+  Autobrr (filtered release announcements) → Sonarr/Radarr (grab)
 
 Download flow:
   SABnzbd     → Gluetun VPN → Usenet provider  → NFS media library
@@ -22,18 +22,21 @@ DNS/indexer flow:
 
 ## Services
 
-| Service     | URL                                   | Port  | Purpose                                  |
-| ----------- | ------------------------------------- | ----- | ---------------------------------------- |
-| SABnzbd     | `https://sabnzbd.hl.mathielo.com`     | 8080  | Usenet downloader                        |
-| qBittorrent | `https://qbt.hl.mathielo.com`         | 8080  | Torrent downloader                       |
-| Prowlarr    | `https://prowlarr.hl.mathielo.com`    | 9696  | Indexer manager/proxy                    |
-| Radarr      | `https://radarr.hl.mathielo.com`      | 7878  | Movie automation                         |
-| Sonarr      | `https://sonarr.hl.mathielo.com`      | 8989  | Shows automation                         |
-| Bazarr      | `https://bazarr.hl.mathielo.com`      | 6767  | Subtitle automation                      |
-| Plex        | `https://plex.hl.mathielo.com`        | 32400 | Media server / playback                  |
-| Pulsarr     | `https://pulsarr.hl.mathielo.com`     | 3003  | Automated media requests (Sonarr/Radarr) |
-| Prismarr    | `https://prismarr.hl.mathielo.com`    | 7070  | Media request portal                     |
-| Maintainerr | `https://maintainerr.hl.mathielo.com` | 6246  | Media library cleanup                    |
+| Service     | URL                                | Port  | Purpose                                  |
+| ----------- | ---------------------------------- | ----- | ---------------------------------------- |
+| SABnzbd     | `https://sabnzbd.hl.mathielo.com`  | 8080  | Usenet downloader                        |
+| qBittorrent | `https://qbt.hl.mathielo.com`      | 8080  | Torrent downloader                       |
+| Prowlarr    | `https://prowlarr.hl.mathielo.com` | 9696  | Indexer manager/proxy                    |
+| Radarr      | `https://radarr.hl.mathielo.com`   | 7878  | Movie automation                         |
+| Sonarr      | `https://sonarr.hl.mathielo.com`   | 8989  | Shows automation                         |
+| Bazarr      | `https://bazarr.hl.mathielo.com`   | 6767  | Subtitle automation                      |
+| Plex        | `https://plex.hl.mathielo.com`     | 32400 | Media server / playback                  |
+| Autobrr     | `https://autobrr.hl.mathielo.com`  | 7474  | Filtered release automation              |
+| qui         | `https://qui.hl.mathielo.com`      | 7476  | qBittorrent web UI                       |
+| Pulsarr     | `https://pulsarr.hl.mathielo.com`  | 3003  | Automated media requests (Sonarr/Radarr) |
+| Prismarr    | `https://prismarr.hl.mathielo.com` | 7070  | Media request portal                     |
+
+> Searcharr (Telegram request bot) also runs in `media` but has no web UI.
 
 > :exclamation: All URLs require Tailscale (or LAN) + Pi-hole DNS (`*.hl.mathielo.com → 10.10.50.3`).
 
