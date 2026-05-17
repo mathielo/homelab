@@ -74,6 +74,20 @@ app-template:
   configMaps:
     config:
       data:
+        # ─────────────────────────────────────────────────────────────────────
+        # Homepage is the desktop+mobile control center: every service one tap
+        # away, with live status widgets — self-sufficient when away from home.
+        # It deliberately does NOT duplicate the rack kiosk's per-node graphs;
+        # the kiosk (Prometheus-driven) owns deep metrics + reversible actions.
+        # Homepage is read-only by design.
+        #
+        # Widget `url:` uses in-cluster service DNS (the pod can't resolve
+        # *.hl.mathielo.com — that's Pi-hole split-DNS, browser-only). `href:`
+        # uses the public hl URL since the browser, not the pod, opens it.
+        # Secrets are `{{HOMEPAGE_VAR_*}}` injected from values.sops.yaml; the
+        # outer `{{ "…" }}` is Helm-escaping so the literal token reaches the
+        # ConfigMap for Homepage to substitute at runtime.
+        # ─────────────────────────────────────────────────────────────────────
         settings.yaml: |
           base: https://hl.mathielo.com
           title: Homelab
@@ -82,8 +96,8 @@ app-template:
           color: slate
           background:
             image: https://r2.m6o.dev/bg/neon-lasers-4k.jpg
-            opacity: 40
-            blur: md
+            opacity: 12
+            blur: 2xl
           headerStyle: boxedWidgets
           cardBlur: md
           pwa:
@@ -92,61 +106,146 @@ app-template:
                 type: image/jpeg
                 sizes: 1024x1024
           layout:
-            Infrastructure:
-              useEqualHeights: true
-              style: row
-              columns: 2
-            Kubernetes Nodes:
-              style: row
-              columns: 1
-              k3s-server:
-                style: row
-                columns: 4
-                useEqualHeights: true
-              k3s-node-01:
-                style: row
-                columns: 4
-                useEqualHeights: true
-            Media:
+            Quick links:
+              iconsOnly: true
               initiallyCollapsed: true
-              useEqualHeights: true
+              style: row
+              columns: 6
+            Media:
               style: row
               columns: 4
+              useEqualHeights: true
+            Network & VPN:
+              style: row
+              columns: 3
+              useEqualHeights: true
+            Hosts:
+              style: row
+              columns: 4
+              useEqualHeights: true
+            Platform:
+              style: row
+              columns: 3
+              useEqualHeights: true
 
         kubernetes.yaml: |
           mode: cluster
 
         widgets.yaml: |
-          - glances:
-              url: http://10.10.53.53:61208
-              version: 4
-              cpu: true
-              mem: true
-              cputemp: true
-              uptime: true
-              disk: fs:/
-              expanded: true
-              label: pi-hole
           - kubernetes:
               cluster:
                 show: true
                 cpu: true
                 memory: true
+                showLabel: true
+                label: k3s cluster
               nodes:
-                show: true
-                cpu: true
-                memory: true
+                show: false
+          - openmeteo:
+              label: Stockholm
+              latitude: 59.3293
+              longitude: 18.0686
+              timezone: Europe/Stockholm
+              units: metric
+              cache: 5
+          - datetime:
+              text_size: xl
+              format:
+                dateStyle: medium
+                timeStyle: short
+                hourCycle: h23
+
         services.yaml: |
-          - Infrastructure:
-              - UniFi:
-                  href: https://10.10.1.1
-                  description: Network controller
-                  icon: unifi.png
+          - Quick links:
+              - Pulsarr:
+                  icon: pulsarr.png
+                  href: https://pulsarr.hl.mathielo.com
+                  siteMonitor: http://pulsarr.media.svc.cluster.local:3003
+              - Prismarr:
+                  icon: mdi-movie-search
+                  href: https://prismarr.hl.mathielo.com
+                  siteMonitor: http://prismarr.media.svc.cluster.local:7070
+              - qui:
+                  icon: qui.png
+                  href: https://qui.hl.mathielo.com
+                  siteMonitor: http://qui.media.svc.cluster.local:7476
+              - Longhorn:
+                  icon: longhorn.png
+                  href: https://longhorn.hl.mathielo.com
+                  siteMonitor: http://longhorn-frontend.longhorn-system.svc.cluster.local
+              - Rack kiosk:
+                  icon: mdi-monitor-dashboard
+                  href: https://kiosk.hl.mathielo.com
+                  siteMonitor: http://kiosk.dashboard.svc.cluster.local:8080/healthz
+
+          - Media:
+              - Plex:
+                  href: https://plex.hl.mathielo.com
+                  description: Media server
+                  icon: plex.png
                   widget:
-                    type: unifi
-                    url: https://10.10.1.1
-                    username: "{{ "{{HOMEPAGE_VAR_UNIFI_USER}}" }}"
-                    password: "{{ "{{HOMEPAGE_VAR_UNIFI_PASS}}" }}"
+                    type: plex
+                    url: http://plex.media.svc.cluster.local:32400
+                    key: "{{ "{{HOMEPAGE_VAR_PLEX_TOKEN}}" }}"
+              - Sonarr:
+                  href: https://sonarr.hl.mathielo.com
+                  description: TV automation
+                  icon: sonarr.png
+                  widget:
+                    type: sonarr
+                    url: http://sonarr.media.svc.cluster.local:8989
+                    key: "{{ "{{HOMEPAGE_VAR_SONARR_KEY}}" }}"
+              - Radarr:
+                  href: https://radarr.hl.mathielo.com
+                  description: Movie automation
+                  icon: radarr.png
+                  widget:
+                    type: radarr
+                    url: http://radarr.media.svc.cluster.local:7878
+                    key: "{{ "{{HOMEPAGE_VAR_RADARR_KEY}}" }}"
+              - SABnzbd:
+                  href: https://sabnzbd.hl.mathielo.com
+                  description: Usenet downloader
+                  icon: sabnzbd.png
+                  widget:
+                    type: sabnzbd
+                    url: http://sabnzbd.media.svc.cluster.local:8080
+                    key: "{{ "{{HOMEPAGE_VAR_SABNZBD_KEY}}" }}"
+              - qBittorrent:
+                  href: https://qbt.hl.mathielo.com
+                  description: Torrents · SE exit
+                  icon: qbittorrent.png
+                  widget:
+                    type: qbittorrent
+                    url: http://qbittorrent.media.svc.cluster.local:8080
+                    username: "{{ "{{HOMEPAGE_VAR_QBITTORRENT_USERNAME}}" }}"
+                    password: "{{ "{{HOMEPAGE_VAR_QBITTORRENT_PASSWORD}}" }}"
+              - Prowlarr:
+                  href: https://prowlarr.hl.mathielo.com
+                  description: Indexer manager
+                  icon: prowlarr.png
+                  widget:
+                    type: prowlarr
+                    url: http://prowlarr.media.svc.cluster.local:9696
+                    key: "{{ "{{HOMEPAGE_VAR_PROWLARR_KEY}}" }}"
+              - Bazarr:
+                  href: https://bazarr.hl.mathielo.com
+                  description: Subtitles
+                  icon: bazarr.png
+                  widget:
+                    type: bazarr
+                    url: http://bazarr.media.svc.cluster.local:6767
+                    key: "{{ "{{HOMEPAGE_VAR_BAZARR_KEY}}" }}"
+              - Autobrr:
+                  href: https://autobrr.hl.mathielo.com
+                  description: Release automation
+                  icon: autobrr.png
+                  widget:
+                    type: autobrr
+                    url: http://autobrr.media.svc.cluster.local:7474
+                    key: "{{ "{{HOMEPAGE_VAR_AUTOBRR_KEY}}" }}"
+
+          - Network & VPN:
               - Pi-hole:
                   href: http://10.10.53.53/admin
                   description: DNS ad-blocking
@@ -156,6 +255,79 @@ app-template:
                     url: http://10.10.53.53
                     version: 6
                     key: "{{ "{{HOMEPAGE_VAR_PIHOLE_KEY}}" }}"
+              - UniFi:
+                  href: https://10.10.1.1
+                  description: Network controller
+                  icon: unifi.png
+                  widget:
+                    type: unifi
+                    url: https://10.10.1.1
+                    username: "{{ "{{HOMEPAGE_VAR_UNIFI_USER}}" }}"
+                    password: "{{ "{{HOMEPAGE_VAR_UNIFI_PASS}}" }}"
+              - Gluetun:
+                  href: https://qbt.hl.mathielo.com
+                  description: Download VPN · kill-switch
+                  icon: gluetun.png
+                  # qBittorrent's tunnel (the privacy-critical one). Its
+                  # Service already exposes gluetun's control server on :8000;
+                  # auth defaults to none for in-cluster reads (public IP is
+                  # non-sensitive). SABnzbd has its own identical SE tunnel —
+                  # add a second widget here later if you want it too.
+                  widget:
+                    type: gluetun
+                    url: http://qbittorrent.media.svc.cluster.local:8000
+
+          - Hosts:
+              - k3s-server:
+                  icon: k3s.png
+                  href: http://10.10.50.10:61208
+                  widgets:
+                    - type: glances
+                      url: http://10.10.50.10:61208
+                      version: 4
+                      metric: info
+                    - type: glances
+                      url: http://10.10.50.10:61208
+                      version: 4
+                      metric: fs:/
+              - k3s-node-01:
+                  icon: k3s.png
+                  href: http://10.10.50.11:61208
+                  widgets:
+                    - type: glances
+                      url: http://10.10.50.11:61208
+                      version: 4
+                      metric: info
+                    - type: glances
+                      url: http://10.10.50.11:61208
+                      version: 4
+                      metric: fs:/
+              # - k3s-node-02:
+              #     icon: k3s.png
+              #     href: http://10.10.50.12:61208
+              #     widgets:
+              #       - type: glances
+              #         url: http://10.10.50.12:61208
+              #         version: 4
+              #         metric: info
+              #       - type: glances
+              #         url: http://10.10.50.12:61208
+              #         version: 4
+              #         metric: fs:/
+              - pi-hole:
+                  icon: pi-hole.png
+                  href: http://10.10.53.53:61208
+                  widgets:
+                    - type: glances
+                      url: http://10.10.53.53:61208
+                      version: 4
+                      metric: info
+                    - type: glances
+                      url: http://10.10.53.53:61208
+                      version: 4
+                      metric: fs:/
+
+          - Platform:
               - ArgoCD:
                   href: https://argocd.hl.mathielo.com
                   description: GitOps deployments
@@ -164,6 +336,18 @@ app-template:
                     type: argocd
                     url: http://argocd-server.argocd.svc.cluster.local
                     key: "{{ "{{HOMEPAGE_VAR_ARGOCD_KEY}}" }}"
+              - Grafana:
+                  href: https://grafana.hl.mathielo.com
+                  description: Metrics & alerts
+                  icon: grafana.png
+                  widget:
+                    type: grafana
+                    version: 2
+                    url: http://grafana.kube-extra.svc.cluster.local
+                    alerts: alertmanager
+                    alertmanagerUrl: http://prometheus-alertmanager.kube-extra.svc.cluster.local:9093
+                    username: "{{ "{{HOMEPAGE_VAR_GRAFANA_USERNAME}}" }}"
+                    password: "{{ "{{HOMEPAGE_VAR_GRAFANA_PASSWORD}}" }}"
               - Uptime Kuma:
                   href: https://status.hl.mathielo.com
                   description: Service monitoring
@@ -173,190 +357,6 @@ app-template:
                     url: http://uptime-kuma.dashboard.svc.cluster.local:3001
                     slug: homelab
                     key: "{{ "{{HOMEPAGE_VAR_UPTIMEKUMA_KEY}}" }}"
-              - Grafana:
-                  href: https://grafana.hl.mathielo.com/d/rYdddlPWk/node-exporter-full
-                  icon: grafana.png
-                  description: System & services monitoring
-                  widget:
-                    type: grafana
-                    version: 2
-                    url: http://grafana.kube-extra.svc.cluster.local
-                    alerts: alertmanager
-                    alertmanagerUrl: http://prometheus-alertmanager.kube-extra.svc.cluster.local:9093
-                    username: "{{ "{{HOMEPAGE_VAR_GRAFANA_USERNAME}}" }}"
-                    password: "{{ "{{HOMEPAGE_VAR_GRAFANA_PASSWORD}}" }}"
-              - Grafana:
-                  href: https://grafana.hl.mathielo.com/d/liz0yRCZz/logs-app
-                  description: App logs
-                  icon: grafana.png
-          - Kubernetes Nodes:
-              - k3s-server:
-                  icon: k8s
-                  href: http://10.10.50.10:61208
-                  widgets:
-                    - type: glances
-                      url: http://10.10.50.10:61208
-                      version: 4
-                      metric: info
-                      refreshInterval: 10000
-                    - type: glances
-                      url: http://10.10.50.10:61208
-                      version: 4
-                      metric: cpu
-                      cputemp: true
-                      chart: false
-                      refreshInterval: 10000
-                    - type: glances
-                      url: http://10.10.50.10:61208
-                      version: 4
-                      metric: memory
-                      chart: false
-                      refreshInterval: 10000
-                    - type: glances
-                      url: http://10.10.50.10:61208
-                      version: 4
-                      metric: network:enp2s0f0
-                      refreshInterval: 10000
-                    - type: glances
-                      url: http://10.10.50.10:61208
-                      version: 4
-                      metric: process
-                      refreshInterval: 10000
-                    - type: glances
-                      url: http://10.10.50.10:61208
-                      version: 4
-                      metric: sensor
-                      chart: false
-                      refreshInterval: 10000
-                    - type: glances
-                      url: http://10.10.50.10:61208
-                      version: 4
-                      metric: fs:/
-                      chart: false
-                      refreshInterval: 10000
-                    - type: glances
-                      url: http://10.10.50.10:61208
-                      version: 4
-                      metric: disk
-                      refreshInterval: 10000
-              - k3s-node-01:
-                  - Info:
-                      icon: mdi-chassi
-                      widget:
-                        type: glances
-                        url: http://10.10.50.11:61208
-                        version: 4
-                        metric: info
-                        refreshInterval: 10000
-                  - CPU:
-                      icon: mdi-chip
-                      widget:
-                        type: glances
-                        url: http://10.10.50.11:61208
-                        version: 4
-                        metric: cpu
-                        cputemp: true
-                        chart: true
-                        refreshInterval: 10000
-                  - Memory:
-                      icon: mdi-memory
-                      widget:
-                        type: glances
-                        url: http://10.10.50.11:61208
-                        version: 4
-                        metric: memory
-                        chart: true
-                        refreshInterval: 10000
-                  - Network:
-                      icon: mdi-network
-                      widget:
-                        type: glances
-                        url: http://10.10.50.11:61208
-                        version: 4
-                        metric: network:enp2s0f0
-                        refreshInterval: 10000
-                  - Processes:
-                      widget:
-                        type: glances
-                        url: http://10.10.50.11:61208
-                        version: 4
-                        metric: process
-                        refreshInterval: 10000
-                  - CPU Temp:
-                      icon: mdi-temperature
-                      widget:
-                        type: glances
-                        url: http://10.10.50.11:61208
-                        version: 4
-                        metric: sensor
-                        chart: true
-                        refreshInterval: 10000
-                  - Disk usage:
-                      icon: mdi-harddisk
-                      widget:
-                        type: glances
-                        url: http://10.10.50.11:61208
-                        version: 4
-                        metric: fs:/
-                        chart: true
-                        refreshInterval: 10000
-                  - Disk I/O:
-                      icon: mdi-harddisk
-                      widget:
-                        type: glances
-                        url: http://10.10.50.11:61208
-                        version: 4
-                        metric: disk
-                        refreshInterval: 10000
-          - Media:
-              - SABnzbd:
-                  href: https://sabnzbd.hl.mathielo.com
-                  description: Usenet downloader
-                  icon: sabnzbd.png
-                  widget:
-                    type: sabnzbd
-                    url: http://sabnzbd.media.svc.cluster.local:8080
-                    key: "{{ "{{HOMEPAGE_VAR_SABNZBD_KEY}}" }}"
-              - Prowlarr:
-                  href: https://prowlarr.hl.mathielo.com
-                  description: Indexer manager
-                  icon: prowlarr.png
-                  widget:
-                    type: prowlarr
-                    url: http://prowlarr.media.svc.cluster.local:9696
-                    key: "{{ "{{HOMEPAGE_VAR_PROWLARR_KEY}}" }}"
-              - Radarr:
-                  href: https://radarr.hl.mathielo.com
-                  description: Movies
-                  icon: radarr.png
-                  widget:
-                    type: radarr
-                    url: http://radarr.media.svc.cluster.local:7878
-                    key: "{{ "{{HOMEPAGE_VAR_RADARR_KEY}}" }}"
-              - Sonarr:
-                  href: https://sonarr.hl.mathielo.com
-                  description: TV series
-                  icon: sonarr.png
-                  widget:
-                    type: sonarr
-                    url: http://sonarr.media.svc.cluster.local:8989
-                    key: "{{ "{{HOMEPAGE_VAR_SONARR_KEY}}" }}"
-              - Bazarr:
-                  href: https://bazarr.hl.mathielo.com
-                  description: Subtitles
-                  icon: bazarr.png
-                  widget:
-                    type: bazarr
-                    url: http://bazarr.media.svc.cluster.local:6767
-                    key: "{{ "{{HOMEPAGE_VAR_BAZARR_KEY}}" }}"
-              - Plex:
-                  href: https://plex.hl.mathielo.com
-                  description: Media server
-                  icon: plex.png
-                  widget:
-                    type: plex
-                    url: http://plex.media.svc.cluster.local:32400
-                    key: "{{ "{{HOMEPAGE_VAR_PLEX_TOKEN}}" }}"
 
         bookmarks.yaml: |
           - Developer:
