@@ -5,8 +5,6 @@ app-template:
                 kiosk:
                     env:
                         KIOSK_SAB_APIKEY: ENC[AES256_GCM,data:vYzxsOXaeuKIHARZTET9SrTQ8IK8pksvX7U7w7TMFm4=,iv:cuI4mzqAMgiyocO/uRppEtacpH7Puup2ogZsznSG7Eg=,tag:XM0i3C6JAArmFG42AqY2IA==,type:str]
-                        KIOSK_QBT_SE_USER: ENC[AES256_GCM,data:UmI/rLljbNF9HUGn,iv:5kooKJ3GlhL5WFWHjJKM/YYS633EeXvgolVDmhGh0uQ=,tag:nl5QPnP+XCDoS5aGpNQYiQ==,type:str]
-                        KIOSK_QBT_SE_PASS: ENC[AES256_GCM,data:Bv5gCdEJtw4lhTN+5DEM0h7DdznaR0w4muyqSjhNeaTYZALs,iv:2FZ1UjVaMmmuooD3Dzbhh80ukvy4ycz4cQP4mIlqns8=,tag:GYOy0d3VK3MH5eRc5P+fBg==,type:str]
                         KIOSK_PIHOLE_PASSWORD: ENC[AES256_GCM,data:cSVj0nOUnLo2wkJNZrFZrpPnhpssHD0MI+/d8FqyUuNE+2AjfAlVpQOFrFc=,iv:zCuoN63Wm0/aF9WKBCqFODjmD1nvmmsN2EzfzZfge7c=,tag:NhPqCWW5P8DgqZCyXrI0Ng==,type:str]
 sops:
     age:
@@ -28,7 +26,7 @@ sops:
             Uh7xDYcgBZIR2gUlILOL3UNQ6GxkeA3zpbamDiE8J8S8bRJ/oZu/Hg==
             -----END AGE ENCRYPTED FILE-----
           recipient: age1kt5aynyagn4t6v4epgl95ls9gpskq49f07j2v797g99zhje8teussmnytu
-    lastmodified: "2026-05-16T20:10:53Z"
-    mac: ENC[AES256_GCM,data:NdJxzJRYuzvSrqyJgGlaMaSiNX4E21gTdVw4asdStVYFEngAjOJVu9wh5/WS19KB+k6rcN8/VbRuwgyqK1DBw1JjCo8/FefA1HTVrjlXOq8tdOv/KYKGD4llUm+F80si+6pfd/sqO1iIv7L1xqUjeyt9Pg41YW3SbnwREsFDQX8=,iv:SdjygUKBlzp2fu7zMdmKGAKaH+oOdsWtmQRkWID/oI4=,tag:SRf6KJI0txZC2gI9vbHqQw==,type:str]
+    lastmodified: "2026-05-17T13:00:25Z"
+    mac: ENC[AES256_GCM,data:QXvVPpta7H+gXjoCWloO1oXjoZNuR2bU9c/8Z6vQgnFf0y+Yf2T2YQb9fyYGETX2a7AFAfYFxok9soZaP1dd+4aslTr1kJUGPrxEiOcJ1B7cpP0K2qsQE4OpFfZv63/FF10W948NmFSYRG4RFHVCXrSX7nquUF4dRAcFQREa7Yw=,iv:+uXkg45OZBQQ6uiTlcXfwB+iXMxXdBs/I0bEbbs7qAc=,tag:sfEZ03Tmf4S75VvEQtLMiQ==,type:str]
     unencrypted_suffix: _unencrypted
     version: 3.13.0

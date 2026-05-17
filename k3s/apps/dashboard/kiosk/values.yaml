@@ -8,7 +8,7 @@ app-template:
             # the first tag that repo publishes, then let Renovate track it
             # (see renovate.json5 "Dashboard images" group).
             repository: ghcr.io/mathielo/homelab-kiosk
-            tag: 0.1.0
+            tag: 0.1.1
           env:
             TZ: Europe/Stockholm
             # Reads (proxied by the BFF so Prometheus stays cluster-internal):
