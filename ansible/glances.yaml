@@ -16,13 +16,22 @@
         cmd: curl -LsSf https://astral.sh/uv/install.sh | sh
         creates: "/home/{{ ansible_user }}/.local/bin/uv"
 
-    - name: Fix ownership of Glances uv tools directory
+    # A previous interrupted `uv tool install` can leave an empty/corrupt env
+    # dir; uv then refuses every reinstall with "Invalid environment ...:
+    # directory is empty". A valid uv tool venv always has pyvenv.cfg, so its
+    # absence means the env is broken (or not yet created) — wipe it so the
+    # install below starts clean. Idempotent: a healthy env keeps pyvenv.cfg and
+    # is never touched.
+    - name: Check Glances uv tool env validity
+      stat:
+        path: "/home/{{ ansible_user }}/.local/share/uv/tools/glances/pyvenv.cfg"
+      register: glances_venv
+
+    - name: Remove corrupt/incomplete Glances uv tool env
       file:
         path: "/home/{{ ansible_user }}/.local/share/uv/tools/glances"
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
-        recurse: true
-      ignore_errors: true
+        state: absent
+      when: not glances_venv.stat.exists
 
     - name: Install Glances via uv (with web server dependencies)
       become_user: "{{ ansible_user }}"
