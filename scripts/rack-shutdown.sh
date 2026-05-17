@@ -52,8 +52,8 @@ wait_for_shutdown() {
 
 # --- Step 1: UNVR-I (fire and forget) ---
 
-log "=== Step 1: Shutting down UNVR-I ==="
-run_ssh UNVR "poweroff" || warn "Failed to send shutdown to UNVR"
+# log "=== Step 1: Shutting down UNVR-I ==="
+# run_ssh UNVR "poweroff" || warn "Failed to send shutdown to UNVR"
 
 # --- Step 2: Home Assistant Pi (fire and forget) ---
 
