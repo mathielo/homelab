@@ -301,6 +301,9 @@
       - node: k3s-node-01
         labels:
           - workload=media
+      - node: k3s-node-02
+        labels:
+          - workload=media
 
   tasks:
     - name: Apply node labels

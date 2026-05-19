@@ -87,9 +87,10 @@ Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
   - NFS share `Backups` exported to k3s nodes at `/var/nfs/shared/Backups`
   - NFS share `k3s` exported to k3s nodes at `/var/nfs/shared/k3s` — dedicated Longhorn backup target
   - `media-data` PVC mounts the full `Media` share; `dl/` and `lib/` are top-level subdirs — same mount enables hardlinks between download clients and ARR library moves
-- **k3s cluster**: Multi-node Kubernetes (server + agent) running Prometheus, Grafana, Loki, Promtail
+- **k3s cluster**: Multi-node Kubernetes (server + 2 agents) running Prometheus, Grafana, Loki, Promtail
   - Server: `k3s-server` (M75q-1) at `10.10.50.10`
   - Agent: `k3s-node-01` (M715Q) at `10.10.50.11`
+  - Agent: `k3s-node-02` (M70q Gen 5) at `10.10.50.12`
   - MetalLB VIP: `10.10.50.3` (ingress target, DNS wildcard destination)
 - **Cloudflare (DNS-01 only)**: Cloudflare manages the `mathielo.com` domain and provides DNS-01 challenge validation for Let's Encrypt certificates via cert-manager. No Cloudflare Tunnel — no services are publicly exposed.
 - **Tailscale**: Private overlay network for remote access to k3s services and Pi-hole

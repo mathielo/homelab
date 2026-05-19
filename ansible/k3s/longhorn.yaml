@@ -2,13 +2,13 @@
 # Installs Longhorn distributed block storage on the k3s cluster.
 #
 # Prerequisites:
-#   - Both k3s nodes must have open-iscsi installed and iscsid running
+#   - All k3s nodes must have open-iscsi installed and iscsid running
 #     (handled by install-k3s.yaml).
-#   - Both nodes must have /mnt/nvme/longhorn mounted (ext4, fstab with UUID).
+#   - All nodes must have /mnt/nvme/longhorn mounted (ext4, fstab with UUID).
 #     Disk prep is documented in docs/storage-longhorn.md.
 #
 # After running this playbook:
-#   1. Both nodes have a multipath blacklist for Longhorn iSCSI LUNs
+#   1. All nodes have a multipath blacklist for Longhorn iSCSI LUNs
 #      (IET,VIRTUAL-DISK), preventing multipathd from claiming them.
 #   2. Longhorn becomes the default StorageClass (local-path loses its default).
 #   3. Pre-create Longhorn PVCs by pushing k3s/apps/media/_infra/longhorn-pvcs.yaml

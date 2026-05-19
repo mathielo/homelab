@@ -4,7 +4,7 @@ defaultSettings:
   defaultReplicaCount: 2
   storageOverProvisioningPercentage: 100
   storageMinimalAvailablePercentage: 10
-  replicaSoftAntiAffinity: false # 2 nodes — strict anti-affinity (no 2 replicas on same node)
+  replicaSoftAntiAffinity: false # strict anti-affinity (a volume's 2 replicas never share a node; 3 nodes available)
   allowVolumeCreationWithDegradedAvailability: true
   guaranteedInstanceManagerCPU: 12
   # The backup target needs to specify:

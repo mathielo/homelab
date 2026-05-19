@@ -2,7 +2,7 @@
 # ---------------------------------------------------------------------------
 # Static NFS PersistentVolume — UNAS-4
 # NAS specs: 4 × 24Tb 7200RPM HDD (RAID 5, ~72 TB usable) + 2x 500 GB M.2 SSD read-write cache
-# NFS access is restricted to k3s nodes (10.10.50.10, 10.10.50.11) on the NAS side.
+# NFS access is restricted to k3s nodes (10.10.50.10, 10.10.50.11, 10.10.50.12) on the NAS side.
 # No CSI driver or provisioner needed — k3s uses kernel NFS via nfs-common.
 #
 # PersistentVolume to the "Media" share on the UniFi NAS (10.10.1.4, VLAN 1).

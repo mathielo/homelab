@@ -6,7 +6,7 @@
 # Shutdown order:
 #   1. UNVR-I (fire and forget)
 #   2. Home Assistant Pi (fire and forget)
-#   3. Shut down k3s nodes (agent first, then server)
+#   3. Shut down k3s nodes (agents first, then server)
 #   4. Pi-hole (last — it's DNS for everything)
 #
 # Usage: ./scripts/rack-shutdown.sh [--dry-run]
@@ -64,7 +64,7 @@ run_ssh homeassistant "sudo shutdown -h now" || warn "Failed to send shutdown to
 # No drain/cordon — pods terminate naturally on shutdown,
 # and skipping drain avoids leftover SchedulingDisabled state on next boot.
 
-K3S_NODES=("k3s-node-01" "k3s-server")  # agent first, then server
+K3S_NODES=("k3s-node-01" "k3s-node-02" "k3s-server")  # agents first, then server
 
 log "=== Step 3: Shutting down k3s nodes ==="
 for node in "${K3S_NODES[@]}"; do

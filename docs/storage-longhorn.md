@@ -2,7 +2,7 @@
 
 ## Why Longhorn
 
-Longhorn stores each volume as two replicas across both k3s nodes, so pods can move freely between `k3s-server` and `k3s-node-01` without data loss or manual intervention.
+Longhorn stores each volume as two replicas spread across the three k3s nodes, so pods can move freely between `k3s-server`, `k3s-node-01`, and `k3s-node-02` without data loss or manual intervention.
 
 This also enables for HA should services require more than one replica.
 
@@ -25,14 +25,16 @@ The `media-data` NFS PVC (UNAS-4) is untouched — Longhorn is only for app conf
 
 ## Disk layout
 
-Longhorn data lives on each node's NVMe (`/mnt/nvme/longhorn`). The SATA SSD is a single-partition local hostPath for node-specific workloads.
+Longhorn data lives on each node's NVMe (`/mnt/nvme/longhorn`). A second single-partition local hostPath holds node-specific workloads — the SATA SSD on `k3s-server`/`k3s-node-01`, a dedicated NVMe partition on `k3s-node-02` (no SATA disk).
 
-| Node        | Disk | Mount                | Purpose                                 |
-| ----------- | ---- | -------------------- | --------------------------------------- |
-| k3s-server  | NVMe | `/mnt/nvme/longhorn` | Longhorn data path (~195 GiB)           |
-| k3s-server  | SATA | `/mnt/ssd/local`     | Plex transcode hostPath (~931 GiB)      |
-| k3s-node-01 | NVMe | `/mnt/nvme/longhorn` | Longhorn data path (~195 GiB)           |
-| k3s-node-01 | SATA | `/mnt/ssd/local`     | SABnzbd incomplete downloads (~931 GiB) |
+| Node        | Disk | Mount                | Purpose                                            |
+| ----------- | ---- | -------------------- | -------------------------------------------------- |
+| k3s-server  | NVMe | `/mnt/nvme/longhorn` | Longhorn data path (~195 GiB)                      |
+| k3s-server  | SATA | `/mnt/ssd/local`     | Plex transcode hostPath (~931 GiB)                 |
+| k3s-node-01 | NVMe | `/mnt/nvme/longhorn` | Longhorn data path (~195 GiB)                      |
+| k3s-node-01 | SATA | `/mnt/ssd/local`     | SABnzbd incomplete downloads (~931 GiB)            |
+| k3s-node-02 | NVMe | `/mnt/nvme/longhorn` | Longhorn data path (~195 GiB)                      |
+| k3s-node-02 | NVMe | `/mnt/nvme/local`    | qBittorrent clients' incomplete/staging (~1.6 TiB) |
 
 See [Hardware](hardware.md) for the full NVMe partition table.
 
@@ -60,6 +62,12 @@ sudo mkdir -p /mnt/ssd/local/qbt-incomplete /mnt/ssd/local/sabnzbd-incomplete
 sudo chown 1000:1000 /mnt/ssd/local/qbt-incomplete /mnt/ssd/local/sabnzbd-incomplete
 ```
 
+### k3s-node-02
+
+```bash
+df -h /mnt/nvme/longhorn /mnt/nvme/local   # verify mounts came up
+```
+
 # Longhorn installation and setup
 
 ## Prerequisites (Ansible)
@@ -68,7 +76,7 @@ sudo chown 1000:1000 /mnt/ssd/local/qbt-incomplete /mnt/ssd/local/sabnzbd-incomp
 ansible/k3s/install-k3s.yaml
 ```
 
-This installs `open-iscsi` and enables `iscsid` on both nodes. These are required for Longhorn block storage and NFSv3 locking respectively.
+This installs `open-iscsi` and enables `iscsid` on all nodes. These are required for Longhorn block storage and NFSv3 locking respectively.
 
 ## Helm install
 
@@ -81,10 +89,10 @@ This installs Longhorn via Helm (`longhorn/longhorn`, pinned version), patches t
 ## Verify
 
 ```bash
-# Both nodes: READY=True, SCHEDULABLE=True
+# All three nodes: READY=True, SCHEDULABLE=True
 kubectl -n longhorn-system get nodes.longhorn.io
 
-# All Running: longhorn-manager (x2), longhorn-driver-deployer, csi-*, engine-image-*, longhorn-ui (x2)
+# All Running: longhorn-manager (one per node), longhorn-driver-deployer, csi-*, engine-image-*, longhorn-ui (x2)
 kubectl -n longhorn-system get pods
 
 # longhorn (default), local-path (no default annotation)
@@ -216,11 +224,11 @@ If you skipped step 1 and Argo already created the PVC bound to a blank volume: 
 
 # Operational notes
 
-## 2-node fragility
+## Node loss and serial reboots
 
-With only 2 nodes and `replicaSoftAntiAffinity: false` (strict), every volume has exactly one replica per node. If one node goes offline, all volumes degrade — pods can still run on the surviving node but replicas won't rebuild until the missing node returns.
+With 3 nodes, `replicaSoftAntiAffinity: false` (strict), and 2 replicas per volume, each volume's two replicas land on two of the three nodes. Losing a single node degrades only the volumes that had a replica there (roughly two-thirds of them) — and because a spare node is now available and strict anti-affinity is still satisfiable, Longhorn rebuilds the missing replica onto that spare automatically, without waiting for the downed node to return.
 
-**Do not reboot both nodes simultaneously.** Reboot serially: reboot one, wait for all volumes to return to `Healthy`, then reboot the other.
+**Still reboot nodes serially**, one at a time, waiting for all volumes to return to `Healthy` between reboots. Rebooting two nodes at once can take down both replicas of any volume that happened to be placed on that pair, which means data unavailability until one returns.
 
 ```bash
 # Check volume health before rebooting a node
@@ -277,6 +285,7 @@ For this reason multipath blacklist was added to Longhorn's Ansible playbook. It
 ```bash
 ssh k3s-server  'systemctl is-active iscsid'
 ssh k3s-node-01 'systemctl is-active iscsid'
+ssh k3s-node-02 'systemctl is-active iscsid'
 # If inactive: sudo systemctl start iscsid
 # Persistent fix: ansible-playbook ansible/k3s/install-k3s.yaml
 ```
@@ -295,7 +304,7 @@ Common causes:
 
 ## Degraded volumes after pod restart
 
-If a volume is `Degraded` with one replica `Stopped`, the replica on the offline node will rebuild automatically once both nodes are up. Force a rebuild:
+If a volume is `Degraded` with one replica `Stopped`, Longhorn rebuilds the missing replica automatically onto any available node (it no longer has to wait for the offline node to return, since a third node can host the rebuild). Force a rebuild:
 
 ```bash
 kubectl -n longhorn-system get replicas -o wide
