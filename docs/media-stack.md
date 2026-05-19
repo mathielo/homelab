@@ -11,6 +11,9 @@ Request flow:
 Push flow:
   Autobrr (filtered release announcements) → Sonarr/Radarr (grab)
 
+Config flow:
+  Profilarr (curated quality profiles + custom formats) → Sonarr/Radarr (sync)
+
 Download flow:
   SABnzbd     → Gluetun VPN → Usenet provider  → NFS media library
   qBittorrent → Gluetun VPN → Torrent trackers → NFS media library
@@ -35,8 +38,11 @@ DNS/indexer flow:
 | qui         | `https://qui.hl.mathielo.com`      | 7476  | qBittorrent web UI                       |
 | Pulsarr     | `https://pulsarr.hl.mathielo.com`  | 3003  | Automated media requests (Sonarr/Radarr) |
 | Prismarr    | `https://prismarr.hl.mathielo.com` | 7070  | Media request portal                     |
+| Profilarr   | `https://profilarr.hl.mathielo.com`| 6868  | Quality profiles / custom formats        |
 
 > Searcharr (Telegram request bot) also runs in `media` but has no web UI.
+
+> Profilarr runs a bundled stateless `profilarr-parser` sidecar (in-pod, port 5000) that powers release-pattern testing; it has no web UI of its own.
 
 > :exclamation: All URLs require Tailscale (or LAN) + Pi-hole DNS (`*.hl.mathielo.com → 10.10.50.3`).
 
@@ -292,3 +298,21 @@ Complete the setup wizard, then connect media services:
 | Plex    | `http://plex.media.svc.cluster.local:32400`  | API key                                       |
 | Radarr  | `http://radarr.media.svc.cluster.local:7878` | API key + root folder `/media/library/movies` |
 | Sonarr  | `http://sonarr.media.svc.cluster.local:8989` | API key + root folder `/media/library/shows`  |
+
+### Step 10: Profilarr
+
+Profilarr replaces hand-tuned quality profiles with curated, importable ones and keeps them synced into Sonarr/Radarr.
+
+Browse `https://profilarr.hl.mathielo.com` and create the admin account (built-in auth is on). Then:
+
+1. **Settings → Arr** — add Sonarr and Radarr:
+
+   | Setting | Sonarr                                       | Radarr                                       |
+   | ------- | -------------------------------------------- | -------------------------------------------- |
+   | URL     | `http://sonarr.media.svc.cluster.local:8989` | `http://radarr.media.svc.cluster.local:7878` |
+   | API Key | Sonarr API key                               | Radarr API key                               |
+
+2. **Database** — import a profile database (e.g. the Dictionarry database), then select or build the quality profiles / custom formats you want.
+3. **Sync** — push the selected profiles to Sonarr/Radarr. The in-pod `profilarr-parser` sidecar powers the release-regex testing used when building/validating formats.
+
+> :bulb: Profilarr stores its config and the *arr API keys in its own `/config` (Longhorn `profilarr-config-lh` PVC) — no `values.sops.yaml` is required.

@@ -236,6 +236,10 @@ app-template:
                     type: bazarr
                     url: http://bazarr.media.svc.cluster.local:6767
                     key: "{{ "{{HOMEPAGE_VAR_BAZARR_KEY}}" }}"
+              - Profilarr:
+                  href: https://profilarr.hl.mathielo.com
+                  description: Quality profiles & custom formats
+                  icon: profilarr.png
               - Autobrr:
                   href: https://autobrr.hl.mathielo.com
                   description: Release automation

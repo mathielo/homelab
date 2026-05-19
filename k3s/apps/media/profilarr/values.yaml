@@ -1,0 +1,70 @@
+app-template:
+  controllers:
+    profilarr:
+      containers:
+        app:
+          image:
+            repository: ghcr.io/dictionarry-hub/profilarr
+            tag: 2.0.0
+          env:
+            PUID: "1000"
+            PGID: "1000"
+            TZ: Europe/Stockholm
+            AUTH: "on"
+            ORIGIN: https://profilarr.hl.mathielo.com
+            PARSER_HOST: localhost
+            PARSER_PORT: "5000"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1536Mi
+        parser:
+          image:
+            repository: ghcr.io/dictionarry-hub/profilarr-parser
+            tag: 2.0.0
+          env:
+            PUID: "1000"
+            PGID: "1000"
+            TZ: Europe/Stockholm
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+
+  service:
+    profilarr:
+      controller: profilarr
+      ports:
+        http:
+          port: 6868
+
+  ingress:
+    profilarr:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      hosts:
+        - host: profilarr.hl.mathielo.com
+          paths:
+            - path: /
+              service:
+                identifier: profilarr
+                port: http
+      tls:
+        - hosts:
+            - profilarr.hl.mathielo.com
+          secretName: profilarr-hl-tls
+
+  persistence:
+    config:
+      existingClaim: profilarr-config-lh
+      advancedMounts:
+        profilarr:
+          app:
+            - path: /config

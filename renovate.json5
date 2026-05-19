@@ -210,6 +210,8 @@
         'lakker/pulsarr',
         'ghcr.io/autobrr/autobrr',
         'ghcr.io/autobrr/qui',
+        'ghcr.io/dictionarry-hub/profilarr',
+        'ghcr.io/dictionarry-hub/profilarr-parser',
       ],
       groupName: 'media-bots',
     },
