@@ -1,0 +1,195 @@
+# Shared values for all qbt-* instances on k3s-node-02.
+# Per-instance overrides (VPN exit country, ingress host, hostPath, PVC names)
+# live in values-<instance>.yaml; WireGuard creds in values-<instance>.sops.yaml.
+#
+# Network architecture (identical to legacy k3s/apps/media/qbittorrent/):
+#   - Gluetun runs as a native k8s sidecar (initContainer with
+#     restartPolicy: Always). Guarantees Gluetun is started and ready
+#     BEFORE qBittorrent starts, and torn down AFTER qBittorrent stops —
+#     eliminating any startup/shutdown leak window.
+#   - qBittorrent shares Gluetun's network namespace automatically (same pod).
+#   - All qBittorrent traffic exits through the ProtonVPN WireGuard tunnel.
+app-template:
+  defaultPodOptions:
+    nodeSelector:
+      kubernetes.io/hostname: k3s-node-02
+
+  controllers:
+    main:
+      # Recreate strategy ensures old pod fully terminates before the new one
+      # starts, avoiding "adding IPv6 rule: file exists" from stale WireGuard
+      # rules left in the pod netns.
+      # See: https://github.com/qdm12/gluetun/issues/2471
+      strategy: Recreate
+      pod:
+        terminationGracePeriodSeconds: 60
+        # Override k8s DNS to fix resolution inside Gluetun VPN.
+        # Default dnsPolicy (ClusterFirst) injects ndots:5 + search domains,
+        # which causes musl's resolver to exhaust search suffixes through
+        # Gluetun's DoT DNS before trying the bare hostname — failing with
+        # "Name has no usable address". Using dnsPolicy=None with a manual
+        # config pointing to Gluetun's local DNS avoids this entirely.
+        dnsPolicy: None
+        dnsConfig:
+          nameservers:
+            - 127.0.0.1
+          options:
+            - name: ndots
+              value: "0"
+
+      initContainers:
+        # Removes stale lockfile + IPC socket left behind when qBittorrent
+        # was killed without a graceful SIGTERM to prevent startup loop.
+        cleanup-stale-lock:
+          image:
+            repository: busybox
+            tag: "1.37.0"
+          command:
+            - sh
+            - -c
+            - rm -fv /config/config/lockfile /config/config/ipc-socket
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+
+        # Gluetun VPN kill-switch as a native k8s sidecar (k8s >= 1.29).
+        # restartPolicy: Always promotes this initContainer to a sidecar:
+        #   - Starts before main containers (qBittorrent waits for it to be Ready)
+        #   - Restarts independently on liveness failure
+        #   - Terminates AFTER main containers on pod shutdown
+        #
+        # The postStart hook cleans up stale WireGuard IP rules left by previous
+        # pods — fixes "adding IPv6 rule: file exists" on Kubernetes.
+        # See: https://github.com/qdm12/gluetun/issues/2471
+        gluetun:
+          image:
+            repository: ghcr.io/qdm12/gluetun
+            tag: v3.41.1
+          restartPolicy: Always
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - /gluetun-entrypoint
+                    - healthcheck
+                initialDelaySeconds: 30
+                periodSeconds: 30
+                failureThreshold: 3
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    # Clean up stale WireGuard IP rules left by previous pods.
+                    # See: https://github.com/qdm12/gluetun/issues/2471
+                    (ip rule del table 51820; ip -6 rule del table 51820) 2>/dev/null || true
+          env:
+            VPN_SERVICE_PROVIDER: protonvpn
+            VPN_TYPE: wireguard
+            # WIREGUARD_PRIVATE_KEY and WIREGUARD_ADDRESSES injected via values-<instance>.sops.yaml
+            # SERVER_COUNTRIES set in values-<instance>.yaml
+            # SERVER_FEATURES=p2p selects only ProtonVPN P2P servers, which are
+            # the ones with NAT-PMP enabled (required for port forwarding).
+            # PORT_FORWARD_ONLY additionally ensures Gluetun won't fall back to
+            # a non-forwarding server if no P2P server is available.
+            SERVER_FEATURES: p2p
+            VPN_PORT_FORWARDING: "on"
+            PORT_FORWARD_ONLY: "on"
+            # Two DoT upstreams so a Cloudflare blip falls back to Quad9 instead of
+            # hitting gluetun's loopback fallback (127.0.0.1:53 = itself → CPU spin).
+            DNS_UPSTREAM_RESOLVERS: "cloudflare,quad9"
+            # The up command fires whenever Gluetun gets a forwarded port and
+            # pushes it to qBittorrent's API (localhost auth bypass must be
+            # enabled in qBittorrent WebUI → Options → Web UI).
+            VPN_PORT_FORWARDING_UP_COMMAND: /bin/sh -c 'until wget -qO- --post-data "json={\"listen_port\":{{ "{{PORTS}}" }}}" http://localhost:8080/api/v2/app/setPreferences; do sleep 15; done'
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 2000m
+              memory: 1Gi
+
+      containers:
+        main:
+          image:
+            repository: ghcr.io/hotio/qbittorrent
+            tag: release-5.2.0
+          env:
+            PUID: "1000"
+            PGID: "1000"
+            UMASK: "002"
+            TZ: Europe/Stockholm
+            WEBUI_PORTS: "8080/tcp"
+          lifecycle:
+            # Disabled to prevent spamming announcements on pod restart.
+            # TODO: Create a custom script to progressively resume torrents on restart.
+            #
+            # postStart:
+            #   exec:
+            #     command:
+            #       - /bin/sh
+            #       - -c
+            #       # Wait for WebUI, then start all torrents stopped by the preStop hook.
+            #       - until wget -qO- http://localhost:8080/api/v2/app/version >/dev/null 2>&1; do sleep 2; done; wget -qO- --post-data "hashes=all" http://localhost:8080/api/v2/torrents/start
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  # Stop all torrents so libtorrent flushes fastresume data to disk
+                  # before the pod terminates, preventing lost download progress on restart.
+                  - wget -qO- --post-data "hashes=all" http://localhost:8080/api/v2/torrents/stop; sleep 5
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              memory: 4Gi
+
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 8080
+        gluetun:
+          port: 8000
+
+  ingress:
+    main:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      # hosts[] and tls[] set in values-<instance>.yaml
+
+  persistence:
+    config:
+      # existingClaim set in values-<instance>.yaml
+      globalMounts:
+        - path: /config
+    local:
+      # Per-instance NVMe staging area on k3s-node-02. Used both for in-progress
+      # downloads (qBt configured to keep incomplete under /local/_incomplete)
+      # AND for "stay-local" categories whose savePath points at /local/<category>
+      # — avoiding the ~30 MB/s NAS write ceiling for content that doesn't need
+      # to land on the UNAS-4 RAID5.
+      type: hostPath
+      # hostPath set in values-<instance>.yaml
+      hostPathType: DirectoryOrCreate
+      globalMounts:
+        - path: /local
+    media:
+      type: persistentVolumeClaim
+      existingClaim: media-data
+      globalMounts:
+        - path: /media

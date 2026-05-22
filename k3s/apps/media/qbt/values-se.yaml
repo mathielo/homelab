@@ -1,0 +1,29 @@
+# qbt-se: Sweden ProtonVPN exit (separate WG profile from the legacy qbittorrent instance).
+# Stacked on top of values-common.yaml + values-se.sops.yaml.
+app-template:
+  controllers:
+    main:
+      initContainers:
+        gluetun:
+          env:
+            SERVER_COUNTRIES: Sweden
+
+  ingress:
+    main:
+      hosts:
+        - host: qbt-se.hl.mathielo.com
+          paths:
+            - path: /
+              service:
+                identifier: main
+                port: http
+      tls:
+        - hosts:
+            - qbt-se.hl.mathielo.com
+          secretName: qbt-se-hl-tls
+
+  persistence:
+    config:
+      existingClaim: qbt-se-config-lh
+    local:
+      hostPath: /mnt/nvme/local/qbt-se

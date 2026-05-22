@@ -1,0 +1,8 @@
+apiVersion: v2
+name: qbt
+description: Multi-instance qBittorrent chart (Gluetun VPN kill-switch sidecar). Each release supplies values-<instance>.yaml + values-<instance>.sops.yaml on top of values-common.yaml.
+version: 1.0.0
+dependencies:
+  - name: app-template
+    repository: https://bjw-s-labs.github.io/helm-charts/
+    version: "5.*"

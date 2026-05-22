@@ -1,0 +1,29 @@
+# qbt-br: Brazil ProtonVPN exit.
+# Stacked on top of values-common.yaml + values-br.sops.yaml.
+app-template:
+  controllers:
+    main:
+      initContainers:
+        gluetun:
+          env:
+            SERVER_COUNTRIES: Brazil
+
+  ingress:
+    main:
+      hosts:
+        - host: qbt-br.hl.mathielo.com
+          paths:
+            - path: /
+              service:
+                identifier: main
+                port: http
+      tls:
+        - hosts:
+            - qbt-br.hl.mathielo.com
+          secretName: qbt-br-hl-tls
+
+  persistence:
+    config:
+      existingClaim: qbt-br-config-lh
+    local:
+      hostPath: /mnt/nvme/local/qbt-br

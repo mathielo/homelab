@@ -1,0 +1,29 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: qbt-br
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:mathielo/homelab.git
+    targetRevision: main
+    path: k3s/apps/media/qbt
+    helm:
+      releaseName: qbt-br
+      valueFiles:
+        - values-common.yaml
+        - values-br.yaml
+        - secrets://values-br.sops.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: media
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
