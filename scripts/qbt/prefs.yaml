@@ -1,0 +1,59 @@
+# qBittorrent preferences pushed via /api/v2/app/setPreferences.
+# Tuned for power-seeder profile on k3s-node-02 (i5-14500T, 16 GB RAM, Samsung 990 Pro NVMe),
+# two instances per node. Apply with: scripts/qbt/apply-prefs.sh <instance>
+
+# === Downloads / Save Management ===
+save_path: /local                                # Default save path
+temp_path: /local/_incomplete                    # Keep incomplete torrents in
+temp_path_enabled: true                          # Use a separate path for incomplete torrents
+preallocate_all: false                           # Pre-allocate disk space for all files
+incomplete_files_ext: false                      # Append .!qB extension to incomplete files
+auto_tmm_enabled: true                           # Default to Automatic Torrent Management
+delete_torrent_content_files: true               # When removing a torrent, default to "delete content"
+
+# === Disk I/O & Memory ===
+disk_cache: 768                                  # Disk cache size (MiB)
+disk_cache_ttl: 60                               # Disk cache expiry (seconds)
+async_io_threads: 8                              # Async I/O threads
+file_pool_size: 400                              # Max open file handles
+checking_memory_use: 128                         # Memory used for hash-checking (MiB)
+enable_coalesce_read_write: true                 # Coalesce adjacent reads/writes
+enable_piece_extent_affinity: true               # Piece extent affinity (better disk locality)
+hashing_threads: 2                               # Threads for piece hash verification
+max_active_checking_torrents: 2                  # Torrents that can verify in parallel
+disk_queue_size: 16777216                        # Disk I/O queue size (bytes — 16 MiB)
+
+# === Speed limits ===
+dl_limit: 104857600                              # Global download limit (bytes/s — 100 MiB/s, leaves headroom for the rest of the LAN)
+up_limit: 104857600                              # Global upload limit (bytes/s — 100 MiB/s)
+alt_dl_limit: 10485760                           # Alt-mode download limit (bytes/s — 10 MiB/s)
+alt_up_limit: 10485760                           # Alt-mode upload limit (bytes/s — 10 MiB/s)
+scheduler_enabled: false                         # Time-of-day alt-speed scheduler
+
+# === BitTorrent / Queueing ===
+queueing_enabled: true                           # Torrent queueing
+max_active_downloads: 5                          # Max simultaneously downloading torrents
+max_active_uploads: 50                           # Max simultaneously uploading (seeding) torrents
+max_active_torrents: 300                         # Max active torrents overall
+max_connec: 600                                  # Global maximum connections
+max_connec_per_torrent: 75                       # Per-torrent maximum connections
+max_uploads: 50                                  # Global upload slots
+max_uploads_per_torrent: 6                       # Per-torrent upload slots
+enable_multi_connections_from_same_ip: true     # Allow multiple connections from the same IP
+dont_count_slow_torrents: true                   # Slow torrents do not consume active slots
+slow_torrent_dl_rate_threshold: 100              # Slow-classify download threshold (KiB/s)
+slow_torrent_ul_rate_threshold: 100              # Slow-classify upload threshold (KiB/s)
+slow_torrent_inactive_timer: 120                 # Slow-classify inactivity timer (seconds)
+
+# === Privacy / Trackers ===
+dht: false                                       # DHT (off — private trackers)
+pex: false                                       # PEX peer exchange (off — private trackers)
+lsd: false                                       # Local Service Discovery (off — private trackers)
+upnp: false                                      # UPnP/NAT-PMP (gluetun owns port forwarding)
+reannounce_when_address_changed: true            # Re-announce when IP/port changes (VPN reconnect)
+connection_speed: 50                             # Connection attempts per second
+socket_backlog_size: 256                         # TCP listen() backlog
+
+# === Torrent .torrent file export (for cross-seed) ===
+export_dir: /local/_torrents/downloading         # Export active .torrent files here
+export_dir_fin: /local/_torrents/complete        # Export completed .torrent files here
