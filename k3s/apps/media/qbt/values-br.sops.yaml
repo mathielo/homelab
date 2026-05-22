@@ -5,7 +5,7 @@ app-template:
                 gluetun:
                     env:
                         #ENC[AES256_GCM,data:b+kJeyHI,iv:ivW+AT6aub9dSbek32NzvivCBCAc8Z3OSgUvNA/2Izs=,tag:nPLLmqmEyMH+UmQ2xmUriA==,type:comment]
-                        WIREGUARD_PRIVATE_KEY: ENC[AES256_GCM,data:EnrLm16F/JIakN8a1clkUko1hOxwfA==,iv:aNIqDvjCjvTEubxoTbbrlF+h0+pZ+y6o3W+xgGV1poE=,tag:TaQqwfGryHcnafK4+aGkfw==,type:str]
+                        WIREGUARD_PRIVATE_KEY: ENC[AES256_GCM,data:OyyFzd0DZ6dyEHyzuTuwckZzFJdowKcY/LVPOa+cw1q9qK3STEftPojTox4=,iv:afnH1yNEJDCZ9Tup11K+ykKmxLf8G6yz+FLtKQqi8yY=,tag:iZDp0gBMJFkXa+4oQmQC+Q==,type:str]
                         WIREGUARD_ADDRESSES: ENC[AES256_GCM,data:xMb6ntdEzAJOw+o=,iv:L2CaFfnjCpOd8Ipbp6RIcijg2jnRi6tqiYWTYJwZY/I=,tag:bOBHP6qlDHOXEyIHWkwA+A==,type:str]
 sops:
     age:
@@ -27,7 +27,7 @@ sops:
             3l2+v9kc69WSyupDli6WnGFTHVe+PZDVryaqaEVAwk/1oycYK5qdRA==
             -----END AGE ENCRYPTED FILE-----
           recipient: age1kt5aynyagn4t6v4epgl95ls9gpskq49f07j2v797g99zhje8teussmnytu
-    lastmodified: "2026-05-22T16:01:47Z"
-    mac: ENC[AES256_GCM,data:l94YxuxliYAaC1uUMpGX90GZxtFct9+aB3XndMcHJvwooIKsNoCE22i7ApDacwREyi6CxjQVgl0g7DyWblxn3r4274hJcd+Gl5jm/hZy2FJ0+cJsqGDRIU4hoXR+sYjPssNtjrij0RvDq2W23oSSzJhHjDFQTlXoUDyZ52JwK8s=,iv:QUH8SbMx7XSOpqx2cCG1V8/Z13YdBegPNZAMzYECxww=,tag:f22aZwbDfzClaot5yzygvA==,type:str]
+    lastmodified: "2026-05-22T16:16:00Z"
+    mac: ENC[AES256_GCM,data:Pw/v+oOrX+t6c/FxwP61vSGJmaaFIKtU4Yx3d3laTL8l0lW4q9JqQ4SGvIrlkcRyCBkHYYpKN93j0loT7Ik9lVuHedNnLuhIZJDqnSrLNVSxHQKcpwM/aMQu9KcRW3yByKYIWNmXYeUTtLUxYzMfuHLJF+ewht/sORyqqIjmP8k=,iv:GuC7gtmPAA78XYgkJM1HgaOGjPfHpBJw34z/864s0iU=,tag:cRf+hTuqW8NztdzvhUCmsQ==,type:str]
     unencrypted_suffix: _unencrypted
     version: 3.13.0
