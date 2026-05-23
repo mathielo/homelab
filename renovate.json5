@@ -212,6 +212,17 @@
       groupName: 'media-support',
     },
     {
+      description: 'GPU device plugins',
+      matchDatasources: [
+        'docker',
+      ],
+      matchPackageNames: [
+        'rocm/k8s-device-plugin',
+        'intel/intel-gpu-plugin',
+      ],
+      groupName: 'gpu-plugins',
+    },
+    {
       description: 'Media bots (Searcharr, Pulsarr)',
       matchDatasources: [
         'docker',

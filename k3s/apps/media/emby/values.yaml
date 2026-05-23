@@ -1,6 +1,9 @@
-# Emby Server with AMD VA-API hardware transcoding.
+# Emby Server with Intel Quick Sync (VA-API) hardware transcoding.
 #
-# Pinned to k3s-server (M75q-1) for its Ryzen 5 PRO 3400GE + Radeon Vega 10.
+# Pinned to k3s-node-02 (M70q Gen 5) for its Intel UHD Graphics 770 iGPU.
+# The Intel device plugin exposes gpu.intel.com/i915 so the pod can request a
+# GPU slot the same way Plex requests amd.com/gpu; no manual /dev/dri
+# hostPath or supplementalGroups handling needed.
 #
 # Post-deploy:
 #   1. Open https://emby.hl.mathielo.com and complete the setup wizard
@@ -9,7 +12,7 @@
 app-template:
   defaultPodOptions:
     nodeSelector:
-      kubernetes.io/hostname: k3s-server
+      kubernetes.io/hostname: k3s-node-02
 
   controllers:
     emby:
@@ -29,10 +32,7 @@ app-template:
             limits:
               cpu: 4000m
               memory: 6Gi
-              # AMD VA-API hardware transcoding (Radeon Vega 10 on k3s-server).
-              # Enable in Settings → Transcoding after initial setup; Emby's
-              # free tier supports VAAPI without Premiere.
-              amd.com/gpu: "1"
+              gpu.intel.com/i915: "1"
 
   service:
     emby:
@@ -68,7 +68,7 @@ app-template:
         - path: /config
     transcode:
       type: hostPath
-      hostPath: /mnt/ssd/local/emby
+      hostPath: /mnt/nvme/local/emby
       hostPathType: DirectoryOrCreate
       globalMounts:
         - path: /transcode

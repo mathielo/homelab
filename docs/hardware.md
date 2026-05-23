@@ -16,9 +16,9 @@ All physical devices in the homelab.
 
 ### Workload pinning
 
-- **k3s-server** — Plex, Emby (pinned for AMD GPU transcoding)
+- **k3s-server** — Plex (pinned for AMD GPU transcoding)
 - **k3s-node-01** — SABnzbd (incomplete downloads on local SATA); also drives the DeskPi 7.84" rack touchscreen as an OS-level kiosk (`ansible/kiosk.yaml`, sandboxed systemd service — does not affect scheduled workloads)
-- **k3s-node-02** — qBittorrent clients (incomplete downloads on local NVMe)
+- **k3s-node-02** — qBittorrent clients (incomplete downloads on local NVMe); Emby (pinned for Intel UHD Graphics 770 Quick Sync transcoding)
 - Everything else is free to schedule anywhere.
 
 ### k3s disk layout
@@ -38,18 +38,18 @@ SATA SSD layout (node-specific purpose):
 
 | Node        | Partition   | Size     | Mount            | Purpose                      |
 | ----------- | ----------- | -------- | ---------------- | ---------------------------- |
-| k3s-server  | `/dev/sda1` | ~931 GiB | `/mnt/ssd/local` | Plex/Emby transcode hostPaths|
+| k3s-server  | `/dev/sda1` | ~931 GiB | `/mnt/ssd/local` | Plex transcode hostPath      |
 | k3s-node-01 | `/dev/sda1` | ~931 GiB | `/mnt/ssd/local` | SABnzbd incomplete downloads |
 
 **k3s-node-02** has a single 2 TB Samsung 990 Pro NVMe with no SATA SSD. Partitioning:
 
-| Partition        | Size     | FS   | Mount                | Purpose                                 |
-| ---------------- | -------- | ---- | -------------------- | --------------------------------------- |
-| `/dev/nvme0n1p1` | 1 GiB    | vfat | `/boot/efi`          | Ubuntu boot                             |
-| `/dev/nvme0n1p2` | 2 GiB    | ext4 | `/boot`              | Kernel/initramfs                        |
-| `/dev/nvme0n1p3` | 40 GiB   | ext4 | `/`                  | Ubuntu + k3s + container image cache    |
-| `/dev/nvme0n1p4` | ~195 GiB | ext4 | `/mnt/nvme/longhorn` | Longhorn distributed block data         |
-| `/dev/nvme0n1p5` | ~1.6 TiB | ext4 | `/mnt/nvme/local`    | qBittorrent clients' incomplete/staging |
+| Partition        | Size     | FS   | Mount                | Purpose                                                 |
+| ---------------- | -------- | ---- | -------------------- | ------------------------------------------------------- |
+| `/dev/nvme0n1p1` | 1 GiB    | vfat | `/boot/efi`          | Ubuntu boot                                             |
+| `/dev/nvme0n1p2` | 2 GiB    | ext4 | `/boot`              | Kernel/initramfs                                        |
+| `/dev/nvme0n1p3` | 40 GiB   | ext4 | `/`                  | Ubuntu + k3s + container image cache                    |
+| `/dev/nvme0n1p4` | ~195 GiB | ext4 | `/mnt/nvme/longhorn` | Longhorn distributed block data                         |
+| `/dev/nvme0n1p5` | ~1.6 TiB | ext4 | `/mnt/nvme/local`    | qBittorrent clients' incomplete/staging, Emby transcode |
 
 Longhorn is sized to match the other two nodes once they migrate — replicas stay symmetric. Remaining NVMe space backs the qBt incomplete dirs.
 

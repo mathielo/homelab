@@ -304,6 +304,7 @@
       - node: k3s-node-02
         labels:
           - workload=media
+          - gpu.intel.com/i915=true
 
   tasks:
     - name: Apply node labels
