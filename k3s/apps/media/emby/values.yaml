@@ -1,0 +1,80 @@
+# Emby Server with AMD VA-API hardware transcoding.
+#
+# Pinned to k3s-server (M75q-1) for its Ryzen 5 PRO 3400GE + Radeon Vega 10.
+#
+# Post-deploy:
+#   1. Open https://emby.hl.mathielo.com and complete the setup wizard
+#   2. Add libraries: Movies → /media/lib/movies, Shows → /media/lib/shows
+#   3. Settings → Transcoding → Hardware acceleration: VAAPI, device /dev/dri/renderD128
+app-template:
+  defaultPodOptions:
+    nodeSelector:
+      kubernetes.io/hostname: k3s-server
+
+  controllers:
+    emby:
+      containers:
+        emby:
+          image:
+            repository: lscr.io/linuxserver/emby
+            tag: 4.9.5.0-ls281
+          env:
+            PUID: "1000"
+            PGID: "1000"
+            TZ: Europe/Stockholm
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: 4000m
+              memory: 6Gi
+              # AMD VA-API hardware transcoding (Radeon Vega 10 on k3s-server).
+              # Enable in Settings → Transcoding after initial setup; Emby's
+              # free tier supports VAAPI without Premiere.
+              amd.com/gpu: "1"
+
+  service:
+    emby:
+      controller: emby
+      ports:
+        http:
+          port: 8096
+
+  ingress:
+    emby:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+        nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+        nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+        nginx.ingress.kubernetes.io/proxy-buffering: "off"
+      hosts:
+        - host: emby.hl.mathielo.com
+          paths:
+            - path: /
+              service:
+                identifier: emby
+                port: http
+      tls:
+        - hosts:
+            - emby.hl.mathielo.com
+          secretName: emby-hl-tls
+
+  persistence:
+    config:
+      existingClaim: emby-config-lh
+      globalMounts:
+        - path: /config
+    transcode:
+      type: hostPath
+      hostPath: /mnt/ssd/local/emby
+      hostPathType: DirectoryOrCreate
+      globalMounts:
+        - path: /transcode
+    media:
+      type: persistentVolumeClaim
+      existingClaim: media-data
+      globalMounts:
+        - path: /media
+          readOnly: true

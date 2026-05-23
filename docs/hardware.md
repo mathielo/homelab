@@ -16,7 +16,7 @@ All physical devices in the homelab.
 
 ### Workload pinning
 
-- **k3s-server** — Plex (pinned for AMD GPU transcoding)
+- **k3s-server** — Plex, Emby (pinned for AMD GPU transcoding)
 - **k3s-node-01** — SABnzbd (incomplete downloads on local SATA); also drives the DeskPi 7.84" rack touchscreen as an OS-level kiosk (`ansible/kiosk.yaml`, sandboxed systemd service — does not affect scheduled workloads)
 - **k3s-node-02** — qBittorrent clients (incomplete downloads on local NVMe)
 - Everything else is free to schedule anywhere.
@@ -38,7 +38,7 @@ SATA SSD layout (node-specific purpose):
 
 | Node        | Partition   | Size     | Mount            | Purpose                      |
 | ----------- | ----------- | -------- | ---------------- | ---------------------------- |
-| k3s-server  | `/dev/sda1` | ~931 GiB | `/mnt/ssd/local` | Plex transcode hostPath      |
+| k3s-server  | `/dev/sda1` | ~931 GiB | `/mnt/ssd/local` | Plex/Emby transcode hostPaths|
 | k3s-node-01 | `/dev/sda1` | ~931 GiB | `/mnt/ssd/local` | SABnzbd incomplete downloads |
 
 **k3s-node-02** has a single 2 TB Samsung 990 Pro NVMe with no SATA SSD. Partitioning:

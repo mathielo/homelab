@@ -187,6 +187,14 @@ app-template:
                     type: plex
                     url: http://plex.media.svc.cluster.local:32400
                     key: "{{ "{{HOMEPAGE_VAR_PLEX_TOKEN}}" }}"
+              - Emby:
+                  href: https://emby.hl.mathielo.com
+                  description: Media server
+                  icon: emby.png
+                  widget:
+                    type: emby
+                    url: http://emby.media.svc.cluster.local:8096
+                    key: "{{ "{{HOMEPAGE_VAR_EMBY_KEY}}" }}"
               - Sonarr:
                   href: https://sonarr.hl.mathielo.com
                   description: TV automation

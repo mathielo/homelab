@@ -6,7 +6,7 @@ Automated media acquisition and streaming stack running on k3s, managed by ArgoC
 
 ```
 Request flow:
-  Pulsarr/Prismarr/Searcharr (requests) → Sonarr/Radarr (automation) → Prowlarr (indexer search) → SABnzbd/qBittorrent (download) → Plex (playback)
+  Pulsarr/Prismarr/Searcharr (requests) → Sonarr/Radarr (automation) → Prowlarr (indexer search) → SABnzbd/qBittorrent (download) → Plex / Emby (playback)
 
 Push flow:
   Autobrr (filtered release announcements) → Sonarr/Radarr (grab)
@@ -34,6 +34,7 @@ DNS/indexer flow:
 | Sonarr      | `https://sonarr.hl.mathielo.com`   | 8989  | Shows automation                         |
 | Bazarr      | `https://bazarr.hl.mathielo.com`   | 6767  | Subtitle automation                      |
 | Plex        | `https://plex.hl.mathielo.com`     | 32400 | Media server / playback                  |
+| Emby        | `https://emby.hl.mathielo.com`     | 8096  | Media server / playback                  |
 | Autobrr     | `https://autobrr.hl.mathielo.com`  | 7474  | Filtered release automation              |
 | qui         | `https://qui.hl.mathielo.com`      | 7476  | qBittorrent web UI                       |
 | Pulsarr     | `https://pulsarr.hl.mathielo.com`  | 3003  | Automated media requests (Sonarr/Radarr) |
@@ -88,9 +89,9 @@ All services share the `media-data` PVC (NFS-backed from UNAS-4, mounted at `/me
 │   └── _torrents/               ← qBittorrent exports .torrent files here (TorrentExportDirectory)
 └── lib/                         ← ARR apps hardlink here; media servers read here
     ├── books/
-    ├── movies/                  ← Radarr root folder, Plex movies library
+    ├── movies/                  ← Radarr root folder, Plex/Emby movies library
     ├── music/
-    └── shows/                   ← Sonarr root folder, Plex shows library
+    └── shows/                   ← Sonarr root folder, Plex/Emby shows library
 ```
 
 In-progress downloads land on **local SSDs** (not NFS) for speed, then move to `dl/` when complete:
@@ -248,6 +249,8 @@ Set up authentication, then connect to Sonarr and Radarr:
 
 Then configure **Settings → Languages** and add **OpenSubtitles.com** under **Settings → Providers** (requires account credentials + API key).
 
+> :bulb: Bazarr writes sidecar `.srt` files next to the media on the shared NFS mount, so Plex and Emby pick them up automatically — no per-media-server Bazarr configuration needed.
+
 ### Step 7: Plex
 
 > :bulb: Plex is pinned to `k3s-server` (M75q-1) via hostname nodeSelector for access to the Radeon Vega 10 GPU.
@@ -296,6 +299,7 @@ Complete the setup wizard, then connect media services:
 | Service | URL                                          | Auth                                          |
 | ------- | -------------------------------------------- | --------------------------------------------- |
 | Plex    | `http://plex.media.svc.cluster.local:32400`  | API key                                       |
+| Emby    | `http://emby.media.svc.cluster.local:8096`   | API key                                       |
 | Radarr  | `http://radarr.media.svc.cluster.local:7878` | API key + root folder `/media/library/movies` |
 | Sonarr  | `http://sonarr.media.svc.cluster.local:8989` | API key + root folder `/media/library/shows`  |
 
@@ -316,3 +320,26 @@ Browse `https://profilarr.hl.mathielo.com` and create the admin account (built-i
 3. **Sync** — push the selected profiles to Sonarr/Radarr. The in-pod `profilarr-parser` sidecar powers the release-regex testing used when building/validating formats.
 
 > :bulb: Profilarr stores its config and the *arr API keys in its own `/config` (Longhorn `profilarr-config-lh` PVC) — no `values.sops.yaml` is required.
+
+### Step 11: Emby
+
+> :bulb: Emby is pinned to `k3s-server` (M75q-1) via hostname nodeSelector for access to the Radeon Vega 10 GPU.
+
+Open `https://emby.hl.mathielo.com` and complete the first-run wizard (admin user — no claim token required). Then:
+
+1. **Add libraries:**
+
+| Library | Content Type | Folder              |
+| ------- | ------------ | ------------------- |
+| Movies  | Movies       | `/media/lib/movies` |
+| Shows   | TV Shows     | `/media/lib/shows`  |
+
+2. **Enable hardware transcoding** (Emby's free tier supports VAAPI without Premiere):
+   - Settings → Transcoding → Hardware acceleration: `VAAPI`
+   - VA-API device: `/dev/dri/renderD128`
+   - The AMD Radeon Vega 10 GPU is passed through via `amd.com/gpu` resource request
+
+3. **Get API key** for cross-app wiring:
+   - Settings → API Keys → **New API Key**
+   - Update `HOMEPAGE_VAR_EMBY_KEY` in `k3s/apps/dashboard/homepage/values.sops.yaml`
+   - Use the same key when adding Emby as a Connect target in Sonarr and Radarr (Settings → Connect → `+ → Emby`, host `http://emby.media.svc.cluster.local:8096`) so library refreshes fire on import.
