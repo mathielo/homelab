@@ -339,7 +339,23 @@ Open `https://emby.hl.mathielo.com` and complete the first-run wizard (admin use
    - VA-API device: `/dev/dri/renderD128`
    - The Intel UHD Graphics 770 iGPU is passed through via `gpu.intel.com/i915` resource request
 
-3. **Get API key** for cross-app wiring:
+3. **Configure network for reverse-proxy access** — required for iOS / AndroidTV apps and Emby Connect to work. Without this, Emby's clients default to port `8920` (Emby's internal HTTPS port, not exposed by the ingress) and `/System/Info` advertises the in-pod IP (`10.42.x.x`) plus the public WAN IP — neither reachable from LAN devices. The browser UI accessed directly at `https://emby.hl.mathielo.com` works regardless because it never asks the server for its own address; only native apps and the hosted web client at `app.emby.media` hit the discovery flow. Settings → Server → Network:
+
+   | Field                                     | Value                          |
+   | ----------------------------------------- | ------------------------------ |
+   | LAN networks                              | `10.10.0.0/16, 10.42.0.0/16`   |
+   | External domain                           | `https://emby.hl.mathielo.com` |
+   | Public http port number                   | `80`                           |
+   | Public https port number                  | `443`                          |
+   | Read proxy headers to determine client IP | `Yes`                          |
+   | Secure connection mode                    | `Handled by reverse proxy`     |
+   | Enable automatic port mapping (UPnP)      | off                            |
+
+   > :bulb: The `10.42.0.0/16` entry in LAN networks treats traffic from the ingress-nginx pod as local — necessary until cluster-wide real-client-IP forwarding is configured on nginx-ingress.
+   >
+   > :warning: The Public https port `443` override is the single most important setting for app connectivity. Clients connect to `<host>:<PublicHttpsPort>` and the TCP connection silently times out if pointed at the unreachable `8920`, so no traffic ever shows up in nginx-ingress logs.
+
+4. **Get API key** for cross-app wiring:
    - Settings → API Keys → **New API Key**
    - Update `HOMEPAGE_VAR_EMBY_KEY` in `k3s/apps/dashboard/homepage/values.sops.yaml`
    - Use the same key when adding Emby as a Connect target in Sonarr and Radarr (Settings → Connect → `+ → Emby`, host `http://emby.media.svc.cluster.local:8096`) so library refreshes fire on import.

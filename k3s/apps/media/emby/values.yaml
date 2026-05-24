@@ -9,6 +9,20 @@
 #   1. Open https://emby.hl.mathielo.com and complete the setup wizard
 #   2. Add libraries: Movies → /media/lib/movies, Shows → /media/lib/shows
 #   3. Settings → Transcoding → Hardware acceleration: VAAPI, device /dev/dri/renderD128
+#   4. Settings → Server → Network — required for iOS/AndroidTV apps to connect.
+#      Without these, Emby advertises the in-pod IP (10.42.x.x) and the public
+#      WAN IP to clients, neither of which is reachable from LAN devices.
+#      The Public https port = 443 override is critical: Emby's clients default
+#      to port 8920 (Emby's internal HTTPS port) which is NOT exposed by the
+#      ingress — the TCP connection times out before any HTTP request is sent,
+#      so nothing shows up in nginx-ingress logs.
+#        - LAN networks:           10.10.0.0/16, 10.42.0.0/16
+#        - External domain:        https://emby.hl.mathielo.com
+#        - Public http port number:  80
+#        - Public https port number: 443
+#        - Read proxy headers:     Yes
+#        - Secure connection mode: Handled by reverse proxy
+#        - Enable automatic port mapping (UPnP): off
 app-template:
   defaultPodOptions:
     nodeSelector:
