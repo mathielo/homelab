@@ -34,9 +34,9 @@ scheduler_enabled: false # Time-of-day alt-speed scheduler
 queueing_enabled: true # Torrent queueing
 max_active_downloads: 5 # Max simultaneously downloading torrents
 max_active_uploads: 50 # Max simultaneously uploading (seeding) torrents
-max_active_torrents: 300 # Max active torrents overall
-max_connec: 600 # Global maximum connections
-max_connec_per_torrent: 75 # Per-torrent maximum connections
+max_active_torrents: 100 # Max active torrents overall
+max_connec: 200 # Global maximum connections
+max_connec_per_torrent: 40 # Per-torrent maximum connections
 max_uploads: 50 # Global upload slots
 max_uploads_per_torrent: 6 # Per-torrent upload slots
 enable_multi_connections_from_same_ip: true # Allow multiple connections from the same IP
