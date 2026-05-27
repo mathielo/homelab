@@ -121,7 +121,7 @@ app-template:
         qbittorrent:
           image:
             repository: ghcr.io/hotio/qbittorrent
-            tag: release-5.2.0
+            tag: release-5.2.1
           env:
             PUID: "1000"
             PGID: "1000"
