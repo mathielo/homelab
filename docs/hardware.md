@@ -55,7 +55,7 @@ Longhorn is sized to match the other two nodes once they migrate — replicas st
 
 See [Longhorn Storage](storage-longhorn.md) for disk preparation and Longhorn setup details.
 
-**k3s-node-02 external storage:** a Cenmate 802U3-5G USB-3 2-bay DAS with 2×4 TB 3.5" HDDs in software RAID 0 (mdadm), ext4, mounted at `/mnt/r0` (~7.3 TiB). Provisioned by [`ansible/das-raid.yaml`](../ansible/das-raid.yaml); maintenance via `das-up` / `das-down` on the node (see playbook header).
+**k3s-node-02 external storage:** a Cenmate 802U3-5G USB-3 2-bay DAS with 2×4 TB 3.5" HDDs in software RAID 0 (mdadm), ext4, mounted at `/mnt/r0` (~7.3 TiB). Provisioned by [`ansible/das-raid.yaml`](../ansible/das-raid.yaml); maintenance via `das-up` / `das-down` on the node (see playbook header). Both `qbt-*` instances mount the DAS root at `/r0`. The marker file `/mnt/r0/.r0-mounted` (placed on the DAS filesystem by the playbook) gates both startup (strict `File` hostPath) and runtime (liveness probe reading it every 30s) — disconnect → pod crashloops → recovers automatically on `das-up`.
 
 ## Storage
 

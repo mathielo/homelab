@@ -3,8 +3,11 @@
 # hostPath on k3s-node-02; /media/dl/* is the shared UNAS-4 NFS share.
 # Apply with: scripts/qbt/apply-categories.sh <instance>
 
-books:     { save_path: /local/books }           # Local NVMe
-freeleech: { save_path: /local/freeleech }       # Local (transient, often deleted)
-games:     { save_path: /local/games }           # Local NVMe
-movies:    { save_path: /media/dl/movies }       # NAS (Plex library)
-shows:     { save_path: /media/dl/shows }        # NAS (Plex library)
+books: { save_path: /local/books } # Local NVMe
+freeleech: { save_path: /local/freeleech } # Local (transient, often deleted)
+games: { save_path: /local/games } # Local NVMe
+movies: { save_path: /media/dl/movies } # NAS (Plex library)
+shows: { save_path: /media/dl/shows } # NAS (Plex library)
+nas-free: { save_path: /media/dl/free } # NAS Freeleech
+nas-parrekd: { save_path: /media/dl/parrked } # NAS parked for eventual use in *Arr stack
+r0: { save_path: /mnt/r0 } # DAS-backed scratch on k3s-node-02

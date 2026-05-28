@@ -130,6 +130,22 @@ app-template:
             UMASK: "002"
             TZ: Europe/Stockholm
             WEBUI_PORTS: "8080/tcp"
+          # /.r0-mounted is the DAS strict-mount marker (see persistence.r0-mount-check).
+          # Test passes only while the DAS is live; on disconnect the probe trips and
+          # the pod is killed → restart fails the strict File hostPath check →
+          # CrashLoopBackOff until `das-up` runs and the marker returns.
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - sh
+                    - -c
+                    - test -f /.r0-mounted
+                periodSeconds: 30
+                failureThreshold: 2
           lifecycle:
             # Disabled to prevent spamming announcements on pod restart.
             # TODO: Create a custom script to progressively resume torrents on restart.
@@ -193,3 +209,22 @@ app-template:
       existingClaim: media-data
       globalMounts:
         - path: /media
+    # DAS-backed scratch on k3s-node-02 (RAID 0 over the Cenmate 802U3-5G,
+    # ~7.3 TiB at /mnt/r0).
+    r0:
+      type: hostPath
+      hostPath: /mnt/r0
+      hostPathType: DirectoryOrCreate
+      globalMounts:
+        - path: /r0
+    # Startup safety: marker lives on the DAS filesystem (placed by
+    # ansible/das-raid.yaml). Strict File hostPath refuses to mount if it
+    # disappears → pod can't start onto a missing DAS. Runtime safety is
+    # the liveness probe on the main container.
+    r0-mount-check:
+      type: hostPath
+      hostPath: /mnt/r0/.r0-mounted
+      hostPathType: File
+      globalMounts:
+        - path: /.r0-mounted
+          readOnly: true

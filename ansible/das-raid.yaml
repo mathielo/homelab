@@ -1,26 +1,12 @@
 ---
 # RAID 0 over the Cenmate 802U3-5G DAS on k3s-node-02.
+# 2×4 TB HDDs → ~7.3 TiB at /mnt/r0.
 #
-# 2×4 TB HDDs in the DAS, striped to ~7.3 TiB at /mnt/r0.
-#
-# Risks acknowledged in the design:
-#   - Disk death = total array loss (RAID 0 property).
-#   - USB bridge reset/cable wiggle mid-write loses in-flight data and
-#     drops the array; recoverable with `das-up`. `nofail` in fstab
-#     prevents boot hangs if the DAS is unplugged.
-#
-# Safety design:
-#   - Devices addressed by /dev/disk/by-id (stable across sd[xy] reorder).
-#   - If /dev/md0 already exists, the create play short-circuits — re-runs
-#     are no-ops, not destructive.
-#   - Pre-flight prints the target disks and refuses if either has a
-#     mounted partition.
-#   - Interactive GOAHEAD prompt fires after the disks are displayed,
-#     immediately before any wipefs/mdadm --create runs.
-#
-# Maintenance: /usr/local/sbin/das-up and /usr/local/sbin/das-down are
-# deployed by the second play. Use them when physically disconnecting
-# the DAS — see ansible/README.md.
+# Play 1 (destructive): creates the array. Idempotent — if /dev/md0 already
+# exists the play short-circuits. Asks for GOAHEAD after printing the
+# target disks.
+# Play 2: chown + place the strict-mount marker + install das-up/das-down.
+# Safe to re-run on its own.
 #
 # Invoke:
 #   ansible-playbook -i ansible/inventory.ini ansible/das-raid.yaml
@@ -34,9 +20,7 @@
     md_device: /dev/md0
     mount_point: /mnt/r0
     fs_label: r0
-    # Stable by-id paths for the two disks in the Cenmate DAS. Override
-    # via -e if a disk is replaced (the by-id suffix is the USB-bridge
-    # serial, which changes per-bay if drives are swapped).
+    # Override via -e if a disk is replaced (by-id suffix = USB-bridge serial).
     das_devices:
       - /dev/disk/by-id/usb-ASMT_2115_ACAAEBBB46E8-0:0
       - /dev/disk/by-id/usb-ASMT_2115_ACAAEBBB46E7-0:0
@@ -154,7 +138,6 @@
         mode: "0755"
 
     # nofail: don't block boot if the DAS is unplugged.
-    # device-timeout: USB enumeration can be slow at cold boot.
     - name: Add fstab entry and mount
       mount:
         path: "{{ mount_point }}"
@@ -167,10 +150,8 @@
     - name: Update initramfs
       command: update-initramfs -u
 
-# Second play: deploy the maintenance scripts. Not guarded by the
-# array-exists short-circuit — safe to re-run, and lets us update the
-# scripts without touching the array.
-- name: Deploy DAS maintenance scripts
+# Post-mount provisioning + maintenance scripts. Safe to re-run on its own.
+- name: DAS post-mount provisioning + maintenance scripts
   hosts: k3s-node-02
   become: true
   gather_facts: false
@@ -180,7 +161,36 @@
     mount_point: /mnt/r0
 
   tasks:
-    - name: Install das-up (assemble array + mount)
+    # Guard: skip on-DAS writes if the DAS is unmounted — otherwise the
+    # marker/chown would land on the bare rootfs at /mnt/r0.
+    - name: Check that /mnt/r0 is a live mountpoint
+      command: mountpoint -q {{ mount_point }}
+      register: r0_mountpoint
+      changed_when: false
+      failed_when: false
+
+    # mkfs.ext4 leaves the FS root as root:root; qBt runs as 1000:1000.
+    - name: Chown the DAS root for qbt write access
+      file:
+        path: "{{ mount_point }}"
+        state: directory
+        owner: "1000"
+        group: "1000"
+        mode: "0775"
+      when: r0_mountpoint.rc == 0
+
+    # Strict-mount marker. Consumed by the qbt chart as a hostPath File
+    # (startup safety) and by its liveness probe (runtime safety).
+    - name: Place DAS-mounted marker
+      copy:
+        dest: "{{ mount_point }}/.r0-mounted"
+        content: DAS-mounted marker for hostPath consumers.
+        mode: "0644"
+        owner: "1000"
+        group: "1000"
+      when: r0_mountpoint.rc == 0
+
+    - name: Install das-up
       copy:
         dest: /usr/local/sbin/das-up
         mode: "0755"
@@ -190,7 +200,7 @@
           mdadm --assemble --scan
           mount {{ mount_point }}
 
-    - name: Install das-down (unmount + stop array)
+    - name: Install das-down
       copy:
         dest: /usr/local/sbin/das-down
         mode: "0755"
