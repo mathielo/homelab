@@ -146,6 +146,18 @@
     {
       customType: 'regex',
       managerFilePatterns: [
+        '/ansible/k3s/metallb\\.yaml$/',
+      ],
+      matchStrings: [
+        'helm upgrade --install metallb\\s+metallb/metallb[\\s\\S]*?--version\\s+(?<currentValue>[\\d.]+)',
+      ],
+      depNameTemplate: 'metallb',
+      datasourceTemplate: 'helm',
+      registryUrlTemplate: 'https://metallb.github.io/metallb',
+    },
+    {
+      customType: 'regex',
+      managerFilePatterns: [
         '/ansible/glances\\.yaml$/',
       ],
       matchStrings: [
@@ -154,17 +166,23 @@
       depNameTemplate: 'glances',
       datasourceTemplate: 'pypi',
     },
-    {
-      customType: 'regex',
-      managerFilePatterns: [
-        '/workstation/.*\\.container$/',
-      ],
-      matchStrings: [
-        'Image=(?<depName>[^\\s:]+):(?<currentValue>[^\\s]+)',
-      ],
-      datasourceTemplate: 'docker',
-    },
   ],
+  // Also pick up split values files (e.g. values-common.yaml, values-br.yaml)
+  // alongside the default values.yaml — qbt-* instances keep their image pins
+  // in values-common.yaml so they were otherwise invisible to Renovate.
+  'helm-values': {
+    managerFilePatterns: [
+      '/(^|/)values(-[a-z]+)?\\.ya?ml$/',
+    ],
+  },
+  // Enable kubernetes manager only for shared infra manifests (GPU device
+  // plugins, etc.) — bare image: pins in DaemonSet/Deployment YAMLs aren't
+  // detected by helm-values.
+  kubernetes: {
+    managerFilePatterns: [
+      '/k3s/apps/.*/_infra/.*\\.ya?ml$/',
+    ],
+  },
   packageRules: [
     {
       description: 'Hotio media stack images (excl. Plex)',
