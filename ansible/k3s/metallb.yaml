@@ -34,7 +34,7 @@
         metallb/metallb
         --namespace metallb-system
         --values /tmp/metallb.values.yaml
-        --version 0.15.3
+        --version 0.16.1
         --wait --timeout 5m
 
     - name: Wait for MetalLB controller to be ready
