@@ -1,0 +1,201 @@
+---
+# RAID 0 over the Cenmate 802U3-5G DAS on k3s-node-02.
+#
+# 2×4 TB HDDs in the DAS, striped to ~7.3 TiB at /mnt/r0.
+#
+# Risks acknowledged in the design:
+#   - Disk death = total array loss (RAID 0 property).
+#   - USB bridge reset/cable wiggle mid-write loses in-flight data and
+#     drops the array; recoverable with `das-up`. `nofail` in fstab
+#     prevents boot hangs if the DAS is unplugged.
+#
+# Safety design:
+#   - Devices addressed by /dev/disk/by-id (stable across sd[xy] reorder).
+#   - If /dev/md0 already exists, the create play short-circuits — re-runs
+#     are no-ops, not destructive.
+#   - Pre-flight prints the target disks and refuses if either has a
+#     mounted partition.
+#   - Interactive GOAHEAD prompt fires after the disks are displayed,
+#     immediately before any wipefs/mdadm --create runs.
+#
+# Maintenance: /usr/local/sbin/das-up and /usr/local/sbin/das-down are
+# deployed by the second play. Use them when physically disconnecting
+# the DAS — see ansible/README.md.
+#
+# Invoke:
+#   ansible-playbook -i ansible/inventory.ini ansible/das-raid.yaml
+
+- name: Create RAID 0 on the DAS attached to k3s-node-02
+  hosts: k3s-node-02
+  become: true
+  gather_facts: false
+
+  vars:
+    md_device: /dev/md0
+    mount_point: /mnt/r0
+    fs_label: r0
+    # Stable by-id paths for the two disks in the Cenmate DAS. Override
+    # via -e if a disk is replaced (the by-id suffix is the USB-bridge
+    # serial, which changes per-bay if drives are swapped).
+    das_devices:
+      - /dev/disk/by-id/usb-ASMT_2115_ACAAEBBB46E8-0:0
+      - /dev/disk/by-id/usb-ASMT_2115_ACAAEBBB46E7-0:0
+
+  pre_tasks:
+    - name: Check whether the RAID array already exists
+      command: mdadm --detail {{ md_device }}
+      register: md_state
+      changed_when: false
+      failed_when: false
+
+    - name: Report no-op if array is already assembled
+      debug:
+        msg: "{{ md_device }} already exists — skipping create play."
+      when: md_state.rc == 0
+
+    - name: End play early if array is already assembled
+      meta: end_play
+      when: md_state.rc == 0
+
+    - name: Stat each target device
+      stat:
+        path: "{{ item }}"
+      register: device_stats
+      loop: "{{ das_devices }}"
+
+    - name: Assert each target device exists
+      assert:
+        that: item.stat.exists
+        fail_msg: "Target device {{ item.item }} not found"
+      loop: "{{ device_stats.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Show target devices
+      command: lsblk -no NAME,SIZE,MODEL,SERIAL {{ das_devices | join(' ') }}
+      register: target_lsblk
+      changed_when: false
+
+    - name: Print target devices for the operator to eyeball
+      debug:
+        var: target_lsblk.stdout_lines
+
+    - name: Refuse if any target device has a mounted partition
+      shell: |
+        for d in {{ das_devices | join(' ') }}; do
+          mounted=$(lsblk -no MOUNTPOINT "$d" | grep -v '^$' || true)
+          if [ -n "$mounted" ]; then
+            echo "Device $d has mounted partitions: $mounted" >&2
+            exit 1
+          fi
+        done
+      changed_when: false
+
+    - name: Confirm wipe of the displayed devices
+      pause:
+        prompt: |
+          Verified target devices above. This will WIPE them and create {{ md_device }}.
+          Type GOAHEAD to proceed
+      register: confirm
+
+    - name: Require explicit GOAHEAD confirmation
+      assert:
+        that: confirm.user_input == "GOAHEAD"
+        fail_msg: Confirmation not given. Aborting.
+
+  tasks:
+    - name: Install mdadm
+      apt:
+        name: mdadm
+        state: present
+
+    - name: Wipe existing filesystem/RAID signatures
+      command: wipefs -a {{ item }}
+      loop: "{{ das_devices }}"
+
+    - name: Create the RAID 0 array
+      command: >
+        mdadm --create --verbose {{ md_device }}
+        --level=0
+        --raid-devices={{ das_devices | length }}
+        --metadata=1.2
+        --run
+        {{ das_devices | join(' ') }}
+      args:
+        creates: "{{ md_device }}"
+
+    - name: Create ext4 filesystem on the array
+      filesystem:
+        fstype: ext4
+        dev: "{{ md_device }}"
+        opts: -L {{ fs_label }}
+
+    - name: Capture mdadm scan output
+      command: mdadm --detail --scan
+      register: mdadm_scan
+      changed_when: false
+
+    - name: Persist array definition in /etc/mdadm/mdadm.conf
+      blockinfile:
+        path: /etc/mdadm/mdadm.conf
+        marker: "# {mark} ANSIBLE-MANAGED DAS-RAID"
+        block: "{{ mdadm_scan.stdout }}"
+      notify: Update initramfs
+
+    - name: Read filesystem UUID
+      command: blkid -s UUID -o value {{ md_device }}
+      register: md_uuid
+      changed_when: false
+
+    - name: Create mount point
+      file:
+        path: "{{ mount_point }}"
+        state: directory
+        mode: "0755"
+
+    # nofail: don't block boot if the DAS is unplugged.
+    # device-timeout: USB enumeration can be slow at cold boot.
+    - name: Add fstab entry and mount
+      mount:
+        path: "{{ mount_point }}"
+        src: "UUID={{ md_uuid.stdout }}"
+        fstype: ext4
+        opts: defaults,nofail,x-systemd.device-timeout=30s
+        state: mounted
+
+  handlers:
+    - name: Update initramfs
+      command: update-initramfs -u
+
+# Second play: deploy the maintenance scripts. Not guarded by the
+# array-exists short-circuit — safe to re-run, and lets us update the
+# scripts without touching the array.
+- name: Deploy DAS maintenance scripts
+  hosts: k3s-node-02
+  become: true
+  gather_facts: false
+
+  vars:
+    md_device: /dev/md0
+    mount_point: /mnt/r0
+
+  tasks:
+    - name: Install das-up (assemble array + mount)
+      copy:
+        dest: /usr/local/sbin/das-up
+        mode: "0755"
+        content: |
+          #!/bin/sh
+          set -e
+          mdadm --assemble --scan
+          mount {{ mount_point }}
+
+    - name: Install das-down (unmount + stop array)
+      copy:
+        dest: /usr/local/sbin/das-down
+        mode: "0755"
+        content: |
+          #!/bin/sh
+          set -e
+          umount {{ mount_point }}
+          mdadm --stop {{ md_device }}
