@@ -36,7 +36,7 @@ spec:
           operator: Exists
       containers:
         - name: intel-gpu-plugin
-          image: intel/intel-gpu-plugin:0.35.0
+          image: intel/intel-gpu-plugin:0.36.0
           imagePullPolicy: IfNotPresent
           # -shared-dev-num lets one physical iGPU advertise N allocatable
           # resources; raise above 1 if multiple pods need to share the GPU.
