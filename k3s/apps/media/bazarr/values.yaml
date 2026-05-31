@@ -15,7 +15,7 @@ app-template:
               cpu: 10m
               memory: 256Mi
             limits:
-              cpu: 200m
+              cpu: 500m
               memory: 512Mi
 
   service:
