@@ -6,7 +6,7 @@ Automated media acquisition and streaming stack running on k3s, managed by ArgoC
 
 ```
 Request flow:
-  Pulsarr/Prismarr/Searcharr (requests) → Sonarr/Radarr (automation) → Prowlarr (indexer search) → SABnzbd/qBittorrent (download) → Plex / Emby (playback)
+  Pulsarr/Prismarr/Searcharr (requests) → Sonarr/Radarr (automation) → Prowlarr (indexer search) → SABnzbd/qBittorrent (download) → Plex (playback)
 
 Push flow:
   Autobrr (filtered release announcements) → Sonarr/Radarr (grab)
@@ -36,7 +36,6 @@ DNS/indexer flow:
 | Sonarr    | `https://sonarr.hl.mathielo.com`    | 8989  | Shows automation                           |
 | Bazarr    | `https://bazarr.hl.mathielo.com`    | 6767  | Subtitle automation                        |
 | Plex      | `https://plex.hl.mathielo.com`      | 32400 | Media server / playback                    |
-| Emby      | `https://emby.hl.mathielo.com`      | 8096  | Media server / playback                    |
 | Autobrr   | `https://autobrr.hl.mathielo.com`   | 7474  | Filtered release automation                |
 | Pulsarr   | `https://pulsarr.hl.mathielo.com`   | 3003  | Automated media requests (Sonarr/Radarr)   |
 | Prismarr  | `https://prismarr.hl.mathielo.com`  | 7070  | Media request portal                       |
@@ -83,8 +82,8 @@ All services share the `media-data` PVC (NFS-backed from UNAS-4, mounted at `/me
 │   ├── shows/                   ← qBittorrent "shows" category → Sonarr imports from here
 │   └── usenet/                  ← SABnzbd download root
 └── lib/                         ← ARR apps hardlink here; media servers read here
-    ├── movies/                  ← Radarr root folder, Plex/Emby movies library
-    └── shows/                   ← Sonarr root folder, Plex/Emby shows library
+    ├── movies/                  ← Radarr root folder, Plex movies library
+    └── shows/                   ← Sonarr root folder, Plex shows library
 ```
 
 ### qBittorrent Categories → ARR Correlation
@@ -209,7 +208,7 @@ Set up authentication, then connect to Sonarr and Radarr:
 
 Then configure **Settings → Languages** and add **OpenSubtitles.com** under **Settings → Providers** (requires account credentials + API key).
 
-> :bulb: Bazarr writes sidecar `.srt` files next to the media on the shared NFS mount, so Plex and Emby pick them up automatically — no per-media-server Bazarr configuration needed.
+> :bulb: Bazarr writes sidecar `.srt` files next to the media on the shared NFS mount, so Plex picks them up automatically — no per-media-server Bazarr configuration needed.
 
 ### Step 7: Plex
 
@@ -256,12 +255,11 @@ Then under **Settings → Sonarr** and **Settings → Radarr**, add each service
 
 Complete the setup wizard, then connect media services:
 
-| Service | URL                                          | Auth                                          |
-| ------- | -------------------------------------------- | --------------------------------------------- |
-| Plex    | `http://plex.media.svc.cluster.local:32400`  | API key                                       |
-| Emby    | `http://emby.media.svc.cluster.local:8096`   | API key                                       |
-| Radarr  | `http://radarr.media.svc.cluster.local:7878` | API key + root folder `/media/library/movies` |
-| Sonarr  | `http://sonarr.media.svc.cluster.local:8989` | API key + root folder `/media/library/shows`  |
+| Service | URL                                          | Auth                                       |
+| ------- | -------------------------------------------- | ------------------------------------------ |
+| Plex    | `http://plex.media.svc.cluster.local:32400`  | API key                                    |
+| Radarr  | `http://radarr.media.svc.cluster.local:7878` | API key + root folder `/media/lib/movies`  |
+| Sonarr  | `http://sonarr.media.svc.cluster.local:8989` | API key + root folder `/media/lib/shows`   |
 
 ### Step 10: Profilarr
 
@@ -280,42 +278,3 @@ Browse `https://profilarr.hl.mathielo.com` and create the admin account (built-i
 3. **Sync** — push the selected profiles to Sonarr/Radarr. The in-pod `profilarr-parser` sidecar powers the release-regex testing used when building/validating formats.
 
 > :bulb: Profilarr stores its config and the \*arr API keys in its own `/config` (Longhorn `profilarr-config-lh` PVC) — no `values.sops.yaml` is required.
-
-### Step 11: Emby
-
-> :bulb: Emby is pinned to `k3s-node-02` (M70q Gen 5) via hostname nodeSelector for access to the Intel UHD Graphics 770 iGPU. The Intel device plugin (`k3s/apps/media/_infra/intel-gpu-device-plugin.yaml`) exposes `gpu.intel.com/i915` so the pod gets the device + permissions injected automatically.
-
-Open `https://emby.hl.mathielo.com` and complete the first-run wizard (admin user — no claim token required). Then:
-
-1. **Add libraries:**
-
-| Library | Content Type | Folder              |
-| ------- | ------------ | ------------------- |
-| Movies  | Movies       | `/media/lib/movies` |
-| Shows   | TV Shows     | `/media/lib/shows`  |
-
-2. **Enable hardware transcoding** (Emby's free tier supports VAAPI without Premiere):
-   - Settings → Transcoding → Hardware acceleration: `VAAPI`
-   - VA-API device: `/dev/dri/renderD128`
-   - The Intel UHD Graphics 770 iGPU is passed through via `gpu.intel.com/i915` resource request
-
-3. **Configure network for reverse-proxy access** — required for iOS / AndroidTV apps and Emby Connect to work. Without this, Emby's clients default to port `8920` (Emby's internal HTTPS port, not exposed by the ingress) and `/System/Info` advertises the in-pod IP (`10.42.x.x`) plus the public WAN IP — neither reachable from LAN devices. The browser UI accessed directly at `https://emby.hl.mathielo.com` works regardless because it never asks the server for its own address; only native apps and the hosted web client at `app.emby.media` hit the discovery flow. Settings → Server → Network:
-
-   | Field                                     | Value                          |
-   | ----------------------------------------- | ------------------------------ |
-   | LAN networks                              | `10.10.0.0/16, 10.42.0.0/16`   |
-   | External domain                           | `https://emby.hl.mathielo.com` |
-   | Public http port number                   | `80`                           |
-   | Public https port number                  | `443`                          |
-   | Read proxy headers to determine client IP | `Yes`                          |
-   | Secure connection mode                    | `Handled by reverse proxy`     |
-   | Enable automatic port mapping (UPnP)      | off                            |
-
-   > :bulb: The `10.42.0.0/16` entry in LAN networks treats traffic from the ingress-nginx pod as local — necessary until cluster-wide real-client-IP forwarding is configured on nginx-ingress.
-   >
-   > :warning: The Public https port `443` override is the single most important setting for app connectivity. Clients connect to `<host>:<PublicHttpsPort>` and the TCP connection silently times out if pointed at the unreachable `8920`, so no traffic ever shows up in nginx-ingress logs.
-
-4. **Get API key** for cross-app wiring:
-   - Settings → API Keys → **New API Key**
-   - Update `HOMEPAGE_VAR_EMBY_KEY` in `k3s/apps/dashboard/homepage/values.sops.yaml`
-   - Use the same key when adding Emby as a Connect target in Sonarr and Radarr (Settings → Connect → `+ → Emby`, host `http://emby.media.svc.cluster.local:8096`) so library refreshes fire on import.

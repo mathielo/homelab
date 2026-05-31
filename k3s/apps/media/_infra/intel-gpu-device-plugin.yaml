@@ -3,7 +3,7 @@
 # Intel GPU Device Plugin
 #
 # Exposes gpu.intel.com/i915 resources to Kubernetes so pods can request GPU
-# access for hardware transcoding (e.g. Emby on k3s-node-02's UHD Graphics).
+# access for hardware transcoding on k3s-node-02's Intel UHD Graphics 770.
 #
 # Upstream: https://github.com/intel/intel-device-plugins-for-kubernetes
 # Manifest derived from deployments/gpu_plugin/base/intel-gpu-plugin.yaml @ v0.35.0

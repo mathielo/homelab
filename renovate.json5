@@ -208,17 +208,6 @@
       ],
     },
     {
-      description: 'Linuxserver media images',
-      matchDatasources: [
-        'docker',
-      ],
-      versioning: 'regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)-ls(?<revision>\\d+)$',
-      groupName: 'media-stack-lscr',
-      matchPackageNames: [
-        '/^lscr\\.io/linuxserver//',
-      ],
-    },
-    {
       description: 'Media support (Gluetun, busybox)',
       matchDatasources: [
         'docker',

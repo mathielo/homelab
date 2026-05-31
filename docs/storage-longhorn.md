@@ -8,14 +8,12 @@ All pods have their config + data set in Longhorn PVCs. This also enables for HA
 
 ### What stays pinned (not on Longhorn)
 
-| App               | Why pinned                                                                      | Storage                                                                                    |
-| ----------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| **qbt-br**        | Pinned to `k3s-node-02`; uses local NVMe for incomplete + stay-local categories | config: `qbt-br-config-lh` (Longhorn); local: `hostPath /mnt/nvme/local/qbt-br` → `/local` |
-| **qbt-se**        | Pinned to `k3s-node-02`; uses local NVMe for incomplete + stay-local categories | config: `qbt-se-config-lh` (Longhorn); local: `hostPath /mnt/nvme/local/qbt-se` → `/local` |
-| **qBt instances** | Pinned to `k3s-node-02`; needs local NVMe for incomplete downloads              | config: Longhorn; incomplete: `hostPath /mnt/nvme/local/qbt-{br,se}`                       |
-| **SABnzbd**       | Pinned to `k3s-node-01`; needs local SSD for incomplete downloads               | config: Longhorn; incomplete: `hostPath /mnt/ssd/local/sabnzbd-incomplete`                 |
-| **Plex**          | Pinned to `k3s-server` for AMD GPU transcoding                                  | config: `plex-config-lh` (Longhorn); transcode: `hostPath /mnt/ssd/local/plex`             |
-| **Emby**          | Pinned to `k3s-node-02` for Intel UHD 770 Quick Sync transcoding                | config: `emby-config-lh` (Longhorn); transcode: `hostPath /mnt/nvme/local/emby`            |
+| App         | Why pinned                                                                      | Storage                                                                                    |
+| ----------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| **qbt-br**  | Pinned to `k3s-node-02`; uses local NVMe for incomplete + stay-local categories | config: `qbt-br-config-lh` (Longhorn); local: `hostPath /mnt/nvme/local/qbt-br` → `/local` |
+| **qbt-se**  | Pinned to `k3s-node-02`; uses local NVMe for incomplete + stay-local categories | config: `qbt-se-config-lh` (Longhorn); local: `hostPath /mnt/nvme/local/qbt-se` → `/local` |
+| **SABnzbd** | Pinned to `k3s-node-01`; needs local SSD for incomplete downloads               | config: Longhorn; incomplete: `hostPath /mnt/ssd/local/sabnzbd-incomplete`                 |
+| **Plex**    | Pinned to `k3s-server` for AMD GPU transcoding                                  | config: `plex-config-lh` (Longhorn); transcode: `hostPath /mnt/ssd/local/plex`             |
 
 The `media-data` NFS PVC (UNAS-4) is untouched — Longhorn is only for app config volumes.
 
@@ -64,8 +62,8 @@ sudo chown 1000:1000 /mnt/ssd/local/sabnzbd-incomplete
 ```bash
 df -h /mnt/nvme/longhorn /mnt/nvme/local   # verify mounts came up
 
-sudo mkdir -p /mnt/nvme/local/qbt-br /mnt/nvme/local/qbt-se /mnt/nvme/local/emby
-sudo chown 1000:1000 /mnt/nvme/local/qbt-br /mnt/nvme/local/qbt-se /mnt/nvme/local/emby
+sudo mkdir -p /mnt/nvme/local/qbt-br /mnt/nvme/local/qbt-se
+sudo chown 1000:1000 /mnt/nvme/local/qbt-br /mnt/nvme/local/qbt-se
 ```
 
 `hostPathType: DirectoryOrCreate` auto-creates the dirs as `root:root`, which the qBt container (running as `1000:1000` via `PUID/PGID`) can't write to — the `chown` is mandatory.
