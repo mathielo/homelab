@@ -4,26 +4,18 @@
 
 Longhorn stores each volume as two replicas spread across the three k3s nodes, so pods can move freely between `k3s-server`, `k3s-node-01`, and `k3s-node-02` without data loss or manual intervention.
 
-This also enables for HA should services require more than one replica.
-
-### What runs on Longhorn
-
-All pods have their config + data set in Longhorn PVCs. A few services have some extra mounts for specific purposes:
-
-- qBittorrent + SABnzbd: local SSD mount for ongoing downloads
-- Plex: local SSD mount for active transcode
-- Emby: local NVMe mount for active transcode
+All pods have their config + data set in Longhorn PVCs. This also enables for HA should services require more than one replica.
 
 ### What stays pinned (not on Longhorn)
 
-| App             | Why pinned                                                                      | Storage                                                                                    |
-| --------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| **qbt-br**      | Pinned to `k3s-node-02`; uses local NVMe for incomplete + stay-local categories | config: `qbt-br-config-lh` (Longhorn); local: `hostPath /mnt/nvme/local/qbt-br` → `/local` |
-| **qbt-se**      | Pinned to `k3s-node-02`; uses local NVMe for incomplete + stay-local categories | config: `qbt-se-config-lh` (Longhorn); local: `hostPath /mnt/nvme/local/qbt-se` → `/local` |
-| **qBittorrent** | Pinned to `k3s-node-01`; needs local SSD for incomplete downloads               | config: Longhorn; incomplete: `hostPath /mnt/ssd/local/qbt-incomplete`                     |
-| **SABnzbd**     | Pinned to `k3s-node-01`; needs local SSD for incomplete downloads               | config: Longhorn; incomplete: `hostPath /mnt/ssd/local/sabnzbd-incomplete`                 |
-| **Plex**        | Pinned to `k3s-server` for AMD GPU transcoding                                  | config: `plex-config-lh` (Longhorn); transcode: `hostPath /mnt/ssd/local/plex`             |
-| **Emby**        | Pinned to `k3s-node-02` for Intel UHD 770 Quick Sync transcoding                | config: `emby-config-lh` (Longhorn); transcode: `hostPath /mnt/nvme/local/emby`            |
+| App               | Why pinned                                                                      | Storage                                                                                    |
+| ----------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| **qbt-br**        | Pinned to `k3s-node-02`; uses local NVMe for incomplete + stay-local categories | config: `qbt-br-config-lh` (Longhorn); local: `hostPath /mnt/nvme/local/qbt-br` → `/local` |
+| **qbt-se**        | Pinned to `k3s-node-02`; uses local NVMe for incomplete + stay-local categories | config: `qbt-se-config-lh` (Longhorn); local: `hostPath /mnt/nvme/local/qbt-se` → `/local` |
+| **qBt instances** | Pinned to `k3s-node-02`; needs local NVMe for incomplete downloads              | config: Longhorn; incomplete: `hostPath /mnt/nvme/local/qbt-{br,se}`                       |
+| **SABnzbd**       | Pinned to `k3s-node-01`; needs local SSD for incomplete downloads               | config: Longhorn; incomplete: `hostPath /mnt/ssd/local/sabnzbd-incomplete`                 |
+| **Plex**          | Pinned to `k3s-server` for AMD GPU transcoding                                  | config: `plex-config-lh` (Longhorn); transcode: `hostPath /mnt/ssd/local/plex`             |
+| **Emby**          | Pinned to `k3s-node-02` for Intel UHD 770 Quick Sync transcoding                | config: `emby-config-lh` (Longhorn); transcode: `hostPath /mnt/nvme/local/emby`            |
 
 The `media-data` NFS PVC (UNAS-4) is untouched — Longhorn is only for app config volumes.
 
@@ -31,14 +23,15 @@ The `media-data` NFS PVC (UNAS-4) is untouched — Longhorn is only for app conf
 
 Longhorn data lives on each node's NVMe (`/mnt/nvme/longhorn`). A second single-partition local hostPath holds node-specific workloads — the SATA SSD on `k3s-server`/`k3s-node-01`, a dedicated NVMe partition on `k3s-node-02` (no SATA disk).
 
-| Node        | Disk | Mount                | Purpose                                                             |
-| ----------- | ---- | -------------------- | ------------------------------------------------------------------- |
-| k3s-server  | NVMe | `/mnt/nvme/longhorn` | Longhorn data path (~195 GiB)                                       |
-| k3s-server  | SATA | `/mnt/ssd/local`     | Plex transcode hostPath (~931 GiB)                                  |
-| k3s-node-01 | NVMe | `/mnt/nvme/longhorn` | Longhorn data path (~195 GiB)                                       |
-| k3s-node-01 | SATA | `/mnt/ssd/local`     | SABnzbd incomplete downloads (~931 GiB)                             |
-| k3s-node-02 | NVMe | `/mnt/nvme/longhorn` | Longhorn data path (~195 GiB)                                       |
-| k3s-node-02 | NVMe | `/mnt/nvme/local`    | qBittorrent clients' incomplete/staging + Emby transcode (~1.6 TiB) |
+| Node        | Disk | Mount                | Purpose                                    |
+| ----------- | ---- | -------------------- | ------------------------------------------ |
+| k3s-server  | NVMe | `/mnt/nvme/longhorn` | Longhorn data path (~195 GiB)              |
+| k3s-server  | SATA | `/mnt/ssd/local`     | Plex transcode hostPath (~931 GiB)         |
+| k3s-node-01 | NVMe | `/mnt/nvme/longhorn` | Longhorn data path (~195 GiB)              |
+| k3s-node-01 | SATA | `/mnt/ssd/local`     | SABnzbd incomplete downloads (~931 GiB)    |
+| k3s-node-02 | NVMe | `/mnt/nvme/longhorn` | Longhorn data path (~195 GiB)              |
+| k3s-node-02 | NVMe | `/mnt/nvme/local`    | qBt clients' incomplete/staging (~1.6 TiB) |
+| k3s-node-02 | SATA | `/mnt/r0`            | 2x 4Tb 3.5" HDD in RAID 0 in DAS           |
 
 See [Hardware](hardware.md) for the full NVMe partition table.
 
@@ -62,8 +55,8 @@ sudo chown 1000:1000 /mnt/ssd/local/plex
 ```bash
 df -h /mnt/nvme/longhorn /mnt/ssd/local   # verify mounts came up
 
-sudo mkdir -p /mnt/ssd/local/qbt-incomplete /mnt/ssd/local/sabnzbd-incomplete
-sudo chown 1000:1000 /mnt/ssd/local/qbt-incomplete /mnt/ssd/local/sabnzbd-incomplete
+sudo mkdir -p /mnt/ssd/local/sabnzbd-incomplete
+sudo chown 1000:1000 /mnt/ssd/local/sabnzbd-incomplete
 ```
 
 ### k3s-node-02

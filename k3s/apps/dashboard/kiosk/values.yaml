@@ -19,8 +19,8 @@ app-template:
             KIOSK_ALLOW_ACTIONS: "true"
             KIOSK_SAB_URL: http://sabnzbd.media.svc.cluster.local:8080
             KIOSK_QBT_NAMES: se
-            KIOSK_QBT_SE_URL: http://qbittorrent.media.svc.cluster.local:8080
-            KIOSK_QBT_FREELEECH_CAT: freeleech
+            KIOSK_QBT_SE_URL: http://qbt-se.media.svc.cluster.local:8080
+            KIOSK_QBT_FREELEECH_CAT: free
             KIOSK_PIHOLE_URL: http://10.10.53.53
             KIOSK_PIHOLE_DISABLE_SECONDS: "60"
             # * secret env vars injected via values.sops.yaml

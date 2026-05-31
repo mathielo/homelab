@@ -220,12 +220,12 @@ app-template:
                     url: http://sabnzbd.media.svc.cluster.local:8080
                     key: "{{ "{{HOMEPAGE_VAR_SABNZBD_KEY}}" }}"
               - qBittorrent:
-                  href: https://qbt.hl.mathielo.com
+                  href: https://qbt-se.hl.mathielo.com
                   description: Torrents · SE exit
                   icon: qbittorrent.png
                   widget:
                     type: qbittorrent
-                    url: http://qbittorrent.media.svc.cluster.local:8080
+                    url: http://qbt-se.media.svc.cluster.local:8080
                     username: "{{ "{{HOMEPAGE_VAR_QBITTORRENT_USERNAME}}" }}"
                     password: "{{ "{{HOMEPAGE_VAR_QBITTORRENT_PASSWORD}}" }}"
               - Prowlarr:
@@ -277,17 +277,17 @@ app-template:
                     username: "{{ "{{HOMEPAGE_VAR_UNIFI_USER}}" }}"
                     password: "{{ "{{HOMEPAGE_VAR_UNIFI_PASS}}" }}"
               - Gluetun:
-                  href: https://qbt.hl.mathielo.com
+                  href: https://qbt-se.hl.mathielo.com
                   description: Download VPN · kill-switch
                   icon: gluetun.png
-                  # qBittorrent's tunnel (the privacy-critical one). Its
+                  # qbt-se's tunnel (the privacy-critical one). Its
                   # Service already exposes gluetun's control server on :8000;
                   # auth defaults to none for in-cluster reads (public IP is
-                  # non-sensitive). SABnzbd has its own identical SE tunnel —
-                  # add a second widget here later if you want it too.
+                  # non-sensitive). qbt-br and SABnzbd have their own identical
+                  # tunnels — add more widgets here later if you want them too.
                   widget:
                     type: gluetun
-                    url: http://qbittorrent.media.svc.cluster.local:8000
+                    url: http://qbt-se.media.svc.cluster.local:8000
 
           - Hosts:
               - k3s-server:

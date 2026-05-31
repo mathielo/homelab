@@ -15,8 +15,8 @@ Config flow:
   Profilarr (curated quality profiles + custom formats) → Sonarr/Radarr (sync)
 
 Download flow:
-  SABnzbd     → Gluetun VPN → Usenet provider  → NFS media library
-  qBittorrent → Gluetun VPN → Torrent trackers → NFS media library
+  SABnzbd      → Gluetun VPN → Usenet provider  → NFS media library
+  qBt (SE, BR) → Gluetun VPN → Torrent trackers → NFS media library
 
 DNS/indexer flow:
   Prowlarr → DrunkenSlug / NZBFinder (NZB search)
@@ -25,21 +25,22 @@ DNS/indexer flow:
 
 ## Services
 
-| Service     | URL                                 | Port  | Purpose                                  |
-| ----------- | ----------------------------------- | ----- | ---------------------------------------- |
-| SABnzbd     | `https://sabnzbd.hl.mathielo.com`   | 8080  | Usenet downloader                        |
-| qBittorrent | `https://qbt.hl.mathielo.com`       | 8080  | Torrent downloader                       |
-| Prowlarr    | `https://prowlarr.hl.mathielo.com`  | 9696  | Indexer manager/proxy                    |
-| Radarr      | `https://radarr.hl.mathielo.com`    | 7878  | Movie automation                         |
-| Sonarr      | `https://sonarr.hl.mathielo.com`    | 8989  | Shows automation                         |
-| Bazarr      | `https://bazarr.hl.mathielo.com`    | 6767  | Subtitle automation                      |
-| Plex        | `https://plex.hl.mathielo.com`      | 32400 | Media server / playback                  |
-| Emby        | `https://emby.hl.mathielo.com`      | 8096  | Media server / playback                  |
-| Autobrr     | `https://autobrr.hl.mathielo.com`   | 7474  | Filtered release automation              |
-| qui         | `https://qui.hl.mathielo.com`       | 7476  | qBittorrent web UI                       |
-| Pulsarr     | `https://pulsarr.hl.mathielo.com`   | 3003  | Automated media requests (Sonarr/Radarr) |
-| Prismarr    | `https://prismarr.hl.mathielo.com`  | 7070  | Media request portal                     |
-| Profilarr   | `https://profilarr.hl.mathielo.com` | 6868  | Quality profiles / custom formats        |
+| Service   | URL                                 | Port  | Purpose                                    |
+| --------- | ----------------------------------- | ----- | ------------------------------------------ |
+| SABnzbd   | `https://sabnzbd.hl.mathielo.com`   | 8080  | Usenet downloader                          |
+| qBt SE    | `https://qbt-se.hl.mathielo.com`    | 8080  | Torrent downloader                         |
+| qBt BR    | `https://qbt-br.hl.mathielo.com`    | 8080  | Torrent downloader                         |
+| qui       | `https://qui.hl.mathielo.com`       | 7476  | Multi-qBt instance manager UI + cross-seed |
+| Prowlarr  | `https://prowlarr.hl.mathielo.com`  | 9696  | Indexer manager/proxy                      |
+| Radarr    | `https://radarr.hl.mathielo.com`    | 7878  | Movie automation                           |
+| Sonarr    | `https://sonarr.hl.mathielo.com`    | 8989  | Shows automation                           |
+| Bazarr    | `https://bazarr.hl.mathielo.com`    | 6767  | Subtitle automation                        |
+| Plex      | `https://plex.hl.mathielo.com`      | 32400 | Media server / playback                    |
+| Emby      | `https://emby.hl.mathielo.com`      | 8096  | Media server / playback                    |
+| Autobrr   | `https://autobrr.hl.mathielo.com`   | 7474  | Filtered release automation                |
+| Pulsarr   | `https://pulsarr.hl.mathielo.com`   | 3003  | Automated media requests (Sonarr/Radarr)   |
+| Prismarr  | `https://prismarr.hl.mathielo.com`  | 7070  | Media request portal                       |
+| Profilarr | `https://profilarr.hl.mathielo.com` | 6868  | Quality profiles / custom formats          |
 
 > Searcharr (Telegram request bot) also runs in `media` but has no web UI.
 
@@ -78,28 +79,13 @@ All services share the `media-data` PVC (NFS-backed from UNAS-4, mounted at `/me
 ```
 /media/                          ← NFS mount from UNAS-4 (52 TB)
 ├── dl/                          ← download clients write here
-│   ├── books/                   ← qBittorrent "books" category
-│   ├── comics/                  ← qBittorrent "comics" category
-│   ├── courses/                 ← qBittorrent "courses" category
-│   ├── freeleech/               ← qBittorrent "freeleech" category
-│   ├── games/                   ← qBittorrent "games" category
-│   ├── magazines/               ← qBittorrent "magazines" category
 │   ├── movies/                  ← qBittorrent "movies" category → Radarr imports from here
 │   ├── shows/                   ← qBittorrent "shows" category → Sonarr imports from here
-│   └── _torrents/               ← qBittorrent exports .torrent files here (TorrentExportDirectory)
+│   └── usenet/                  ← SABnzbd download root
 └── lib/                         ← ARR apps hardlink here; media servers read here
-    ├── books/
     ├── movies/                  ← Radarr root folder, Plex/Emby movies library
-    ├── music/
     └── shows/                   ← Sonarr root folder, Plex/Emby shows library
 ```
-
-In-progress downloads land on **local SSDs** (not NFS) for speed, then move to `dl/` when complete:
-
-| Client      | In-progress path | Storage                                                       |
-| ----------- | ---------------- | ------------------------------------------------------------- |
-| qBittorrent | `/incomplete`    | hostPath `/mnt/ssd/local/qbt-incomplete` on `k3s-node-01`     |
-| SABnzbd     | `/incomplete`    | hostPath `/mnt/ssd/local/sabnzbd-incomplete` on `k3s-node-01` |
 
 ### qBittorrent Categories → ARR Correlation
 
@@ -110,20 +96,20 @@ qBittorrent categories define the per-category save path (`dl/<category>`). ARR 
 | `movies`             | `/media/dl/movies` | Radarr      | `movies`                        |
 | `shows`              | `/media/dl/shows`  | Sonarr      | `shows`                         |
 
-Categories are defined in qBittorrent's **Settings → Downloads → Default Save Path** (for the default) and **Tools → Options → Downloads → Default Torrent Management Mode** (for AutoTMM). Per-category save paths are set in the **Tags & Categories** section of the web UI.
+Categories and per-instance preferences are managed declaratively via scripts in [scripts/qbt/](../scripts/qbt/): `apply-categories.sh <instance>` pushes [`categories.yaml`](../scripts/qbt/categories.yaml) (category → save path) and `apply-prefs.sh <instance>` pushes [`prefs.yaml`](../scripts/qbt/prefs.yaml), both through the WebUI API.
 
-> :bulb: Categories are stored in `/config/config/categories.json` on the Longhorn config PVC. They survive pod restarts and are **not** managed by the declarative ConfigMap (which only covers `qBittorrent.conf`).
+> :bulb: qBittorrent persists categories to `/config/config/categories.json` on the Longhorn config PVC, so they survive pod restarts; the scripts are the source of truth and re-apply them to a fresh instance.
 
 ## VPN Kill-Switch (Gluetun)
 
 SABnzbd and qBittorrent both run behind a Gluetun VPN sidecar for privacy:
 
 - **VPN provider:** ProtonVPN (WireGuard)
-- **Server location:** Sweden
+- **Server locations:** Sweden (`qbt-se`, SABnzbd) and Brazil (`qbt-br`) — one WireGuard profile per exit
 - **Kill-switch:** If the VPN tunnel drops, all download traffic is blocked (Gluetun firewall)
 - **Bypass subnets:** `10.42.0.0/16` and `10.43.0.0/16` (k3s pod/service CIDRs) so in-cluster communication still works
 
-Credentials (`WIREGUARD_PRIVATE_KEY`, `WIREGUARD_ADDRESSES`) are encrypted in each service's `values.sops.yaml`.
+Credentials (`WIREGUARD_PRIVATE_KEY`, `WIREGUARD_ADDRESSES`) are encrypted per instance in `values-<instance>.sops.yaml`.
 
 ## Setting Up Services
 
@@ -161,35 +147,9 @@ Complete the setup wizard, then configure:
 
 Note the **API key** from Config → General → Security.
 
-### Step 2: qBittorrent
+### Step 2: qui + qBittorrent instances
 
-qBittorrent's `qBittorrent.conf` is managed declaratively (see `files/qBittorrent.conf` in the chart). The categories below must be configured in the web UI; they are stored on the config PVC and survive pod restarts.
-
-**Tools → Options → Downloads → Saving Management**
-
-| Setting                | Path                   |
-| ---------------------- | ---------------------- |
-| Keep incomplete in     | `/incomplete`          |
-| Default save path      | `/media/dl`            |
-| Copy .torrent files to | `/media/_dl/_torrents` |
-
-**Tags & Categories** — create each category with its save path:
-
-| Category    | Save path             |
-| ----------- | --------------------- |
-| `books`     | `/media/dl/books`     |
-| `comics`    | `/media/dl/comics`    |
-| `courses`   | `/media/dl/courses`   |
-| `freeleech` | `/media/dl/freeleech` |
-| `games`     | `/media/dl/games`     |
-| `magazines` | `/media/dl/magazines` |
-| `movies`    | `/media/dl/movies`    |
-| `shows`     | `/media/dl/shows`     |
-
-**Tools → Options → Web UI:**
-
-- Enable "Bypass authentication for clients on localhost" — required so Gluetun's port-forwarding hook can call the API without credentials.
-- The WebUI subnet whitelist (`10.42.0.0/16`) and password are set declaratively in the ConfigMap.
+Instances config and categories are managed via scripts in [scripts/qbt/](../scripts/qbt/).
 
 Note the **WebUI credentials** — password is managed in `values.sops.yaml`.
 
@@ -218,7 +178,7 @@ Set up authentication, then:
 1. **Settings → Media Management** — root folder: `/media/lib/movies`, enable Rename Movies
 2. **Settings → Download Clients** — add both clients:
    - SABnzbd: host `sabnzbd.media.svc.cluster.local`, port `8080`, category `movies`
-   - qBittorrent: host `qbittorrent.media.svc.cluster.local`, port `8080`, category `movies`
+   - qBittorrent: host `qbt-{br,se}.media.svc.cluster.local`, port `8080`, category `movies`
 3. **Settings → Profiles** — configure quality profiles
 
 Note the **API key** from Settings → General.
@@ -230,7 +190,7 @@ Set up authentication, then:
 1. **Settings → Media Management** — root folder: `/media/lib/shows`, enable Rename Episodes
 2. **Settings → Download Clients** — add both clients:
    - SABnzbd: host `sabnzbd.media.svc.cluster.local`, port `8080`, category `shows`
-   - qBittorrent: host `qbittorrent.media.svc.cluster.local`, port `8080`, category `shows`
+   - qBittorrent: host `qbt-{br,se}.media.svc.cluster.local`, port `8080`, category `shows`
 3. **Settings → Profiles** — configure quality profiles
 
 Note the **API key** from Settings → General.

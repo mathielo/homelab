@@ -1,6 +1,6 @@
 apiVersion: v2
 name: qui
-description: qBittorrent web UI with multi-instance support
+description: qBittorrent web UI with multi-instance and cross-seed support
 version: 1.0.0
 dependencies:
   - name: app-template

@@ -2,7 +2,7 @@
 # Per-instance overrides (VPN exit country, ingress host, hostPath, PVC names)
 # live in values-<instance>.yaml; WireGuard creds in values-<instance>.sops.yaml.
 #
-# Network architecture (identical to legacy k3s/apps/media/qbittorrent/):
+# Network architecture:
 #   - Gluetun runs as a native k8s sidecar (initContainer with
 #     restartPolicy: Always). Guarantees Gluetun is started and ready
 #     BEFORE qBittorrent starts, and torn down AFTER qBittorrent stops —

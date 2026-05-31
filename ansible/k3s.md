@@ -24,7 +24,7 @@ MetalLB VIP: `10.10.50.3` (ingress, DNS wildcard target)
 | ----------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------- |
 | `kube-extra`      | Cluster infrastructure (monitoring, ingress)     | nginx-ingress, Prometheus, Grafana, Loki, Promtail                                            |
 | `metallb-system`  | Load balancer                                    | MetalLB (L2 mode, VIP 10.10.50.3)                                                             |
-| `media`           | Media stack (ARR + streaming, managed by ArgoCD) | Sonarr, Radarr, Prowlarr, Bazarr, SABnzbd, qBittorrent, Prismarr, Pulsarr, Searcharr, AutoBrr |
+| `media`           | Media stack (ARR + streaming, managed by ArgoCD) | Sonarr, Radarr, Prowlarr, Bazarr, SABnzbd, qBt-{se,br}, Prismarr, Pulsarr, Searcharr, AutoBrr |
 | `dashboard`       | User-facing dashboards and portals               | Homepage, Uptime Kuma                                                                         |
 | `argocd`          | GitOps controller                                | ArgoCD                                                                                        |
 | `cert-manager`    | TLS certificate management                       | cert-manager                                                                                  |

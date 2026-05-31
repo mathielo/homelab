@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Create categories from scripts/qbt/categories.yaml on a qBittorrent instance.
-# Idempotent: createCategory replaces if existing.
+# Idempotent: createCategory 409s if the category exists, so we fall back to
+# editCategory to update its save path (categories.yaml is the source of truth).
 # Requires: yq (mikefarah, Go) — installed via scripts/install.sh
 #
 # Usage: scripts/qbt/apply-categories.sh <instance>
@@ -20,10 +21,17 @@ esac
 for inst in "${INSTANCES[@]}"; do
     yq -o=json '.' "$CATS_FILE" | jq -r 'to_entries[] | "\(.key)\t\(.value.save_path)"' \
     | while IFS=$'\t' read -r cat save_path; do
-        kubectl -n media exec "deploy/${inst}" -c main -- \
+        if kubectl -n media exec "deploy/${inst}" -c main -- \
             wget -qO- --post-data="category=${cat}&savePath=${save_path}" \
-            http://localhost:8080/api/v2/torrents/createCategory
-        echo "  created ${cat} -> ${save_path}"
+            http://localhost:8080/api/v2/torrents/createCategory; then
+            echo "  created ${cat} -> ${save_path}"
+        elif kubectl -n media exec "deploy/${inst}" -c main -- \
+            wget -qO- --post-data="category=${cat}&savePath=${save_path}" \
+            http://localhost:8080/api/v2/torrents/editCategory; then
+            echo "  updated ${cat} -> ${save_path}"
+        else
+            echo "  FAILED ${cat} -> ${save_path}" >&2
+        fi
     done
     echo "applied categories to ${inst}"
 done
