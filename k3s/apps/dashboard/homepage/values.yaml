@@ -96,8 +96,8 @@ app-template:
           color: slate
           background:
             image: https://r2.m6o.dev/bg/neon-lasers-4k.jpg
-            opacity: 12
-            blur: 2xl
+            opacity: 30
+            blur: xl
           headerStyle: boxedWidgets
           cardBlur: md
           pwa:
@@ -108,24 +108,24 @@ app-template:
           layout:
             Quick links:
               iconsOnly: true
-              initiallyCollapsed: true
+              initiallyCollapsed: false
               style: row
-              columns: 6
+              columns: 5
+            Downloads:
+              style: row
+              columns: 2
+              useEqualHeights: true
             Media:
               style: row
-              columns: 4
+              columns: 3
               useEqualHeights: true
-            Network & VPN:
+            Network & Platform:
               style: row
               columns: 3
               useEqualHeights: true
             Hosts:
               style: row
-              columns: 4
-              useEqualHeights: true
-            Platform:
-              style: row
-              columns: 3
+              columns: 2
               useEqualHeights: true
 
         kubernetes.yaml: |
@@ -140,7 +140,7 @@ app-template:
                 showLabel: true
                 label: k3s cluster
               nodes:
-                show: false
+                show: true
           - openmeteo:
               label: Stockholm
               latitude: 59.3293
@@ -157,18 +157,18 @@ app-template:
 
         services.yaml: |
           - Quick links:
-              - Pulsarr:
-                  icon: pulsarr.png
-                  href: https://pulsarr.hl.mathielo.com
-                  siteMonitor: http://pulsarr.media.svc.cluster.local:3003
-              - Prismarr:
-                  icon: mdi-movie-search
-                  href: https://prismarr.hl.mathielo.com
-                  siteMonitor: http://prismarr.media.svc.cluster.local:7070
               - qui:
                   icon: qui.png
                   href: https://qui.hl.mathielo.com
                   siteMonitor: http://qui.media.svc.cluster.local:7476
+              - Pulsarr:
+                  icon: pulsarr.png
+                  href: https://pulsarr.hl.mathielo.com
+                  siteMonitor: http://pulsarr.media.svc.cluster.local:3003/health
+              - Prismarr:
+                  icon: mdi-movie-search
+                  href: https://prismarr.hl.mathielo.com
+                  siteMonitor: http://prismarr.media.svc.cluster.local:7070
               - Longhorn:
                   icon: longhorn.png
                   href: https://longhorn.hl.mathielo.com
@@ -178,23 +178,47 @@ app-template:
                   href: https://kiosk.hl.mathielo.com
                   siteMonitor: http://kiosk.dashboard.svc.cluster.local:8080/healthz
 
+          - Downloads:
+              - Autobrr:
+                  href: https://autobrr.hl.mathielo.com
+                  description: Release automation
+                  icon: autobrr.png
+                  widget:
+                    type: autobrr
+                    url: http://autobrr.media.svc.cluster.local:7474
+                    key: "{{ "{{HOMEPAGE_VAR_AUTOBRR_KEY}}" }}"
+              - qBt SE:
+                  href: https://qbt-se.hl.mathielo.com
+                  description: Torrents · SE exit
+                  icon: qbittorrent.png
+                  widget:
+                    type: qbittorrent
+                    url: http://qbt-se.media.svc.cluster.local:8080
+              - qBt BR:
+                  href: https://qbt-br.hl.mathielo.com
+                  description: Torrents · BR exit
+                  icon: qbittorrent.png
+                  widget:
+                    type: qbittorrent
+                    url: http://qbt-br.media.svc.cluster.local:8080
+              - SABnzbd:
+                  href: https://sabnzbd.hl.mathielo.com
+                  description: Usenet downloader
+                  icon: sabnzbd.png
+                  widget:
+                    type: sabnzbd
+                    url: http://sabnzbd.media.svc.cluster.local:8080
+                    key: "{{ "{{HOMEPAGE_VAR_SABNZBD_KEY}}" }}"
+
           - Media:
-              - Plex:
-                  href: https://plex.hl.mathielo.com
-                  description: Media server
-                  icon: plex.png
+              - Prowlarr:
+                  href: https://prowlarr.hl.mathielo.com
+                  description: Indexer manager
+                  icon: prowlarr.png
                   widget:
-                    type: plex
-                    url: http://plex.media.svc.cluster.local:32400
-                    key: "{{ "{{HOMEPAGE_VAR_PLEX_TOKEN}}" }}"
-              - Emby:
-                  href: https://emby.hl.mathielo.com
-                  description: Media server
-                  icon: emby.png
-                  widget:
-                    type: emby
-                    url: http://emby.media.svc.cluster.local:8096
-                    key: "{{ "{{HOMEPAGE_VAR_EMBY_KEY}}" }}"
+                    type: prowlarr
+                    url: http://prowlarr.media.svc.cluster.local:9696
+                    key: "{{ "{{HOMEPAGE_VAR_PROWLARR_KEY}}" }}"
               - Sonarr:
                   href: https://sonarr.hl.mathielo.com
                   description: TV automation
@@ -211,31 +235,6 @@ app-template:
                     type: radarr
                     url: http://radarr.media.svc.cluster.local:7878
                     key: "{{ "{{HOMEPAGE_VAR_RADARR_KEY}}" }}"
-              - SABnzbd:
-                  href: https://sabnzbd.hl.mathielo.com
-                  description: Usenet downloader
-                  icon: sabnzbd.png
-                  widget:
-                    type: sabnzbd
-                    url: http://sabnzbd.media.svc.cluster.local:8080
-                    key: "{{ "{{HOMEPAGE_VAR_SABNZBD_KEY}}" }}"
-              - qBittorrent:
-                  href: https://qbt-se.hl.mathielo.com
-                  description: Torrents · SE exit
-                  icon: qbittorrent.png
-                  widget:
-                    type: qbittorrent
-                    url: http://qbt-se.media.svc.cluster.local:8080
-                    username: "{{ "{{HOMEPAGE_VAR_QBITTORRENT_USERNAME}}" }}"
-                    password: "{{ "{{HOMEPAGE_VAR_QBITTORRENT_PASSWORD}}" }}"
-              - Prowlarr:
-                  href: https://prowlarr.hl.mathielo.com
-                  description: Indexer manager
-                  icon: prowlarr.png
-                  widget:
-                    type: prowlarr
-                    url: http://prowlarr.media.svc.cluster.local:9696
-                    key: "{{ "{{HOMEPAGE_VAR_PROWLARR_KEY}}" }}"
               - Bazarr:
                   href: https://bazarr.hl.mathielo.com
                   description: Subtitles
@@ -248,16 +247,16 @@ app-template:
                   href: https://profilarr.hl.mathielo.com
                   description: Quality profiles & custom formats
                   icon: profilarr.png
-              - Autobrr:
-                  href: https://autobrr.hl.mathielo.com
-                  description: Release automation
-                  icon: autobrr.png
+              - Plex:
+                  href: https://plex.hl.mathielo.com
+                  description: Media server
+                  icon: plex.png
                   widget:
-                    type: autobrr
-                    url: http://autobrr.media.svc.cluster.local:7474
-                    key: "{{ "{{HOMEPAGE_VAR_AUTOBRR_KEY}}" }}"
+                    type: plex
+                    url: http://plex.media.svc.cluster.local:32400
+                    key: "{{ "{{HOMEPAGE_VAR_PLEX_TOKEN}}" }}"
 
-          - Network & VPN:
+          - Network & Platform:
               - Pi-hole:
                   href: http://10.10.53.53/admin
                   description: DNS ad-blocking
@@ -279,7 +278,7 @@ app-template:
               - Gluetun:
                   href: https://qbt-se.hl.mathielo.com
                   description: Download VPN · kill-switch
-                  icon: gluetun.png
+                  icon: proton-vpn.png
                   # qbt-se's tunnel (the privacy-critical one). Its
                   # Service already exposes gluetun's control server on :8000;
                   # auth defaults to none for in-cluster reads (public IP is
@@ -288,58 +287,6 @@ app-template:
                   widget:
                     type: gluetun
                     url: http://qbt-se.media.svc.cluster.local:8000
-
-          - Hosts:
-              - k3s-server:
-                  icon: k3s.png
-                  href: http://10.10.50.10:61208
-                  widgets:
-                    - type: glances
-                      url: http://10.10.50.10:61208
-                      version: 4
-                      metric: info
-                    - type: glances
-                      url: http://10.10.50.10:61208
-                      version: 4
-                      metric: fs:/
-              - k3s-node-01:
-                  icon: k3s.png
-                  href: http://10.10.50.11:61208
-                  widgets:
-                    - type: glances
-                      url: http://10.10.50.11:61208
-                      version: 4
-                      metric: info
-                    - type: glances
-                      url: http://10.10.50.11:61208
-                      version: 4
-                      metric: fs:/
-              - k3s-node-02:
-                  icon: k3s.png
-                  href: http://10.10.50.12:61208
-                  widgets:
-                    - type: glances
-                      url: http://10.10.50.12:61208
-                      version: 4
-                      metric: info
-                    - type: glances
-                      url: http://10.10.50.12:61208
-                      version: 4
-                      metric: fs:/
-              - pi-hole:
-                  icon: pi-hole.png
-                  href: http://10.10.53.53:61208
-                  widgets:
-                    - type: glances
-                      url: http://10.10.53.53:61208
-                      version: 4
-                      metric: info
-                    - type: glances
-                      url: http://10.10.53.53:61208
-                      version: 4
-                      metric: fs:/
-
-          - Platform:
               - ArgoCD:
                   href: https://argocd.hl.mathielo.com
                   description: GitOps deployments
@@ -370,8 +317,65 @@ app-template:
                     slug: homelab
                     key: "{{ "{{HOMEPAGE_VAR_UPTIMEKUMA_KEY}}" }}"
 
+          - Hosts:
+              - k3s-server:
+                  icon: ubuntu.png
+                  href: http://10.10.50.10:61208
+                  widgets:
+                    - type: glances
+                      url: http://10.10.50.10:61208
+                      version: 4
+                      metric: info
+                    - type: glances
+                      url: http://10.10.50.10:61208
+                      version: 4
+                      metric: fs:/
+              - pi-hole:
+                  icon: pi-hole.png
+                  href: http://10.10.53.53:61208
+                  widgets:
+                    - type: glances
+                      url: http://10.10.53.53:61208
+                      version: 4
+                      metric: info
+                    - type: glances
+                      url: http://10.10.53.53:61208
+                      version: 4
+                      metric: fs:/
+              - k3s-node-01:
+                  icon: ubuntu.png
+                  href: http://10.10.50.11:61208
+                  widgets:
+                    - type: glances
+                      url: http://10.10.50.11:61208
+                      version: 4
+                      metric: info
+                    - type: glances
+                      url: http://10.10.50.11:61208
+                      version: 4
+                      metric: fs:/
+              - k3s-node-02:
+                  icon: ubuntu.png
+                  href: http://10.10.50.12:61208
+                  widgets:
+                    - type: glances
+                      url: http://10.10.50.12:61208
+                      version: 4
+                      metric: info
+                    - type: glances
+                      url: http://10.10.50.12:61208
+                      version: 4
+                      metric: fs:/
+
         bookmarks.yaml: |
-          - Developer:
+          - Homelab:
               - GitHub:
-                  - abbr: GH
+                  - icon: github.png
                     href: https://github.com/mathielo/homelab
+              - CPU benchmarks:
+                  - abbr: CPU
+                    href: https://www.cpubenchmark.net/compare/5889vs3565vs3301/Intel-i5-14500T-vs-AMD-Ryzen-5-PRO-3400GE-vs-AMD-Ryzen-3-2200GE
+          - Resources:
+               - Servers@Home:
+                  - abbr: S@H
+                    href: https://wiki.serversatho.me/
