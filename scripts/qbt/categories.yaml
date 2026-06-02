@@ -7,7 +7,7 @@
 # NVMe
 free: { save_path: /local/free } # Local (transient, often deleted)
 # DAS
-r0: { save_path: /mnt/r0 } # DAS-backed scratch on k3s-node-02
+r0: { save_path: /r0 } # DAS-backed scratch on k3s-node-02
 
 ### Remote
 # NAS

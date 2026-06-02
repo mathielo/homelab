@@ -9,6 +9,9 @@ temp_path_enabled: true # Use a separate path for incomplete torrents
 preallocate_all: false # Pre-allocate disk space for all files
 incomplete_files_ext: false # Append .!qB extension to incomplete files
 auto_tmm_enabled: true # Default to Automatic Torrent Management
+torrent_changed_tmm_enabled: true # Relocate torrent when its category changes
+save_path_changed_tmm_enabled: true # Relocate torrents when default save path changes
+category_changed_tmm_enabled: true # Relocate torrents when category save path changes
 delete_torrent_content_files: true # When removing a torrent, default to "delete content"
 
 # === Disk I/O & Memory ===
@@ -33,8 +36,8 @@ scheduler_enabled: false # Time-of-day alt-speed scheduler
 # === BitTorrent / Queueing ===
 queueing_enabled: true # Torrent queueing
 max_active_downloads: 5 # Max simultaneously downloading torrents
-max_active_uploads: 50 # Max simultaneously uploading (seeding) torrents
-max_active_torrents: 100 # Max active torrents overall
+max_active_uploads: -1 # Max simultaneously uploading (seeding) torrents (-1 = unlimited)
+max_active_torrents: -1 # Max active torrents overall (-1 = unlimited, downloads still capped by max_active_downloads)
 max_connec: 200 # Global maximum connections
 max_connec_per_torrent: 40 # Per-torrent maximum connections
 max_uploads: 50 # Global upload slots
