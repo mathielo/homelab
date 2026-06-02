@@ -1,314 +1,180 @@
 # Longhorn Distributed Block Storage
 
-## Why Longhorn
+Longhorn stores each app config/data volume as 2 replicas across the three k3s nodes, so pods move freely between nodes without data loss. It is the sole default StorageClass. The 50 TB `media-data` NFS PVC (UNAS-4) is **not** on Longhorn — Longhorn is config volumes only.
 
-Longhorn stores each volume as two replicas spread across the three k3s nodes, so pods can move freely between `k3s-server`, `k3s-node-01`, and `k3s-node-02` without data loss or manual intervention.
+## What stays pinned (not on Longhorn)
 
-All pods have their config + data set in Longhorn PVCs. This also enables for HA should services require more than one replica.
+These apps keep their config on Longhorn but use a node-local `hostPath` for hot/scratch data:
 
-### What stays pinned (not on Longhorn)
-
-| App         | Why pinned                                                                      | Storage                                                                                    |
-| ----------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| **qbt-br**  | Pinned to `k3s-node-02`; uses local NVMe for incomplete + stay-local categories | config: `qbt-br-config-lh` (Longhorn); local: `hostPath /mnt/nvme/local/qbt-br` → `/local` |
-| **qbt-se**  | Pinned to `k3s-node-02`; uses local NVMe for incomplete + stay-local categories | config: `qbt-se-config-lh` (Longhorn); local: `hostPath /mnt/nvme/local/qbt-se` → `/local` |
-| **SABnzbd** | Pinned to `k3s-node-01`; needs local SSD for incomplete downloads               | config: Longhorn; incomplete: `hostPath /mnt/ssd/local/sabnzbd-incomplete`                 |
-| **Plex**    | Pinned to `k3s-server` for AMD GPU transcoding                                  | config: `plex-config-lh` (Longhorn); transcode: `hostPath /mnt/ssd/local/plex`             |
-
-The `media-data` NFS PVC (UNAS-4) is untouched — Longhorn is only for app config volumes.
+| App         | Pinned to     | Local path                                       |
+| ----------- | ------------- | ------------------------------------------------ |
+| **qbt-br**  | `k3s-node-02` | `/mnt/nvme/local/qbt-br` → `/local`              |
+| **qbt-se**  | `k3s-node-02` | `/mnt/nvme/local/qbt-se` → `/local`              |
+| **SABnzbd** | `k3s-node-01` | `/mnt/ssd/local/sabnzbd-incomplete` (incomplete) |
+| **Plex**    | `k3s-server`  | `/mnt/ssd/local/plex` (transcode; AMD GPU)       |
 
 ## Disk layout
 
-Longhorn data lives on each node's NVMe (`/mnt/nvme/longhorn`). A second single-partition local hostPath holds node-specific workloads — the SATA SSD on `k3s-server`/`k3s-node-01`, a dedicated NVMe partition on `k3s-node-02` (no SATA disk).
+Longhorn data lives on each node's NVMe at `/mnt/nvme/longhorn`. A separate local partition holds the pinned workloads above.
 
-| Node        | Disk | Mount                | Purpose                                    |
-| ----------- | ---- | -------------------- | ------------------------------------------ |
-| k3s-server  | NVMe | `/mnt/nvme/longhorn` | Longhorn data path (~195 GiB)              |
-| k3s-server  | SATA | `/mnt/ssd/local`     | Plex transcode hostPath (~931 GiB)         |
-| k3s-node-01 | NVMe | `/mnt/nvme/longhorn` | Longhorn data path (~195 GiB)              |
-| k3s-node-01 | SATA | `/mnt/ssd/local`     | SABnzbd incomplete downloads (~931 GiB)    |
-| k3s-node-02 | NVMe | `/mnt/nvme/longhorn` | Longhorn data path (~195 GiB)              |
-| k3s-node-02 | NVMe | `/mnt/nvme/local`    | qBt clients' incomplete/staging (~1.6 TiB) |
-| k3s-node-02 | SATA | `/mnt/r0`            | 2x 4Tb 3.5" HDD in RAID 0 in DAS           |
+| Node        | Mount                | Purpose                           |
+| ----------- | -------------------- | --------------------------------- |
+| k3s-server  | `/mnt/nvme/longhorn` | Longhorn data (~195 GiB)          |
+| k3s-server  | `/mnt/ssd/local`     | Plex transcode (~931 GiB)         |
+| k3s-node-01 | `/mnt/nvme/longhorn` | Longhorn data (~195 GiB)          |
+| k3s-node-01 | `/mnt/ssd/local`     | SABnzbd incomplete (~931 GiB)     |
+| k3s-node-02 | `/mnt/nvme/longhorn` | Longhorn data (~195 GiB)          |
+| k3s-node-02 | `/mnt/nvme/local`    | qBt incomplete/staging (~1.6 TiB) |
+| k3s-node-02 | `/mnt/r0`            | 2×4 TB HDD RAID 0 (DAS)           |
 
-See [Hardware](hardware.md) for the full NVMe partition table.
+Partitions are set at OS install. See [Hardware](hardware.md) for the full table.
 
-## Disk preparation
-
-The NVMe partition layout is set during OS install (Ubuntu Server, manual partitioning). The SATA SSD is wiped and formatted as a single partition during the same install window.
-
-After first boot on each node, create the app-owned hostPath directories:
-
-### k3s-server
+## Install
 
 ```bash
-df -h /mnt/nvme/longhorn /mnt/ssd/local   # verify mounts came up
-
-sudo mkdir -p /mnt/ssd/local/plex
-sudo chown 1000:1000 /mnt/ssd/local/plex
+ansible-playbook ansible/k3s/install-k3s.yaml   # open-iscsi + iscsid + rpc-statd (prereqs)
+ansible-playbook ansible/k3s/longhorn.yaml      # Helm install, patch BackupTarget, set default SC
 ```
 
-### k3s-node-01
+The second playbook patches the `default` BackupTarget CR with the NFS URL and drops the `is-default-class` annotation from `local-path`. Verify:
 
 ```bash
-df -h /mnt/nvme/longhorn /mnt/ssd/local   # verify mounts came up
-
-sudo mkdir -p /mnt/ssd/local/sabnzbd-incomplete
-sudo chown 1000:1000 /mnt/ssd/local/sabnzbd-incomplete
+kubectl -n longhorn-system get nodes.longhorn.io   # all READY=True, SCHEDULABLE=True
+kubectl get sc                                     # longhorn (default), local-path (not)
 ```
 
-### k3s-node-02
+UI: `https://longhorn.hl.mathielo.com`.
+
+## hostPath prep (after first boot, per node)
+
+`hostPathType: DirectoryOrCreate` auto-creates dirs as `root:root`, which the `1000:1000` containers can't write to — the `chown` is mandatory:
 
 ```bash
-df -h /mnt/nvme/longhorn /mnt/nvme/local   # verify mounts came up
-
-sudo mkdir -p /mnt/nvme/local/qbt-br /mnt/nvme/local/qbt-se
-sudo chown 1000:1000 /mnt/nvme/local/qbt-br /mnt/nvme/local/qbt-se
+# k3s-server
+sudo mkdir -p /mnt/ssd/local/plex && sudo chown 1000:1000 /mnt/ssd/local/plex
+# k3s-node-01
+sudo mkdir -p /mnt/ssd/local/sabnzbd-incomplete && sudo chown 1000:1000 /mnt/ssd/local/sabnzbd-incomplete
+# k3s-node-02
+sudo mkdir -p /mnt/nvme/local/qbt-br /mnt/nvme/local/qbt-se && sudo chown 1000:1000 /mnt/nvme/local/qbt-*
 ```
-
-`hostPathType: DirectoryOrCreate` auto-creates the dirs as `root:root`, which the qBt container (running as `1000:1000` via `PUID/PGID`) can't write to — the `chown` is mandatory.
-
-# Longhorn installation and setup
-
-## Prerequisites (Ansible)
-
-```bash
-ansible/k3s/install-k3s.yaml
-```
-
-This installs `open-iscsi` and enables `iscsid` on all nodes. These are required for Longhorn block storage and NFSv3 locking respectively.
-
-## Helm install
-
-```bash
-ansible-playbook ansible/k3s/longhorn.yaml
-```
-
-This installs Longhorn via Helm (`longhorn/longhorn`, pinned version), patches the `default` BackupTarget CR with the NFS backup URL, and removes the `is-default-class` annotation from `local-path` so Longhorn becomes the sole default StorageClass.
-
-## Verify
-
-```bash
-# All three nodes: READY=True, SCHEDULABLE=True
-kubectl -n longhorn-system get nodes.longhorn.io
-
-# All Running: longhorn-manager (one per node), longhorn-driver-deployer, csi-*, engine-image-*, longhorn-ui (x2)
-kubectl -n longhorn-system get pods
-
-# longhorn (default), local-path (no default annotation)
-kubectl get sc
-```
-
-Open the Longhorn UI at `https://longhorn.hl.mathielo.com` to inspect disk registration and volume health.
 
 # Backups
 
-## Backup target
-
-Longhorn backs up to the dedicated `k3s` NFS share on UNAS-4:
+Target: the dedicated `k3s` NFS share on UNAS-4 (NFSv3 forced; UNAS only exports v3):
 
 ```
 nfs://10.10.1.4:/var/nfs/shared/k3s?nfsOptions=vers=3,actimeo=1,soft,timeo=300,retry=2
 ```
 
-This is configured in `ansible/k3s/files/longhorn.values.yaml` and patched onto the `default` BackupTarget CR by the Ansible playbook. Longhorn creates a `backupstore/` directory tree inside the share root.
+Set in `ansible/k3s/files/longhorn.values.yaml`, patched onto the `default` BackupTarget CR by the Ansible playbook.
 
-> :bulb: The `nfsOptions` force NFSv3 (UNAS exports NFSv3) and preserve Longhorn's recommended mount options for backup reliability.
+## Schedule & retention
 
-## Creating a backup
+Recurring jobs are GitOps in `k3s/apps/longhorn/recurring-jobs.yaml` (Argo app `longhorn-config`). Every volume auto-enrolls via the `default` group label. Retention is tiered (GFS) so corruption found late is still recoverable:
 
-A daily backup job is defined as `RecurringJob` CRs declared in `k3s/apps/media/_infra/`, which is managed by ArgoCD.
+| Job              | Task     | Cron          | Retain | Window    |
+| ---------------- | -------- | ------------- | ------ | --------- |
+| `snapshot-6h`    | snapshot | `0 */6 * * *` | 8      | ~2 days   |
+| `daily-backup`   | backup   | `15 0 * * *`  | 14     | 2 weeks   |
+| `weekly-backup`  | backup   | `30 0 * * 0`  | 8      | ~2 months |
+| `monthly-backup` | backup   | `45 0 1 * *`  | 6      | 6 months  |
 
-**Via the UI** (`https://longhorn.hl.mathielo.com`):
+Each retained backup is an independent restore point — new ones don't overwrite old ones; the oldest in each tier rolls off. Snapshots are on-cluster and fast but live on the volume's own replicas, so they cover logical mistakes, **not** disk loss.
 
-1. Go to **Volumes** — find the volume (named after the PVC, e.g. `pvc-b49ada02-...`)
-2. Click the volume → **Create Backup** → confirm
-3. The backup appears under **Backup** in the left nav once complete
+> Block-level backups copy whatever is on disk, including corruption. When recovering from corruption, restore a tier from **before** the incident and verify before trusting it (see below).
 
-**Via recurring jobs** (recommended for automation):
-
-In the Longhorn UI: **Recurring Jobs** → **Create** — set `type=backup`, `cron` schedule (e.g. `0 2 * * *` for 2 AM daily), `retain` count, and attach it to the volumes you want covered.
-
-## Viewing backups
+## Inspecting backups
 
 ```bash
-# List all backup volumes (one entry per source Longhorn volume that has backups)
 kubectl -n longhorn-system get backupvolumes
-
-# List individual backups for a specific volume
-kubectl -n longhorn-system get backups -l longhornvolume=<pvc-volume-name>
+kubectl -n longhorn-system get backups.longhorn.io -l backup-volume=<pv-name>
+kubectl -n longhorn-system get backup <name> -o jsonpath='{.status.url}'   # restore URL
 ```
 
-Or in the UI: **Backup** → select a volume to see its backup history with timestamps and sizes.
+Or UI → **Backup**.
 
-## Restoring from backup
+# Recovery
 
-**Restore to a new PVC** (safest — keeps the broken volume untouched):
+For the Argo suspend/scale and PV pre-bind mechanics, follow [`pvc-maintenance.md`](pvc-maintenance.md) — it owns the two-tier app suspend and the restore-into-original-PVC-name flow. The Longhorn-specific cases below build on it.
 
-1. UI → **Backup** → find the backup volume → select a backup point → **Restore Latest Backup**
-2. Give the restored volume a name (e.g. `radarr-config-restored`)
-3. Once the volume is `Ready`, create a PVC that binds to it, or use the restored volume directly
-4. Swap `existingClaim` in values.yaml to point at the restored PVC, commit, let ArgoCD sync
+## Restoring a volume from backup
 
-**Via kubectl:**
+`pvc-maintenance.md` → "Restoring a Longhorn-backed PVC from backup" covers the full flow: suspend Argo, restore the backup into a Longhorn `Volume` (`fromBackup: <url>`), pre-claim a PV to the original PVC name, re-enable Argo.
 
-```bash
-# Trigger restore from the latest backup of a given backup volume
-kubectl -n longhorn-system create -f - <<EOF
-apiVersion: longhorn.io/v1beta2
-kind: Volume
-metadata:
-  name: radarr-config-restored
-  namespace: longhorn-system
-spec:
-  fromBackup: "nfs://10.10.1.4:/var/nfs/shared/k3s?nfsOptions=...&backup=<backup-url>"
-  numberOfReplicas: 2
-  size: "2147483648"
-EOF
-```
+## Corrupted volume (data intact on disk, but damaged)
 
-The backup URL is shown in `kubectl get backup -n longhorn-system <backup-name> -o yaml` under `.status.url`.
+Symptoms: pod `CrashLoopBackOff` with app errors like `database disk image is malformed` / `file is corrupt`, **or** pod stuck `ContainerCreating` with `MountVolume.MountDevice failed ... fsck ... UNEXPECTED INCONSISTENCY; RUN fsck MANUALLY`.
 
-## Recovering an accidentally-deleted PVC
+1. **Suspend Argo + scale the workload to 0** (per `pvc-maintenance.md`) to release the volume.
 
-Because `reclaimPolicy: Delete`, deleting a PVC propagates: the PV and the Longhorn volume go with it. The recovery path uses the latest backup on UNAS-4 and pre-binds a freshly-restored volume back to the original PVC name (the one declared in `k3s/apps/media/_infra/longhorn-pvcs.yaml`), so ArgoCD's reconcile finishes the job.
-
-The PVC manifest is still in git, so step zero is "don't panic — Argo will recreate the PVC; it'll just be empty until we point it at restored data."
-
-1. **Pause Argo auto-sync for the affected app** (so it doesn't bind the empty PVC to a fresh, blank Longhorn volume before you can intervene). UI → app → App Details → disable auto-sync. Or:
+2. **If the filesystem won't mount** (kubelet `fsck` aborted), repair it manually. Attach the volume with no workload by adding a ticket to its VolumeAttachment, so you get a stable block device and no CSI mount loop:
 
    ```bash
-   kubectl -n argocd patch application <app> --type merge -p '{"spec":{"syncPolicy":{"automated":null}}}'
+   PV=<pvc-volume-name>; NODE=k3s-node-01
+   kubectl -n longhorn-system patch volumeattachments.longhorn.io $PV --type=merge \
+     -p "{\"spec\":{\"attachmentTickets\":{\"fsck\":{\"id\":\"fsck\",\"nodeID\":\"$NODE\",\"type\":\"longhorn-api\",\"parameters\":{\"disableFrontend\":\"false\"}}}}}"
+   # wait until state=attached, then on $NODE:
+   ssh $NODE 'sudo dd if=/dev/longhorn/'$PV' bs=4M status=none | gzip -1 > /var/tmp/'$PV'.img.gz'  # insurance
+   ssh $NODE 'sudo e2fsck -fy /dev/longhorn/'$PV''                                                  # repair
+   kubectl -n longhorn-system patch volumeattachments.longhorn.io $PV --type=json \
+     -p '[{"op":"remove","path":"/spec/attachmentTickets/fsck"}]'                                   # detach
    ```
 
-2. **Identify the backup.** UI → Backup → find the backup volume (named after the old PV, e.g. `pvc-b49ada02-...`). Note its size and the most recent backup point's URL (`kubectl -n longhorn-system get backup <name> -o jsonpath='{.status.url}'`).
+3. **Assess the data.** Mount the volume in a throwaway pod (`alpine`, `apk add sqlite`) over its PVC and check, e.g. `sqlite3 /config/<app>.db "PRAGMA integrity_check;"`. `fsck` fixes the filesystem, not file contents — an SQLite DB can still be malformed.
 
-3. **Restore the backup into a new Longhorn volume.** UI → Backup → select the backup → **Restore Latest Backup** → give it a distinctive name, e.g. `<pvc-name>-restored`, replicas `2`. Wait for the volume to become `Detached` (ready).
+4. **If the DB itself is unrecoverable** (`.recover` can't rebuild the tables): restore the newest **pre-incident** backup tier to a temp Longhorn volume, mount it alongside, verify (`integrity_check` = `ok` + sane row counts), checkpoint any WAL, then copy the clean DB into the live (repaired) PVC. Keep the app's existing `config.toml`/secrets.
 
-4. **Create a PV that wraps the restored volume and pre-binds to the original PVC name:**
+5. **Re-enable Argo.** The workload scales back and starts on good data.
 
-   ```yaml
-   apiVersion: v1
-   kind: PersistentVolume
-   metadata:
-     name: <pvc-name>-restored # any name; not user-visible after binding
-   spec:
-     capacity:
-       storage: <original-size> # e.g. 2Gi — match the PVC's request
-     accessModes: [ReadWriteOnce]
-     storageClassName: longhorn
-     persistentVolumeReclaimPolicy: Delete
-     csi:
-       driver: driver.longhorn.io
-       fsType: ext4
-       volumeHandle: <pvc-name>-restored # MUST equal the Longhorn volume name from step 3
-     claimRef:
-       apiVersion: v1
-       kind: PersistentVolumeClaim
-       namespace: media
-       name: <pvc-name> # original PVC name — what's in longhorn-pvcs.yaml
-   ```
+> `.arr` apps (Sonarr/Radarr/Prowlarr) keep their own nightly backups under `/config/Backups` and auto-restore on a corrupt-DB start, so they usually self-heal. autobrr and similar do **not** — they need the flow above.
 
-   Apply with `kubectl apply -f restored-pv.yaml`. The pre-set `claimRef` (without `uid`) reserves the PV for that namespaced name.
+## Accidentally-deleted PVC
 
-5. **Re-enable Argo auto-sync.** Argo recreates the PVC from `longhorn-pvcs.yaml`; the PVC controller sees the matching `claimRef` on the restored PV and binds. The pod starts and sees its data.
-
-   ```bash
-   kubectl -n argocd patch application <app> --type merge \
-     -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}'
-   ```
-
-6. **Verify** in the app's UI that history/library/config came back; check `kubectl -n media get pvc <pvc-name>` shows `Bound` to the restored PV.
-
-If you skipped step 1 and Argo already created the PVC bound to a blank volume: delete that PVC + PV (the blank volume will be cleaned up via `Delete`), then proceed from step 2 — `claimRef` pre-binding only works if no PVC is currently in flight for that name.
+`reclaimPolicy: Delete` means deleting a PVC also deletes its PV and Longhorn volume. The manifest is still in git, so Argo recreates the PVC — empty. Recover by restoring the latest backup and pre-binding it to the original PVC name: see [`pvc-maintenance.md`](pvc-maintenance.md). Suspend Argo **first**, or it binds the empty PVC to a fresh blank volume before you can intervene.
 
 # Operational notes
 
-## Node loss and serial reboots
+## Reboot nodes serially
 
-With 3 nodes, `replicaSoftAntiAffinity: false` (strict), and 2 replicas per volume, each volume's two replicas land on two of the three nodes. Losing a single node degrades only the volumes that had a replica there (roughly two-thirds of them) — and because a spare node is now available and strict anti-affinity is still satisfiable, Longhorn rebuilds the missing replica onto that spare automatically, without waiting for the downed node to return.
-
-**Still reboot nodes serially**, one at a time, waiting for all volumes to return to `Healthy` between reboots. Rebooting two nodes at once can take down both replicas of any volume that happened to be placed on that pair, which means data unavailability until one returns.
+2 replicas across 3 nodes with strict anti-affinity (`replicaSoftAntiAffinity: false`) means losing one node degrades ~⅔ of volumes, which Longhorn rebuilds onto the spare node automatically. But **reboot one node at a time**, waiting for `Healthy` between reboots — taking down two nodes can drop both replicas of a volume placed on that pair.
 
 ```bash
-# Check volume health before rebooting a node
-kubectl -n longhorn-system get volumes | grep -v Healthy
-# Should return nothing if all volumes are healthy
+kubectl -n longhorn-system get volumes | grep -v Healthy   # empty = safe to reboot
 ```
+
+> A simultaneous/unclean shutdown of all nodes can tear iSCSI volumes away mid-write and corrupt filesystems. Drain volumes before a full-rack shutdown — see `scripts/rack-shutdown.sh`.
 
 ## Settings drift
 
-`defaultSettings.defaultDataPath` in `longhorn.values.yaml` only takes effect on the **first install**. Subsequent Helm upgrades do not re-apply settings that Longhorn stores as CRs. To change a setting on a running cluster, edit it in the UI or patch the `Setting` CR:
+`defaultSettings` in `longhorn.values.yaml` only applies on **first install**. Change a running setting in the UI or patch the CR:
 
 ```bash
-kubectl -n longhorn-system patch setting default-data-path --type merge \
-  -p '{"value":"/mnt/nvme/longhorn"}'
+kubectl -n longhorn-system patch setting <name> --type merge -p '{"value":"<v>"}'
 ```
 
 # Troubleshooting
 
-## Replica scheduling failures
-
-Longhorn cannot place a second replica if only one node is available. Check:
+**Replica scheduling failures** — Longhorn needs ≥2 schedulable nodes for 2 replicas.
 
 ```bash
 kubectl -n longhorn-system get replicas | grep -v Running
-kubectl -n longhorn-system get nodes.longhorn.io
-```
-
-If a node shows `SCHEDULABLE=False`, check disk pressure or that Longhorn's disk path is mounted:
-
-```bash
+kubectl -n longhorn-system get nodes.longhorn.io           # SCHEDULABLE=False? check disk
 ssh <node> 'df -h /mnt/nvme/longhorn'
 ```
 
-## Multipath conflicts (`mke2fs ... apparently in use`)
+**Multipath conflict** (`mke2fs ... apparently in use`) — `multipathd` wraps Longhorn's iSCSI LUN, so `mkfs` on a new volume fails (existing volumes are unaffected). `ssh <node> 'sudo multipath -ll'` shows an `mpath*` entry for `IET,VIRTUAL-DISK`. Fixed by the `IET` blacklist in `/etc/multipath.conf`, installed by `ansible/k3s/longhorn.yaml`.
 
-Symptom: a freshly-bound Longhorn PVC sticks in `ContainerCreating`, with kubelet events:
+**iscsid inactive** — `ssh <node> 'systemctl is-active iscsid'`; `sudo systemctl start iscsid` (permanent fix in `install-k3s.yaml`).
 
-```
-MountVolume.MountDevice failed ... format of disk "/dev/longhorn/pvc-..." failed
-mke2fs ... /dev/longhorn/pvc-... is apparently in use by the system; will not make a filesystem here!
-```
+**Backup target errors** — `kubectl -n longhorn-system get backuptarget default -o yaml | grep -A5 conditions`:
 
-Cause: `multipathd` on the node has wrapped Longhorn's iSCSI LUN (`IET,VIRTUAL-DISK`) as an `mpath` device. The CSI driver's `mkfs.ext4` then fails because the kernel reports the underlying `sd*` busy. PVCs that were already formatted skip the mkfs path and keep working — only newly-created Longhorn volumes hit this.
+- `rpc.statd is not running` → `sudo systemctl start rpc-statd` (permanent fix in `install-k3s.yaml`)
+- `No such file or directory` → URL path must be the export root, not a subdirectory
+- `remote share not in 'host:dir' format` → URL needs the colon: `nfs://host:/path`
 
-```bash
-ssh <node> 'sudo multipath -ll'
-# Any mpath* entry showing IET,VIRTUAL-DISK confirms the issue.
-```
-
-For this reason multipath blacklist was added to Longhorn's Ansible playbook. It installs a vendor blacklist for `IET` LUNs at `/etc/multipath.conf` and reloads `multipathd`:
-
-## iscsid health
-
-```bash
-ssh k3s-server  'systemctl is-active iscsid'
-ssh k3s-node-01 'systemctl is-active iscsid'
-ssh k3s-node-02 'systemctl is-active iscsid'
-# If inactive: sudo systemctl start iscsid
-# Persistent fix: ansible-playbook ansible/k3s/install-k3s.yaml
-```
-
-## Backup target errors
-
-```bash
-kubectl -n longhorn-system get backuptarget default -o yaml | grep -A5 conditions
-```
-
-Common causes:
-
-- `rpc.statd is not running` — run `sudo systemctl start rpc-statd` on k3s nodes; permanent fix is in `install-k3s.yaml`
-- `No such file or directory` — the NFS path must be the **export root** (e.g. `/var/nfs/shared/k3s`), not a subdirectory inside it
-- `remote share not in 'host:dir' format` — ensure the URL has a colon before the path: `nfs://host:/path`
-
-## Degraded volumes after pod restart
-
-If a volume is `Degraded` with one replica `Stopped`, Longhorn rebuilds the missing replica automatically onto any available node (it no longer has to wait for the offline node to return, since a third node can host the rebuild). Force a rebuild:
+**Degraded volume / stopped replica** — Longhorn rebuilds automatically; force it by deleting the stopped replica:
 
 ```bash
 kubectl -n longhorn-system get replicas -o wide
-# Find the stopped replica, then:
 kubectl -n longhorn-system delete replica <stopped-replica-name>
-# Longhorn schedules a new replica automatically
 ```

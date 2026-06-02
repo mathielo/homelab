@@ -1,0 +1,59 @@
+---
+# Recurring snapshot + backup jobs for all Longhorn volumes.
+# Every volume is auto-enrolled via the `default` group label Longhorn
+# assigns on creation. Backups land on the UNAS-4 NFS target.
+#
+# Retention is tiered (GFS) so silent corruption discovered late is still
+# recoverable: daily (2 weeks) + weekly (2 months) + monthly (6 months).
+# Snapshots are on-cluster, fast, same-disk — for quick logical rollback.
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: snapshot-6h
+  namespace: longhorn-system
+spec:
+  task: snapshot
+  cron: "0 */6 * * *"
+  retain: 8 # ~2 days of 6-hourly points
+  concurrency: 2
+  groups:
+    - default
+---
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: daily-backup
+  namespace: longhorn-system
+spec:
+  task: backup
+  cron: "15 0 * * *"
+  retain: 14 # 2 weeks
+  concurrency: 2
+  groups:
+    - default
+---
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: weekly-backup
+  namespace: longhorn-system
+spec:
+  task: backup
+  cron: "30 0 * * 0" # Sundays
+  retain: 8 # ~2 months
+  concurrency: 2
+  groups:
+    - default
+---
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: monthly-backup
+  namespace: longhorn-system
+spec:
+  task: backup
+  cron: "45 0 1 * *" # 1st of month
+  retain: 6 # 6 months
+  concurrency: 2
+  groups:
+    - default
