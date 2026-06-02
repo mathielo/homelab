@@ -142,7 +142,7 @@ Symptoms: pod `CrashLoopBackOff` with app errors like `database disk image is ma
 kubectl -n longhorn-system get volumes | grep -v Healthy   # empty = safe to reboot
 ```
 
-> A simultaneous/unclean shutdown of all nodes can tear iSCSI volumes away mid-write and corrupt filesystems. Drain volumes before a full-rack shutdown — see `scripts/rack-shutdown.sh`.
+> A simultaneous/unclean shutdown can tear iSCSI volumes away mid-write and corrupt them. `make shutdown` (`scripts/rack/shutdown`) detaches every Longhorn volume first (cordon → scale workloads to 0 → wait for `detached`) before powering off; `make startup` (`scripts/rack/startup`) uncordons on the way back. Don't power the nodes off by other means without detaching first.
 
 ## Settings drift
 

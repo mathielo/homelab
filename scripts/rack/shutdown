@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+#
+# Gracefully shuts down all devices on the homelab rack.
+# Uses SSH hosts defined in ~/.ssh/config (sourced from .config/ssh.config).
+#
+# Shutdown order:
+#   1. Home Assistant Pi (fire and forget)
+#   2. Detach Longhorn volumes (cordon + scale workloads to 0 + wait)
+#   3. Shut down k3s nodes (agents first, then server)
+#   4. Pi-hole (last — it's DNS for everything)
+#
+# Step 2 is critical: powering off a node while a Longhorn volume is still
+# attached tears the iSCSI session away mid-write and corrupts the ext4/DB on
+# it (see docs/storage-longhorn.md). Detaching first makes poweroff safe.
+# Reverse with scripts/rack/startup, which uncordons the nodes.
+#
+# Follows Longhorn's official node-maintenance procedure (cordon first):
+#   https://documentation.suse.com/cloudnative/storage/1.10/en/troubleshooting-maintenance/maintenance.html
+# We scale workloads to 0 rather than `kubectl drain` because a full-rack drain
+# deadlocks on the last replica (Node Drain Policy: Block If Contains Last Replica).
+#
+# Usage: ./scripts/rack/shutdown
+
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+
+# Namespaces whose Longhorn-backed workloads must be drained before poweroff.
+LONGHORN_NS=("media" "dashboard")
+
+# k3s nodes in shutdown order: agents first, then server.
+K3S_NODES=("${K3S_AGENTS[@]}" "$K3S_SERVER")
+
+wait_for_shutdown() {
+    local host="$1"
+    local max_wait=60
+    local elapsed=0
+    log "Waiting for $host to go offline..."
+    while [ $elapsed -lt $max_wait ]; do
+        if ! ssh $SSH_OPTS -o ConnectTimeout=2 "$host" "true" 2>/dev/null; then
+            log "$host is offline."
+            return 0
+        fi
+        sleep 3
+        elapsed=$((elapsed + 3))
+    done
+    warn "$host still reachable after ${max_wait}s — continuing anyway."
+}
+
+# --- Step 1: Home Assistant Pi (fire and forget) ---
+
+log "=== Step 1: Shutting down Home Assistant ==="
+run_ssh homeassistant "sudo shutdown -h now" || warn "Failed to send shutdown to homeassistant"
+
+# --- Step 2: Detach Longhorn volumes ---
+# Cordon so nothing reschedules, scale workloads to 0 so every Longhorn volume
+# detaches, then wait for confirmation before any node loses power.
+
+log "=== Step 2: Detaching Longhorn volumes ==="
+
+for node in "${K3S_NODES[@]}"; do
+    kubectl cordon "$node" || warn "Failed to cordon $node"
+done
+
+for ns in "${LONGHORN_NS[@]}"; do
+    kubectl -n "$ns" scale deployment --all --replicas=0 || warn "Failed to scale down $ns"
+done
+
+log "Waiting for all Longhorn volumes to detach..."
+elapsed=0
+max_wait=180
+while [ $elapsed -lt $max_wait ]; do
+    attached=$(kubectl -n longhorn-system get volumes.longhorn.io \
+        -o jsonpath='{range .items[*]}{.metadata.name}={.status.state}{"\n"}{end}' \
+        | grep -v '=detached$' || true)
+    if [ -z "$attached" ]; then
+        log "All Longhorn volumes detached."
+        break
+    fi
+    sleep 5
+    elapsed=$((elapsed + 5))
+done
+if [ -n "$attached" ]; then
+    warn "Volumes still attached after ${max_wait}s — NOT safe to power off:"
+    echo "$attached" >&2
+    warn "Investigate before continuing (Ctrl-C to abort)."
+fi
+
+# --- Step 3: Shut down k3s nodes ---
+
+log "=== Step 3: Shutting down k3s nodes ==="
+for node in "${K3S_NODES[@]}"; do
+    log "Shutting down $node..."
+    run_ssh "$node" "sudo shutdown -h now" || warn "Failed to send shutdown to $node"
+    wait_for_shutdown "$node"
+done
+
+# --- Step 4: Pi-hole (last — DNS for the whole network) ---
+
+log "=== Step 4: Shutting down Pi-hole ==="
+run_ssh pihole "sudo shutdown -h now" || warn "Failed to send shutdown to pihole"
+
+log "=== Rack shutdown complete ==="
+log "Safe to disconnect power."

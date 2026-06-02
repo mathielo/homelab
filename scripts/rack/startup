@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+#
+# Brings the k3s cluster back after scripts/rack/shutdown.
+# Power on the physical machines first (manually / WoL); this script waits for
+# the API and nodes, then uncordons them so workloads can schedule again.
+#
+# rack/shutdown cordoned the nodes and scaled workloads to 0. Uncordoning is
+# all that's needed: ArgoCD (selfHeal) reconciles any deployment left at 0
+# replicas back to its declared count automatically.
+#
+# Usage: ./scripts/rack/startup
+
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+
+# k3s nodes in startup order: server (control plane) first, then agents.
+K3S_NODES=("$K3S_SERVER" "${K3S_AGENTS[@]}")
+
+# --- Step 1: Wait for the API server ---
+
+log "=== Step 1: Waiting for Kubernetes API ==="
+elapsed=0
+until kubectl get nodes >/dev/null 2>&1; do
+    sleep 5
+    elapsed=$((elapsed + 5))
+    if [ $elapsed -ge 300 ]; then
+        warn "API not reachable after 300s — are the nodes powered on?"
+        exit 1
+    fi
+done
+log "API reachable."
+
+# --- Step 2: Wait for nodes to be Ready ---
+
+log "=== Step 2: Waiting for nodes to be Ready ==="
+for node in "${K3S_NODES[@]}"; do
+    kubectl wait --for=condition=Ready "node/$node" --timeout=300s \
+        || warn "$node not Ready after 300s — continuing anyway."
+done
+
+# --- Step 3: Uncordon ---
+
+log "=== Step 3: Uncordoning nodes ==="
+for node in "${K3S_NODES[@]}"; do
+    kubectl uncordon "$node" || warn "Failed to uncordon $node"
+done
+
+log "=== Rack startup complete ==="
+log "ArgoCD will restore any workloads left at 0 replicas; watch with:"
+log "  kubectl get pods -A | grep -vE 'Running|Completed'"
