@@ -48,6 +48,10 @@ slow_torrent_dl_rate_threshold: 100 # Slow-classify download threshold (KiB/s)
 slow_torrent_ul_rate_threshold: 100 # Slow-classify upload threshold (KiB/s)
 slow_torrent_inactive_timer: 120 # Slow-classify inactivity timer (seconds)
 
+# === Network interface binding (VPN) ===
+current_network_interface: tun0 # Bind to the WireGuard tunnel, not eth0 — by name so libtorrent re-binds across VPN reconnects (incoming forwarded-port connections land on tun0)
+current_interface_address: "" # All addresses on tun0
+
 # === Privacy / Trackers ===
 dht: false # DHT (off — private trackers)
 pex: false # PEX peer exchange (off — private trackers)
