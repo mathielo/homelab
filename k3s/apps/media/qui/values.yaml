@@ -10,11 +10,11 @@ app-template:
             TZ: Europe/Stockholm
           resources:
             requests:
-              cpu: 10m
-              memory: 64Mi
-            limits:
-              cpu: 200m
+              cpu: 100m
               memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 768Mi
 
   service:
     qui:
