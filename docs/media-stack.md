@@ -16,7 +16,7 @@ Config flow:
 
 Download flow:
   SABnzbd      → Gluetun VPN → Usenet provider  → NFS media library
-  qBt (SE, BR) → Gluetun VPN → Torrent trackers → NFS media library
+  qBt (SE, BR, MAM) → Gluetun VPN → Torrent trackers → NFS media library
 
 DNS/indexer flow:
   Prowlarr → DrunkenSlug / NZBFinder (NZB search)
@@ -30,6 +30,7 @@ DNS/indexer flow:
 | SABnzbd   | `https://sabnzbd.hl.mathielo.com`   | 8080  | Usenet downloader                          |
 | qBt SE    | `https://qbt-se.hl.mathielo.com`    | 8080  | Torrent downloader                         |
 | qBt BR    | `https://qbt-br.hl.mathielo.com`    | 8080  | Torrent downloader                         |
+| qBt MAM   | `https://qbt-mam.hl.mathielo.com`   | 8080  | Torrent downloader (MyAnonaMouse-only)     |
 | qui       | `https://qui.hl.mathielo.com`       | 7476  | Multi-qBt instance manager UI + cross-seed |
 | Prowlarr  | `https://prowlarr.hl.mathielo.com`  | 9696  | Indexer manager/proxy                      |
 | Radarr    | `https://radarr.hl.mathielo.com`    | 7878  | Movie automation                           |
@@ -104,19 +105,17 @@ Categories and per-instance preferences are managed declaratively via scripts in
 SABnzbd and qBittorrent both run behind a Gluetun VPN sidecar for privacy:
 
 - **VPN provider:** ProtonVPN (WireGuard)
-- **Server locations:** Sweden (`qbt-se`, SABnzbd) and Brazil (`qbt-br`) — one WireGuard profile per exit
+- **Server locations:** Sweden (`qbt-se`, SABnzbd), Brazil (`qbt-br`), and a fixed single-ASN set of Sweden servers (`qbt-mam`) — one WireGuard profile per exit
 - **Kill-switch:** If the VPN tunnel drops, all download traffic is blocked (Gluetun firewall)
 - **Bypass subnets:** `10.42.0.0/16` and `10.43.0.0/16` (k3s pod/service CIDRs) so in-cluster communication still works
 
 Credentials (`WIREGUARD_PRIVATE_KEY`, `WIREGUARD_ADDRESSES`) are encrypted per instance in `values-<instance>.sops.yaml`.
 
-### MyAnonaMouse dynamic seedbox (qbt-se)
+### MyAnonaMouse dynamic seedbox (qbt-mam)
 
-MyAnonaMouse ties download permission to the IP its requests come from. Behind ProtonVPN that exit IP rotates, so `qbt-se` runs a small `mam` sidecar (in the pod, sharing Gluetun's netns) that pings `https://t.myanonamouse.net/json/dynamicSeedbox.php` hourly to keep MAM's recorded IP current.
+MAM gates download/announce permission on the requesting IP via an ASN-locked session. To keep that lock matched, `qbt-mam` is a dedicated instance pinned to a fixed set of Stockholm ProtonVPN servers. A `mam` sidecar calls [`dynamicSeedbox`](https://www.myanonamouse.net/api/endpoint.php/3/json/dynamicSeedbox.php) hourly to keep the seedbox IP current.
 
-- **Session model:** a dedicated session created under MAM **Preferences → Security** with "Allow session to set dynamic seedbox IP" enabled, then **switched to ASN-locked** — separate from the browser login session. ASN-lock keeps it valid across ProtonVPN exit-IP changes (MAM staff whitelist the ProtonVPN ASNs per account).
-- **Credential:** the session's `mam_id` string is the seed, stored encrypted as `MAM_ID` in `values-se.sops.yaml`. The sidecar seeds a cookie jar from it on first run, then reuses/rewrites the jar at `/config/mam/cookies.txt` (config PVC) so a rotated cookie survives restarts.
-- **Rate limit:** 1 update/hour (rolling); the ~65 min loop stays under it. Responses are logged (`kubectl logs <qbt-se-pod> -c mam`): `Completed`/`No change` on success, `Last change too recent` (429) is a harmless no-op.
+- **Seedbox session:** MAM **Preferences → Security** → "Allow session to set dynamic seedbox IP", then ASN-lock it (after the first successful call registers the right ASN). Separate from the browser session. Its `mam_id` is stored as `MAM_ID` in `values-mam.sops.yaml` and seeds a cookie jar at `/config/mam/cookies.txt`.
 
 ## Setting Up Services
 

@@ -1,0 +1,78 @@
+# qbt-mam: dedicated MyAnonaMouse instance (on values-common.yaml + values-mam.sops.yaml).
+#
+# Pinned to a fixed set of Stockholm ProtonVPN servers to keep the egress ASN
+# predictable for MAM's ASN-locked seedbox session. Proton's egress ASN differs from
+# the WireGuard endpoint ASN and varies across the set (SE#274 -> AS212238 Datacamp,
+# SE#321 -> AS208172 Proton AG), so the MAM session is ASN-locked to BOTH; a new
+# egress ASN would show as an ASN mismatch in the mam sidecar logs.
+# Names must match Gluetun's embedded list (v3.41.1), not the ProtonVPN app's; all are
+# WireGuard + port-forward (chart sets PORT_FORWARD_ONLY=on).
+app-template:
+  controllers:
+    main:
+      initContainers:
+        gluetun:
+          env:
+            SERVER_COUNTRIES: Sweden
+            SERVER_NAMES: "SE#178,SE#221,SE#274,SE#321,SE#378"
+
+      containers:
+        # Keeps MAM's seedbox IP current via dynamicSeedbox.php from inside the VPN
+        # netns. Seeds from MAM_ID (values-mam.sops.yaml), then reuses a refreshed
+        # cookie jar on the config PVC. Rate limit 1/hour — loop backs off per case below.
+        # https://www.myanonamouse.net/api/endpoint.php/3/json/dynamicSeedbox.php
+        mam:
+          image:
+            repository: curlimages/curl
+            tag: "8.18.0"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -u
+              JAR=/config/mam/cookies.txt
+              URL=https://t.myanonamouse.net/json/dynamicSeedbox.php
+              mkdir -p /config/mam
+              while true; do
+                # Use the jar only after a success; otherwise reseed from MAM_ID.
+                if [ -s "$JAR" ]; then
+                  resp=$(curl -sS -c "$JAR" -b "$JAR" "$URL")
+                else
+                  resp=$(curl -sS -c "$JAR" -b "mam_id=$MAM_ID" "$URL")
+                fi
+                echo "[mam] $(date -u +%FT%TZ) ${resp:-<no response>}"
+                case "$(printf %s "$resp" | tr -d ' ')" in
+                  *'"Success":true'*)  sleep 3900 ;;                  # ok — keep jar, hold 1/hr limit
+                  *'"Success":false'*) rm -f "$JAR"; sleep 300 ;;     # rejected — drop jar, reseed from MAM_ID
+                  *)                   sleep 30 ;;                    # no response (startup/DNS/blip) — retry soon
+                esac
+              done
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+
+  ingress:
+    main:
+      hosts:
+        - host: qbt-mam.hl.mathielo.com
+          paths:
+            - path: /
+              service:
+                identifier: main
+                port: http
+      tls:
+        - hosts:
+            - qbt-mam.hl.mathielo.com
+          secretName: qbt-mam-hl-tls
+
+  persistence:
+    config:
+      existingClaim: qbt-mam-config-lh
+    local:
+      hostPath: /mnt/nvme/local/qbt-mam

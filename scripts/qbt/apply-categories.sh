@@ -5,17 +5,17 @@
 # Requires: yq (mikefarah, Go) — installed via scripts/install.sh
 #
 # Usage: scripts/qbt/apply-categories.sh <instance>
-#   instance = qbt-br | qbt-se | all
+#   instance = qbt-br | qbt-se | qbt-mam | all
 
 set -euo pipefail
 
 CATS_FILE="$(dirname "$0")/categories.yaml"
 
 case "${1:-}" in
-    "")            echo "Usage: $0 <qbt-br|qbt-se|all>"; exit 2 ;;
-    all)           INSTANCES=(qbt-br qbt-se) ;;
-    qbt-br|qbt-se) INSTANCES=("$1") ;;
-    *)             echo "Unknown instance: $1 (allowed: qbt-br, qbt-se, all)"; exit 2 ;;
+    "")                    echo "Usage: $0 <qbt-br|qbt-se|qbt-mam|all>"; exit 2 ;;
+    all)                   INSTANCES=(qbt-br qbt-se qbt-mam) ;;
+    qbt-br|qbt-se|qbt-mam) INSTANCES=("$1") ;;
+    *)                     echo "Unknown instance: $1 (allowed: qbt-br, qbt-se, qbt-mam, all)"; exit 2 ;;
 esac
 
 for inst in "${INSTANCES[@]}"; do
