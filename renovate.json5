@@ -208,13 +208,14 @@
       ],
     },
     {
-      description: 'Media support (Gluetun, busybox)',
+      description: 'Media support (Gluetun, busybox, curl)',
       matchDatasources: [
         'docker',
       ],
       matchPackageNames: [
         'ghcr.io/qdm12/gluetun',
         'busybox',
+        'curlimages/curl',
       ],
       groupName: 'media-support',
     },

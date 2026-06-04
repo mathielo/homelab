@@ -110,6 +110,14 @@ SABnzbd and qBittorrent both run behind a Gluetun VPN sidecar for privacy:
 
 Credentials (`WIREGUARD_PRIVATE_KEY`, `WIREGUARD_ADDRESSES`) are encrypted per instance in `values-<instance>.sops.yaml`.
 
+### MyAnonaMouse dynamic seedbox (qbt-se)
+
+MyAnonaMouse ties download permission to the IP its requests come from. Behind ProtonVPN that exit IP rotates, so `qbt-se` runs a small `mam` sidecar (in the pod, sharing Gluetun's netns) that pings `https://t.myanonamouse.net/json/dynamicSeedbox.php` hourly to keep MAM's recorded IP current.
+
+- **Session model:** a dedicated session created under MAM **Preferences → Security** with "Allow session to set dynamic seedbox IP" enabled, then **switched to ASN-locked** — separate from the browser login session. ASN-lock keeps it valid across ProtonVPN exit-IP changes (MAM staff whitelist the ProtonVPN ASNs per account).
+- **Credential:** the session's `mam_id` string is the seed, stored encrypted as `MAM_ID` in `values-se.sops.yaml`. The sidecar seeds a cookie jar from it on first run, then reuses/rewrites the jar at `/config/mam/cookies.txt` (config PVC) so a rotated cookie survives restarts.
+- **Rate limit:** 1 update/hour (rolling); the ~65 min loop stays under it. Responses are logged (`kubectl logs <qbt-se-pod> -c mam`): `Completed`/`No change` on success, `Last change too recent` (429) is a harmless no-op.
+
 ## Setting Up Services
 
 After ArgoCD deploys the pods, each service needs manual UI configuration. Follow this order — each step depends on the previous ones.
@@ -255,11 +263,11 @@ Then under **Settings → Sonarr** and **Settings → Radarr**, add each service
 
 Complete the setup wizard, then connect media services:
 
-| Service | URL                                          | Auth                                       |
-| ------- | -------------------------------------------- | ------------------------------------------ |
-| Plex    | `http://plex.media.svc.cluster.local:32400`  | API key                                    |
-| Radarr  | `http://radarr.media.svc.cluster.local:7878` | API key + root folder `/media/lib/movies`  |
-| Sonarr  | `http://sonarr.media.svc.cluster.local:8989` | API key + root folder `/media/lib/shows`   |
+| Service | URL                                          | Auth                                      |
+| ------- | -------------------------------------------- | ----------------------------------------- |
+| Plex    | `http://plex.media.svc.cluster.local:32400`  | API key                                   |
+| Radarr  | `http://radarr.media.svc.cluster.local:7878` | API key + root folder `/media/lib/movies` |
+| Sonarr  | `http://sonarr.media.svc.cluster.local:8989` | API key + root folder `/media/lib/shows`  |
 
 ### Step 10: Profilarr
 

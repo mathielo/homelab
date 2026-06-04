@@ -8,6 +8,52 @@ app-template:
           env:
             SERVER_COUNTRIES: Sweden
 
+      containers:
+        # MyAnonaMouse dynamic-seedbox IP updater. Shares the pod netns with
+        # Gluetun, so every request exits through the ProtonVPN tunnel and MAM
+        # records the current VPN exit IP. The session (mam_id) is ASN-locked,
+        # so it stays valid as the exit IP rotates within ProtonVPN's allowed
+        # ASNs; this call only keeps MAM's recorded IP current.
+        #
+        # First run seeds the cookie jar from MAM_ID (injected via
+        # values-se.sops.yaml); thereafter it reuses + rewrites the jar at
+        # /config/mam/cookies.txt (on the Longhorn config PVC) so a rotated
+        # cookie survives restarts. Endpoint rate limit is 1/hour (rolling) —
+        # the ~65 min loop stays clear of it, and a 429 "too recent" is a
+        # harmless no-op that just gets logged.
+        #
+        # https://www.myanonamouse.net/api/endpoint.php/3/json/dynamicSeedbox.php
+        mam:
+          image:
+            repository: curlimages/curl
+            tag: "8.18.0"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -u
+              JAR=/config/mam/cookies.txt
+              URL=https://t.myanonamouse.net/json/dynamicSeedbox.php
+              mkdir -p /config/mam
+              while true; do
+                if [ -s "$JAR" ]; then
+                  resp=$(curl -sS -c "$JAR" -b "$JAR" "$URL")
+                else
+                  resp=$(curl -sS -c "$JAR" -b "mam_id=$MAM_ID" "$URL")
+                fi
+                echo "[mam] $(date -u +%FT%TZ) ${resp:-<no response>}"
+                sleep 3900
+              done
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+
   ingress:
     main:
       hosts:
