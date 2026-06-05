@@ -24,6 +24,14 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
+  ignoreDifferences:
+    # volumeClaimTemplates are immutable, and the API server defaults volumeMode
+    # onto them — a diff ArgoCD can never reconcile.
+    - group: apps
+      kind: StatefulSet
+      name: prometheus-alertmanager
+      jsonPointers:
+        - /spec/volumeClaimTemplates
   syncPolicy:
     automated:
       prune: true

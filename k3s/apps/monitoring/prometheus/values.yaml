@@ -269,7 +269,7 @@ prometheus:
               annotations:
                 summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} is not Ready (renewal may be failing)"
 
-  pushgateway:
+  prometheus-pushgateway:
     enabled: false
 
   configmapReload:
