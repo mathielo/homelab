@@ -1,0 +1,315 @@
+# Upstream prometheus-community/prometheus chart values are nested under the
+# `prometheus:` dependency key (umbrella-chart convention — see media apps).
+prometheus:
+  alertmanager:
+    enabled: true
+    persistence:
+      enabled: true
+      storageClass: longhorn
+      size: 1Gi
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+    templates:
+      # Notification message template
+      telegram.tmpl: |
+        {{ define "telegram.message" }}
+        {{ if eq .Status "firing" }}🚨{{ else }}🕊{{ end }} <b>{{ .Status | toUpper }}</b>
+        {{ range .Alerts }}
+        <b>{{ .Labels.alertname }}</b> ({{ .Labels.severity }})
+        {{ .Annotations.summary }}
+        {{ end }}
+        {{ end }}
+    config:
+      global:
+        resolve_timeout: 5m
+      templates:
+        - "/etc/alertmanager/*.tmpl"
+      route:
+        receiver: telegram
+        group_by: ["alertname", "namespace"]
+        group_wait: 30s
+        group_interval: 5m
+        repeat_interval: 4h
+        routes:
+          - receiver: telegram
+            matchers:
+              - severity=critical
+            repeat_interval: 1h
+      # `receivers` carries the Telegram bot_token + chat_id (the secrets) plus a
+      # one-line reference to the template above; it lives in values.sops.yaml.
+
+  # Scrape Longhorn manager metrics (longhorn_volume_*, longhorn_node_*) —
+  # annotation-based discovery doesn't pick them up, so add an explicit job.
+  extraScrapeConfigs: |
+    - job_name: longhorn
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - longhorn-system
+      relabel_configs:
+        - source_labels:
+            - __meta_kubernetes_service_name
+            - __meta_kubernetes_endpoint_port_name
+          action: keep
+          regex: longhorn-backend;manager
+
+  serverFiles:
+    alerting_rules.yml:
+      groups:
+        # --- The alerting pipeline itself: if these break, every other alert
+        #     goes silent without anyone noticing. ---
+        - name: monitoring-pipeline
+          rules:
+            - alert: PrometheusTargetDown
+              expr: up == 0
+              for: 10m
+              labels:
+                severity: warning
+              annotations:
+                summary: "Scrape target {{ $labels.job }} ({{ $labels.instance }}) is down — metrics/alerts from it are blind"
+
+            - alert: PrometheusConfigReloadFailed
+              expr: prometheus_config_last_reload_successful == 0
+              for: 10m
+              labels:
+                severity: warning
+              annotations:
+                summary: "Prometheus config reload failed on {{ $labels.instance }}"
+
+            # Prometheus's own view of Alertmanager — if it discovers none, no
+            # alert can be delivered (self-scraped, so always available).
+            - alert: AlertmanagerUnreachable
+              expr: prometheus_notifications_alertmanagers_discovered < 1
+              for: 10m
+              labels:
+                severity: critical
+              annotations:
+                summary: "Prometheus has no Alertmanager to send to — alerts will not be delivered"
+
+        - name: pod-health
+          rules:
+            - alert: PodCrashLooping
+              expr: kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff"} == 1
+              for: 10m
+              labels:
+                severity: warning
+              annotations:
+                summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }}) is in CrashLoopBackOff"
+
+            - alert: PodOOMKilled
+              expr: increase(kube_pod_container_status_restarts_total[5m]) > 0 and on(namespace, pod, container) kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
+              for: 0m
+              labels:
+                severity: critical
+              annotations:
+                summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} was OOM killed"
+
+        # --- Covers Deployments, StatefulSets and DaemonSets, so the likes of
+        #     Loki/Alertmanager/Promtail/node-exporter aren't blind spots. ---
+        - name: workload-health
+          rules:
+            - alert: DeploymentNotAvailable
+              expr: kube_deployment_status_replicas_available == 0 and kube_deployment_spec_replicas > 0
+              for: 10m
+              labels:
+                severity: critical
+              annotations:
+                summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has no available replicas"
+
+            - alert: StatefulSetNotReady
+              expr: kube_statefulset_status_replicas_ready < kube_statefulset_replicas
+              for: 15m
+              labels:
+                severity: warning
+              annotations:
+                summary: "StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} has unready replicas"
+
+            - alert: DaemonSetNotScheduled
+              expr: kube_daemonset_status_number_unavailable > 0
+              for: 15m
+              labels:
+                severity: warning
+              annotations:
+                summary: "DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset }} has unavailable pods"
+
+        - name: node-health
+          rules:
+            - alert: NodeNotReady
+              expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+              for: 2m
+              labels:
+                severity: critical
+              annotations:
+                summary: "Node {{ $labels.node }} is not ready"
+
+            - alert: NodeHighMemory
+              expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.85
+              for: 5m
+              labels:
+                severity: warning
+              annotations:
+                summary: "Node {{ $labels.instance }} memory usage above 85%"
+
+            # These boxes spike on transcodes/downloads, so a short window
+            # yields noisy, non-actionable alerts.
+            - alert: NodeHighCPU
+              expr: 1 - avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) > 0.85
+              for: 15m
+              labels:
+                severity: warning
+              annotations:
+                summary: "Node {{ $labels.instance }} CPU usage above 85% (sustained 15m)"
+
+            - alert: NodeDiskPressure
+              expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) > 0.85
+              for: 5m
+              labels:
+                severity: warning
+              annotations:
+                summary: "Node {{ $labels.instance }} disk {{ $labels.mountpoint }} usage above 85%"
+
+            - alert: NodeDiskCritical
+              expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) > 0.90
+              for: 5m
+              labels:
+                severity: critical
+              annotations:
+                summary: "Node {{ $labels.instance }} disk {{ $labels.mountpoint }} usage above 90%"
+
+            # Fires while a slow fill is still recoverable, ahead of the static
+            # NodeDiskPressure threshold.
+            - alert: NodeRootDiskFillingUp
+              expr: |
+                predict_linear(node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}[6h], 24*3600) < 0
+                and node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} < 0.30
+              for: 1h
+              labels:
+                severity: warning
+              annotations:
+                summary: "Node {{ $labels.instance }} root filesystem projected to fill within 24h"
+
+        - name: storage-health
+          rules:
+            - alert: PVCAlmostFull
+              expr: kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes > 0.80
+              for: 15m
+              labels:
+                severity: warning
+              annotations:
+                summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} usage above 80%"
+
+            - alert: PVCCritical
+              expr: kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes > 0.90
+              for: 5m
+              labels:
+                severity: critical
+              annotations:
+                summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} usage above 90%"
+
+            # longhorn_volume_robustness: 1=healthy, 2=degraded (rebuilding,
+            # reduced redundancy), 3=faulted (data unavailable).
+            - alert: LonghornVolumeDegraded
+              expr: longhorn_volume_robustness == 2
+              for: 15m
+              labels:
+                severity: warning
+              annotations:
+                summary: "Longhorn volume {{ $labels.volume }} is degraded (rebuilding / reduced redundancy)"
+
+            - alert: LonghornVolumeFaulted
+              expr: longhorn_volume_robustness == 3
+              for: 0m
+              labels:
+                severity: critical
+              annotations:
+                summary: "Longhorn volume {{ $labels.volume }} is FAULTED — data unavailable"
+
+            # Longhorn recurring backups/snapshots run as k8s (Cron)Jobs, so a
+            # failed run surfaces here as kube_job_failed.
+            - alert: LonghornBackupJobFailed
+              expr: kube_job_failed{namespace="longhorn-system"} > 0
+              for: 5m
+              labels:
+                severity: warning
+              annotations:
+                summary: "Longhorn backup/snapshot job {{ $labels.job_name }} failed"
+
+        - name: cluster-health
+          rules:
+            # ingress-nginx runs in the kube-extra namespace, not monitoring.
+            - alert: IngressDown
+              expr: kube_deployment_status_replicas_available{namespace="kube-extra",deployment="ingress-nginx-controller"} < 1
+              for: 2m
+              labels:
+                severity: critical
+              annotations:
+                summary: "No ingress-nginx replicas available"
+
+            - alert: CertExpiringSoon
+              expr: certmanager_certificate_expiration_timestamp_seconds - time() < 7 * 24 * 3600
+              for: 1h
+              labels:
+                severity: warning
+              annotations:
+                summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in less than 7 days"
+
+            # Catches renewal FAILURES early (e.g. DNS-01 broken) instead of
+            # waiting until the 7-day expiry window.
+            - alert: CertificateNotReady
+              expr: certmanager_certificate_ready_status{condition="True"} == 0
+              for: 1h
+              labels:
+                severity: warning
+              annotations:
+                summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} is not Ready (renewal may be failing)"
+
+  pushgateway:
+    enabled: false
+
+  configmapReload:
+    prometheus:
+      resources:
+        requests:
+          cpu: 5m
+          memory: 16Mi
+        limits:
+          cpu: 50m
+          memory: 32Mi
+
+  server:
+    retention: 30d
+    resources:
+      requests:
+        cpu: 100m
+        memory: 640Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+    persistentVolume:
+      enabled: true
+      storageClass: longhorn
+      size: 10Gi
+
+  prometheus-node-exporter:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+
+  kube-state-metrics:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 96Mi
+      limits:
+        cpu: 100m
+        memory: 192Mi

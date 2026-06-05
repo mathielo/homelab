@@ -12,7 +12,7 @@ app-template:
           env:
             TZ: Europe/Stockholm
             # Reads (proxied by the BFF so Prometheus stays cluster-internal):
-            KIOSK_PROM_URL: http://prometheus-server.kube-extra.svc.cluster.local
+            KIOSK_PROM_URL: http://prometheus-server.monitoring.svc.cluster.local
             KIOSK_KUMA_BASE_URL: http://uptime-kuma.dashboard.svc.cluster.local:3001
             KIOSK_KUMA_SLUG: homelab
             # Action targets (creds come from values.sops.yaml):

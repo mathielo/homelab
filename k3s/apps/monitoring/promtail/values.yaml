@@ -1,0 +1,13 @@
+# Upstream grafana/promtail chart values nested under the `promtail:` key.
+promtail:
+  config:
+    clients:
+      - url: http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi

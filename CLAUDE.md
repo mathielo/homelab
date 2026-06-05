@@ -23,7 +23,7 @@ Everything is GitOps: tracked in code, idempotent, replayable. **Never mutate li
 - **No mutating commands**: no `kubectl apply/edit/patch/scale`, no `helm upgrade/install`, no direct file/sysctl edits on nodes, no write calls to the qBittorrent / Pi-hole / UniFi APIs. Propose every change as code (Ansible, Helm values, k8s manifests) and hand the user the exact command to run. Read-only inspection (`kubectl get`, SSH `vmstat`/`cat /proc/...`) is fine.
 - **Prefer**: ConfigMaps over PVCs for config, Ansible over manual steps, checked-in manifests over imperative `kubectl`.
 - **kubectl/helm run locally**: the workstation kubeconfig talks to the cluster — run them directly, never SSH-wrapped. Use bare `kubectl` (no `sudo`, no `KUBECONFIG=` override). SSH to nodes only for read-only OS inspection.
-- **Ansible playbooks** (k3s, cert-manager, argocd, monitoring) run from the repo root with `-i ansible/inventory.ini`.
+- **Ansible playbooks** (k3s, cert-manager, argocd) run from the repo root with `-i ansible/inventory.ini`. (Monitoring is GitOps now — deployed by ArgoCD from `k3s/apps/monitoring/`, not Ansible.)
 - **Ad-hoc Longhorn snapshots/backups** via the Longhorn UI, not `kubectl` Snapshot/Backup CRs (Argo ownership/reconciliation fights CR-based ones).
 
 ## Security (Public Repository)

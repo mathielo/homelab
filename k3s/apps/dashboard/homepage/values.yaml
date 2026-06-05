@@ -302,9 +302,9 @@ app-template:
                   widget:
                     type: grafana
                     version: 2
-                    url: http://grafana.kube-extra.svc.cluster.local
+                    url: http://grafana.monitoring.svc.cluster.local
                     alerts: alertmanager
-                    alertmanagerUrl: http://prometheus-alertmanager.kube-extra.svc.cluster.local:9093
+                    alertmanagerUrl: http://prometheus-alertmanager.monitoring.svc.cluster.local:9093
                     username: "{{ "{{HOMEPAGE_VAR_GRAFANA_USERNAME}}" }}"
                     password: "{{ "{{HOMEPAGE_VAR_GRAFANA_PASSWORD}}" }}"
               - Uptime Kuma:

@@ -47,14 +47,14 @@ data:
     {
       "type": "http",
       "name": "Grafana",
-      "url": "http://grafana.kube-extra.svc.cluster.local",
+      "url": "http://grafana.monitoring.svc.cluster.local",
       "parent_name": "infrastructure"
     }
   prometheus.json: |
     {
       "type": "http",
       "name": "Prometheus",
-      "url": "http://prometheus-server.kube-extra.svc.cluster.local",
+      "url": "http://prometheus-server.monitoring.svc.cluster.local",
       "parent_name": "infrastructure"
     }
   pihole-dns.json: |

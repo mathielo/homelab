@@ -1,0 +1,112 @@
+# Upstream grafana/loki chart values nested under the `loki:` dependency key.
+# (The chart itself also has a top-level `loki:` block, hence the double nest.)
+loki:
+  deploymentMode: SingleBinary
+
+  loki:
+    auth_enabled: false
+    analytics:
+      reporting_enabled: false
+    commonConfig:
+      replication_factor: 1
+    storage:
+      type: filesystem
+    schemaConfig:
+      configs:
+        - from: "2024-01-01"
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: loki_index_
+            period: 24h
+    limits_config:
+      retention_period: 30d
+    compactor:
+      retention_enabled: true
+      delete_request_store: filesystem
+      compaction_interval: 10m
+      retention_delete_delay: 2h
+
+  # Disable gateway — access Loki directly at loki:3100
+  gateway:
+    enabled: false
+
+  singleBinary:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 512Mi
+      limits:
+        cpu: 200m
+        memory: 1Gi
+    persistence:
+      enabled: true
+      storageClass: longhorn
+      size: 10Gi
+
+  # Chart defaults size memcached for production. `allocatedMemory` drives its
+  # `-m` flag and must stay below the pod memory limit, or the cache fills and
+  # the pod gets OOMKilled.
+  chunksCache:
+    allocatedMemory: 384
+    resources:
+      requests:
+        cpu: 10m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+    exporter:
+      resources:
+        requests:
+          cpu: 5m
+          memory: 16Mi
+        limits:
+          cpu: 50m
+          memory: 32Mi
+
+  resultsCache:
+    allocatedMemory: 48
+    resources:
+      requests:
+        cpu: 10m
+        memory: 48Mi
+      limits:
+        memory: 96Mi
+    exporter:
+      resources:
+        requests:
+          cpu: 5m
+          memory: 16Mi
+        limits:
+          cpu: 50m
+          memory: 32Mi
+
+  lokiCanary:
+    resources:
+      requests:
+        cpu: 5m
+        memory: 48Mi
+      limits:
+        cpu: 50m
+        memory: 96Mi
+
+  # Rules-sidecar resources live under sidecar.resources; sidecar.rules has no
+  # resources key.
+  sidecar:
+    resources:
+      requests:
+        cpu: 5m
+        memory: 64Mi
+      limits:
+        cpu: 50m
+        memory: 128Mi
+
+  # Disable microservices-mode components
+  backend:
+    replicas: 0
+  read:
+    replicas: 0
+  write:
+    replicas: 0

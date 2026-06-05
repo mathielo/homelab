@@ -1,0 +1,34 @@
+prometheus:
+    alertmanager:
+        config:
+            receivers:
+                - name: ENC[AES256_GCM,data:Mw4z1v0TQJ4=,iv:Y2Muhl6nJWi7s+2BkDgaDgUbGepcJFULMhqxUt6U4TQ=,tag:+of/HpU1jEU4HNPBRJcwBw==,type:str]
+                  telegram_configs:
+                    - bot_token: ENC[AES256_GCM,data:CtfbHPgFUU/EiDKnabqv8ty5z6rgaifK/EZUg5f410hyKWbB6MucevPraM5Bpg==,iv:ext9wWjjOtV9uYOpjHOpu4huGmbtzP9cidJaopG4Ca8=,tag:R08HxpmNpYqFWxiRTIDMRA==,type:str]
+                      chat_id: ENC[AES256_GCM,data:9y8d7DHY80w4SBo=,iv:uGPz6zLIeDgRFa8iIKzzBmu7wF2jWDVysPhYkXJKKn0=,tag:LBTEHN6VTvqBirFOqZzhRQ==,type:int]
+                      parse_mode: ENC[AES256_GCM,data:JEx4GA==,iv:TXjKlJwJkujQtijXgwkiPOFwHSQ+dd64WMkZZIzw9us=,tag:i5bj/zH1tYwOax/TJ6Qzdg==,type:str]
+                      message: ENC[AES256_GCM,data:tsWZumaomfQoh6slgqe10t0AsuXNKkQBIN5xJgVAwluZPTU=,iv:nwA7rzD9oJrw4lgGlQ06kOvIE4EU75Dt8cJXmwAMmPM=,tag:0jQIleMXt0OKxN2a48XjQw==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA1eHFLckVFcW1SVjFDeTRG
+            dmlneVNpSWY3NGZBWHdtcG51YVc0Zk9aZ1hBCm5aY2lFQzFDdFcxbzJ0TWVETEEr
+            ZGVQY2tQa1JJcmcrRzJEeGd0dk9KdGMKLS0tIHRpSFlIMEtkb0J2L2YrbDc2VEw3
+            a2lOaWpSOHZLREVsWHdWM3E1VUZyRmcK13k3SZP8VZ9PaYW7W+mOYQ0jeW7BFjZ7
+            W22ladS+EU6el+4ij3HIgaPqC878+n+q/eR8ssF/18Wc3693xmr29g==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1gyywmz5ypukdr265ltj45s3vtnckyvd7qn5ddr8qepj8ktdzsers20cz6t
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSArcmZYTUs2YTl2bk15WEE4
+            OW1JWHg3Qk1SWklkMnJoMEpuaW1MQzZnRkRNCkZGbjYvOTRWQlQrUm9EMGU3N2pG
+            cW5hNXFhd2d0Q1daQ0FUKyt3MStIdncKLS0tIGhEQmNSa1NWY0QvVS9OVnJzc0M0
+            SG5xM2VSa2pkNlhqaDE5YWI4U251WnMKnN79Y3F7FT4jqytN4CCs1OPFoKAXgaFE
+            MxGDlQ5YMAfXksYtYJ7mXQEDx09fSPWCzSI+n0GqIeILut5gzWcqVw==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1kt5aynyagn4t6v4epgl95ls9gpskq49f07j2v797g99zhje8teussmnytu
+    lastmodified: "2026-06-05T11:47:15Z"
+    mac: ENC[AES256_GCM,data:4EfmoGxVaJR9xTbJAaaNpFoZkGykmU2TAKEwskVHiFS80KpdHPG3gADSb3+WEyhYERZPtWd2O12ICDhn1nKbI/dmRKd6hj4ExA+wxbFauT0JfzudyFu+bCt3VWy5vWgCuT5uaFXZuJYC+LYxQ4+RqYsP21Y+zl944pUkam+RNJs=,iv:4xEgIcTcPRIXAsYDEHHOfqJWIseoreNUzo2z//gnu7c=,tag:dtlkRiBkx1T+dr2Z8da+JQ==,type:str]
+    unencrypted_suffix: _unencrypted
+    version: 3.13.0

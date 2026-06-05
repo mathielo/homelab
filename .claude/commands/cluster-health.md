@@ -72,7 +72,8 @@ always-`Running` `csi-snapshotter` controller pods.
 
 ## 5. Log scan (window `$1`)
 
-Across `media`, `longhorn-system`, `kube-extra`, `cert-manager`, `argocd`. Match
+Across `media`, `monitoring`, `longhorn-system`, `kube-extra`, `cert-manager`,
+`argocd`. Match
 on **log-severity markers**, not bare substrings (`fail` matches the `failed_only`
 query param in nginx access logs; `error` matches `"error":null`). Strip ANSI
 first, then grep severity:

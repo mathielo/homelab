@@ -22,10 +22,11 @@ MetalLB VIP: `10.10.50.3` (ingress, DNS wildcard target)
 
 | Namespace         | Purpose                                          | Services                                                                                      |
 | ----------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| `kube-extra`      | Cluster infrastructure (monitoring, ingress)     | nginx-ingress, Prometheus, Grafana, Loki, Promtail                                            |
+| `kube-extra`      | Cluster ingress                                  | nginx-ingress                                                                                 |
+| `monitoring`      | Observability stack (managed by ArgoCD)          | Prometheus, Alertmanager, Grafana, Loki, Promtail                                             |
 | `metallb-system`  | Load balancer                                    | MetalLB (L2 mode, VIP 10.10.50.3)                                                             |
 | `media`           | Media stack (ARR + streaming, managed by ArgoCD) | Sonarr, Radarr, Prowlarr, Bazarr, SABnzbd, qBt-{se,br}, Prismarr, Pulsarr, Searcharr, AutoBrr |
-| `dashboard`       | User-facing dashboards and portals               | Homepage, Uptime Kuma                                                                         |
+| `dashboard`       | User-facing dashboards and portals               | Homepage, Uptime Kuma, Kiosk                                                                  |
 | `argocd`          | GitOps controller                                | ArgoCD                                                                                        |
 | `cert-manager`    | TLS certificate management                       | cert-manager                                                                                  |
 | `longhorn-system` | Distributed k8s PVC storage                      | Longhorn detaches PVC from local nodes allowing for HA + pods moving freely between nodes     |
@@ -115,26 +116,21 @@ Idempotent — safe to re-run. See [docs/storage-tuning.md](../docs/storage-tuni
 
 ## Monitoring Stack
 
-Deploys a lean observability stack into the `kube-extra` namespace:
+A lean observability stack runs in the `monitoring` namespace, deployed by
+**ArgoCD** from `k3s/apps/monitoring/` — one umbrella chart per component:
 
 | Component  | Chart                             | Role                                |
 | ---------- | --------------------------------- | ----------------------------------- |
-| Prometheus | `prometheus-community/prometheus` | Metrics collection and storage      |
+| Prometheus | `prometheus-community/prometheus` | Metrics + Alertmanager (Telegram)   |
 | Grafana    | `grafana/grafana`                 | Dashboards for metrics and logs     |
 | Loki       | `grafana/loki`                    | Log storage and query engine        |
 | Promtail   | `grafana/promtail`                | Ships pod logs from nodes into Loki |
 
-Run from the **repo root** (playbook that decrypts SOPS files needs to be run from the repo root):
-
-```bash
-ansible-playbook -i ansible/inventory.ini ansible/k3s/monitoring.yaml
-```
+All PVCs are on Longhorn, so the pods reschedule freely across nodes.
 
 ### Accessing Grafana
 
 - **URL:** `https://grafana.hl.mathielo.com` (requires Tailscale + Pi-hole DNS, see above)
-- **Username:** `admin`
-- **Password:** set in `ansible/k3s/files/monitoring/grafana.values.yaml` (change before deploying or via the Grafana UI)
 
 Both Prometheus and Loki datasources are pre-configured — no manual setup needed.
 
@@ -148,20 +144,17 @@ Both Prometheus and Loki datasources are pre-configured — no manual setup need
 
 ### Configuration
 
-Helm values live in `ansible/k3s/files/monitoring/`:
-
-| File                     | Chart                                                  |
-| ------------------------ | ------------------------------------------------------ |
-| `prometheus.values.yaml` | Prometheus (server, node-exporter, kube-state-metrics) |
-| `loki.values.yaml`       | Loki in SingleBinary mode                              |
-| `promtail.values.yaml`   | Promtail DaemonSet                                     |
-| `grafana.values.yaml`    | Grafana with pre-wired datasources and ingress         |
+Helm values live beside each chart in `k3s/apps/monitoring/<component>/values.yaml`
+(`prometheus`, `loki`, `promtail`, `grafana`). Secrets are in per-component
+`values.sops.yaml` (Grafana admin, Alertmanager Telegram token), decrypted by
+ArgoCD's helm-secrets plugin.
 
 Key settings:
 
 - **Retention:** 30 days for both Prometheus and Loki
-- **Storage:** Persistent volumes via k3s local-path-provisioner (10Gi Prometheus, 10Gi Loki, 2Gi Grafana)
+- **Storage:** Longhorn PVCs (10Gi Prometheus, 10Gi Loki, 2Gi Grafana, 1Gi Alertmanager)
 - **Resources:** Sized for a Mini PC/NUC
+- **Alerting:** Alertmanager → Telegram; rules in `prometheus/values.yaml` under `serverFiles.alerting_rules.yml`
 
 ### Adding more services
 
