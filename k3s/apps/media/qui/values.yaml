@@ -1,4 +1,8 @@
 app-template:
+  defaultPodOptions:
+    nodeSelector:
+      kubernetes.io/hostname: k3s-node-02
+
   controllers:
     qui:
       containers:
@@ -45,3 +49,15 @@ app-template:
       existingClaim: qui-config-lh
       globalMounts:
         - path: /config
+    media:
+      type: persistentVolumeClaim
+      existingClaim: media-data
+      globalMounts:
+        - path: /media
+          readOnly: true
+    r0:
+      type: hostPath
+      hostPath: /mnt/r0
+      hostPathType: DirectoryOrCreate
+      globalMounts:
+        - path: /r0
