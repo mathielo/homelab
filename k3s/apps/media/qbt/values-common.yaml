@@ -77,9 +77,15 @@ app-template:
               spec:
                 exec:
                   command:
-                    - /gluetun-entrypoint
-                    - healthcheck
-                initialDelaySeconds: 30
+                    - /bin/sh
+                    - -c
+                    # Passes only when the tunnel is healthy AND a port is
+                    # currently forwarded; an empty forwarded_port file fails the
+                    # probe, restarting the container to re-acquire a port.
+                    - '/gluetun-entrypoint healthcheck && [ -s /tmp/gluetun/forwarded_port ]'
+                # 3 × 30s ≈ 90s of sustained port-0 before restart — rides out the
+                # normal 45s keep-alive cycle without false restarts.
+                initialDelaySeconds: 60
                 periodSeconds: 30
                 failureThreshold: 3
           lifecycle:
