@@ -3,7 +3,7 @@
 # two instances per node. Apply with: scripts/qbt/apply-prefs.sh <instance>
 
 # === Downloads / Save Management ===
-save_path: /local # Default save path
+save_path: /r0 # Default save path (DAS RAID0)
 temp_path: /local/_incomplete # Keep incomplete torrents in
 temp_path_enabled: true # Use a separate path for incomplete torrents
 preallocate_all: false # Pre-allocate disk space for all files
