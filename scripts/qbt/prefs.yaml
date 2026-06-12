@@ -29,8 +29,8 @@ disk_queue_size: 16777216 # Disk I/O queue size (bytes — 16 MiB)
 # === Speed limits ===
 dl_limit: 104857600 # Global download limit (bytes/s — 100 MiB/s, leaves headroom for the rest of the LAN)
 up_limit: 104857600 # Global upload limit (bytes/s — 100 MiB/s)
-alt_dl_limit: 10485760 # Alt-mode download limit (bytes/s — 10 MiB/s)
-alt_up_limit: 10485760 # Alt-mode upload limit (bytes/s — 10 MiB/s)
+alt_dl_limit: 41943040 # Alt-mode download limit (bytes/s — 40 MiB/s)
+alt_up_limit: 41943040 # Alt-mode upload limit (bytes/s — 40 MiB/s)
 scheduler_enabled: false # Time-of-day alt-speed scheduler
 
 # === BitTorrent / Queueing ===
