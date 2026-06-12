@@ -15,6 +15,26 @@ app-template:
             limits:
               cpu: 200m
               memory: 256Mi
+        # Inspects each grabbed .torrent for .rar files so a filter's External
+        # check can reject packed releases (announce data can't reveal this).
+        # Reached in-pod at http://localhost:8080 — no Service/ingress needed.
+        no-rars:
+          image:
+            repository: ghcr.io/unhelpful7417/autobrr-no-rars
+            tag: api@sha256:1f498516018b28fced48663f8281f59fcb439b6a74561119598ef7420893083d
+          env:
+            TZ: Europe/Stockholm
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
 
   service:
     autobrr:
