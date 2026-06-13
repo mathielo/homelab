@@ -3,7 +3,7 @@
 #
 # Assigns 10.10.50.3 as a virtual IP (VIP) for LoadBalancer services.
 # This reuses the original single-node cluster IP so that the Pi-hole
-# DNS wildcard (*.hl.mathielo.com → 10.10.50.3) requires no changes.
+# DNS wildcard (*.m6o.dev → 10.10.50.3) requires no changes.
 #
 # No physical node uses .3 — k3s nodes start at .10.
 # Expand to 10.10.50.3-10.10.50.9 if more LoadBalancer IPs are needed.

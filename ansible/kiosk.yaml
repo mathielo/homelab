@@ -9,7 +9,7 @@
   hosts: kiosk
   become: true
   vars:
-    kiosk_url: https://kiosk.hl.mathielo.com
+    kiosk_url: https://kiosk.m6o.dev
     kiosk_idle_seconds: 900 # blank panel after 15 min idle; touch wakes it
 
   tasks:

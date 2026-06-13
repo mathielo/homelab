@@ -11,7 +11,7 @@ app-template:
             PGID: "1000"
             TZ: Europe/Stockholm
             AUTH: "on"
-            ORIGIN: https://profilarr.hl.mathielo.com
+            ORIGIN: https://profilarr.m6o.dev
             PARSER_HOST: localhost
             PARSER_PORT: "5000"
           resources:
@@ -50,7 +50,7 @@ app-template:
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-prod
       hosts:
-        - host: profilarr.hl.mathielo.com
+        - host: profilarr.m6o.dev
           paths:
             - path: /
               service:
@@ -58,8 +58,8 @@ app-template:
                 port: http
       tls:
         - hosts:
-            - profilarr.hl.mathielo.com
-          secretName: profilarr-hl-tls
+            - profilarr.m6o.dev
+          secretName: profilarr-tls
 
   persistence:
     config:

@@ -27,26 +27,26 @@ DNS/indexer flow:
 
 | Service   | URL                                 | Port  | Purpose                                    |
 | --------- | ----------------------------------- | ----- | ------------------------------------------ |
-| SABnzbd   | `https://sabnzbd.hl.mathielo.com`   | 8080  | Usenet downloader                          |
-| qBt SE    | `https://qbt-se.hl.mathielo.com`    | 8080  | Torrent downloader                         |
-| qBt BR    | `https://qbt-br.hl.mathielo.com`    | 8080  | Torrent downloader                         |
-| qBt MAM   | `https://qbt-mam.hl.mathielo.com`   | 8080  | Torrent downloader (MyAnonaMouse-only)     |
-| qui       | `https://qui.hl.mathielo.com`       | 7476  | Multi-qBt instance manager UI + cross-seed |
-| Prowlarr  | `https://prowlarr.hl.mathielo.com`  | 9696  | Indexer manager/proxy                      |
-| Radarr    | `https://radarr.hl.mathielo.com`    | 7878  | Movie automation                           |
-| Sonarr    | `https://sonarr.hl.mathielo.com`    | 8989  | Shows automation                           |
-| Bazarr    | `https://bazarr.hl.mathielo.com`    | 6767  | Subtitle automation                        |
-| Plex      | `https://plex.hl.mathielo.com`      | 32400 | Media server / playback                    |
-| Autobrr   | `https://autobrr.hl.mathielo.com`   | 7474  | Filtered release automation                |
-| Pulsarr   | `https://pulsarr.hl.mathielo.com`   | 3003  | Automated media requests (Sonarr/Radarr)   |
-| Prismarr  | `https://prismarr.hl.mathielo.com`  | 7070  | Media request portal                       |
-| Profilarr | `https://profilarr.hl.mathielo.com` | 6868  | Quality profiles / custom formats          |
+| SABnzbd   | `https://sabnzbd.m6o.dev`   | 8080  | Usenet downloader                          |
+| qBt SE    | `https://se.qbt.m6o.dev`    | 8080  | Torrent downloader                         |
+| qBt BR    | `https://br.qbt.m6o.dev`    | 8080  | Torrent downloader                         |
+| qBt MAM   | `https://mam.qbt.m6o.dev`   | 8080  | Torrent downloader (MyAnonaMouse-only)     |
+| qui       | `https://qui.m6o.dev`       | 7476  | Multi-qBt instance manager UI + cross-seed |
+| Prowlarr  | `https://prowlarr.m6o.dev`  | 9696  | Indexer manager/proxy                      |
+| Radarr    | `https://radarr.m6o.dev`    | 7878  | Movie automation                           |
+| Sonarr    | `https://sonarr.m6o.dev`    | 8989  | Shows automation                           |
+| Bazarr    | `https://bazarr.m6o.dev`    | 6767  | Subtitle automation                        |
+| Plex      | `https://plex.m6o.dev`      | 32400 | Media server / playback                    |
+| Autobrr   | `https://autobrr.m6o.dev`   | 7474  | Filtered release automation                |
+| Pulsarr   | `https://pulsarr.m6o.dev`   | 3003  | Automated media requests (Sonarr/Radarr)   |
+| Prismarr  | `https://prismarr.m6o.dev`  | 7070  | Media request portal                       |
+| Profilarr | `https://profilarr.m6o.dev` | 6868  | Quality profiles / custom formats          |
 
 > Searcharr (Telegram request bot) also runs in `media` but has no web UI.
 
 > Profilarr runs a bundled stateless `profilarr-parser` sidecar (in-pod, port 5000) that powers release-pattern testing; it has no web UI of its own.
 
-> :exclamation: All URLs require Tailscale (or LAN) + Pi-hole DNS (`*.hl.mathielo.com → 10.10.50.3`).
+> :exclamation: All URLs require Tailscale (or LAN) + Pi-hole DNS (`*.m6o.dev → 10.10.50.3`).
 
 ## External Services
 
@@ -221,7 +221,7 @@ Then configure **Settings → Languages** and add **OpenSubtitles.com** under **
 
 > :bulb: Plex is pinned to `k3s-server` (M75q-1) via hostname nodeSelector for access to the Radeon Vega 10 GPU.
 
-Complete the setup wizard at `https://plex.hl.mathielo.com`, then:
+Complete the setup wizard at `https://plex.m6o.dev`, then:
 
 1. **Claim server** — should auto-claim via `PLEX_CLAIM` env var on first boot. If the token expired, generate a new one at `https://plex.tv/claim`, re-encrypt `values.sops.yaml`, and redeploy.
 
@@ -272,7 +272,7 @@ Complete the setup wizard, then connect media services:
 
 Profilarr replaces hand-tuned quality profiles with curated, importable ones and keeps them synced into Sonarr/Radarr.
 
-Browse `https://profilarr.hl.mathielo.com` and create the admin account (built-in auth is on). Then:
+Browse `https://profilarr.m6o.dev` and create the admin account (built-in auth is on). Then:
 
 1. **Settings → Arr** — add Sonarr and Radarr:
 

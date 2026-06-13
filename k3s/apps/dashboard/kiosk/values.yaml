@@ -60,7 +60,7 @@ app-template:
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-prod
       hosts:
-        - host: kiosk.hl.mathielo.com
+        - host: kiosk.m6o.dev
           paths:
             - path: /
               service:
@@ -68,5 +68,5 @@ app-template:
                 port: http
       tls:
         - hosts:
-            - kiosk.hl.mathielo.com
-          secretName: kiosk-hl-tls
+            - kiosk.m6o.dev
+          secretName: kiosk-tls

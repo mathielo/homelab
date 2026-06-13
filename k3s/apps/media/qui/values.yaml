@@ -33,7 +33,7 @@ app-template:
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-prod
       hosts:
-        - host: qui.hl.mathielo.com
+        - host: qui.m6o.dev
           paths:
             - path: /
               service:
@@ -41,8 +41,8 @@ app-template:
                 port: http
       tls:
         - hosts:
-            - qui.hl.mathielo.com
-          secretName: qui-hl-tls
+            - qui.m6o.dev
+          secretName: qui-tls
 
   persistence:
     config:

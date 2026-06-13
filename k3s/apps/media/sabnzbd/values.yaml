@@ -42,7 +42,7 @@ app-template:
             - -c
             - |
               if [ ! -f /config/sabnzbd.ini ]; then
-                printf '[misc]\nhost_whitelist = sabnzbd.hl.mathielo.com,\n' > /config/sabnzbd.ini
+                printf '[misc]\nhost_whitelist = sabnzbd.m6o.dev,\n' > /config/sabnzbd.ini
               fi
 
         # Gluetun VPN kill-switch as a native k8s sidecar (k8s >= 1.29).
@@ -150,7 +150,7 @@ app-template:
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-prod
       hosts:
-        - host: sabnzbd.hl.mathielo.com
+        - host: sabnzbd.m6o.dev
           paths:
             - path: /
               service:
@@ -158,8 +158,8 @@ app-template:
                 port: http
       tls:
         - hosts:
-            - sabnzbd.hl.mathielo.com
-          secretName: sabnzbd-hl-tls
+            - sabnzbd.m6o.dev
+          secretName: sabnzbd-tls
 
   persistence:
     config:

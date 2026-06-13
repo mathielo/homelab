@@ -31,7 +31,7 @@ app-template:
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-prod
       hosts:
-        - host: bazarr.hl.mathielo.com
+        - host: bazarr.m6o.dev
           paths:
             - path: /
               service:
@@ -39,8 +39,8 @@ app-template:
                 port: http
       tls:
         - hosts:
-            - bazarr.hl.mathielo.com
-          secretName: bazarr-hl-tls
+            - bazarr.m6o.dev
+          secretName: bazarr-tls
 
   persistence:
     config:

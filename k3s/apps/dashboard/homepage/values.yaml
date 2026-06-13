@@ -14,7 +14,7 @@ app-template:
             tag: v1.13.2
           env:
             TZ: Europe/Stockholm
-            HOMEPAGE_ALLOWED_HOSTS: hl.mathielo.com
+            HOMEPAGE_ALLOWED_HOSTS: m6o.dev
             HOMEPAGE_SKIP_TLS_VERIFY: "true"
             # * env vars injected via values.sops.yaml
           resources:
@@ -38,7 +38,7 @@ app-template:
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-prod
       hosts:
-        - host: hl.mathielo.com
+        - host: m6o.dev
           paths:
             - path: /
               service:
@@ -46,8 +46,8 @@ app-template:
                 port: http
       tls:
         - hosts:
-            - hl.mathielo.com
-          secretName: homepage-hl-tls
+            - m6o.dev
+          secretName: homepage-tls
 
   persistence:
     config:
@@ -82,14 +82,14 @@ app-template:
         # Homepage is read-only by design.
         #
         # Widget `url:` uses in-cluster service DNS (the pod can't resolve
-        # *.hl.mathielo.com — that's Pi-hole split-DNS, browser-only). `href:`
+        # *.m6o.dev — that's Pi-hole split-DNS, browser-only). `href:`
         # uses the public hl URL since the browser, not the pod, opens it.
         # Secrets are `{{HOMEPAGE_VAR_*}}` injected from values.sops.yaml; the
         # outer `{{ "…" }}` is Helm-escaping so the literal token reaches the
         # ConfigMap for Homepage to substitute at runtime.
         # ─────────────────────────────────────────────────────────────────────
         settings.yaml: |
-          base: https://hl.mathielo.com
+          base: https://m6o.dev
           title: Homelab
           favicon: /icons/homelab.ico
           theme: dark
@@ -159,28 +159,28 @@ app-template:
           - Quick links:
               - qui:
                   icon: qui.png
-                  href: https://qui.hl.mathielo.com
+                  href: https://qui.m6o.dev
                   siteMonitor: http://qui.media.svc.cluster.local:7476
               - Pulsarr:
                   icon: pulsarr.png
-                  href: https://pulsarr.hl.mathielo.com
+                  href: https://pulsarr.m6o.dev
                   siteMonitor: http://pulsarr.media.svc.cluster.local:3003/health
               - Prismarr:
                   icon: mdi-movie-search
-                  href: https://prismarr.hl.mathielo.com
+                  href: https://prismarr.m6o.dev
                   siteMonitor: http://prismarr.media.svc.cluster.local:7070
               - Longhorn:
                   icon: longhorn.png
-                  href: https://longhorn.hl.mathielo.com
+                  href: https://lh.m6o.dev
                   siteMonitor: http://longhorn-frontend.longhorn-system.svc.cluster.local
               - Rack kiosk:
                   icon: mdi-monitor-dashboard
-                  href: https://kiosk.hl.mathielo.com
+                  href: https://kiosk.m6o.dev
                   siteMonitor: http://kiosk.dashboard.svc.cluster.local:8080/healthz
 
           - Downloads:
               - Autobrr:
-                  href: https://autobrr.hl.mathielo.com
+                  href: https://autobrr.m6o.dev
                   description: Release automation
                   icon: autobrr.png
                   widget:
@@ -188,21 +188,21 @@ app-template:
                     url: http://autobrr.media.svc.cluster.local:7474
                     key: "{{ "{{HOMEPAGE_VAR_AUTOBRR_KEY}}" }}"
               - qBt SE:
-                  href: https://qbt-se.hl.mathielo.com
+                  href: https://se.qbt.m6o.dev
                   description: Torrents · SE exit
                   icon: qbittorrent.png
                   widget:
                     type: qbittorrent
                     url: http://qbt-se.media.svc.cluster.local:8080
               - qBt BR:
-                  href: https://qbt-br.hl.mathielo.com
+                  href: https://br.qbt.m6o.dev
                   description: Torrents · BR exit
                   icon: qbittorrent.png
                   widget:
                     type: qbittorrent
                     url: http://qbt-br.media.svc.cluster.local:8080
               - SABnzbd:
-                  href: https://sabnzbd.hl.mathielo.com
+                  href: https://sabnzbd.m6o.dev
                   description: Usenet downloader
                   icon: sabnzbd.png
                   widget:
@@ -212,7 +212,7 @@ app-template:
 
           - Media:
               - Prowlarr:
-                  href: https://prowlarr.hl.mathielo.com
+                  href: https://prowlarr.m6o.dev
                   description: Indexer manager
                   icon: prowlarr.png
                   widget:
@@ -220,7 +220,7 @@ app-template:
                     url: http://prowlarr.media.svc.cluster.local:9696
                     key: "{{ "{{HOMEPAGE_VAR_PROWLARR_KEY}}" }}"
               - Sonarr:
-                  href: https://sonarr.hl.mathielo.com
+                  href: https://sonarr.m6o.dev
                   description: TV automation
                   icon: sonarr.png
                   widget:
@@ -228,7 +228,7 @@ app-template:
                     url: http://sonarr.media.svc.cluster.local:8989
                     key: "{{ "{{HOMEPAGE_VAR_SONARR_KEY}}" }}"
               - Radarr:
-                  href: https://radarr.hl.mathielo.com
+                  href: https://radarr.m6o.dev
                   description: Movie automation
                   icon: radarr.png
                   widget:
@@ -236,7 +236,7 @@ app-template:
                     url: http://radarr.media.svc.cluster.local:7878
                     key: "{{ "{{HOMEPAGE_VAR_RADARR_KEY}}" }}"
               - Bazarr:
-                  href: https://bazarr.hl.mathielo.com
+                  href: https://bazarr.m6o.dev
                   description: Subtitles
                   icon: bazarr.png
                   widget:
@@ -244,11 +244,11 @@ app-template:
                     url: http://bazarr.media.svc.cluster.local:6767
                     key: "{{ "{{HOMEPAGE_VAR_BAZARR_KEY}}" }}"
               - Profilarr:
-                  href: https://profilarr.hl.mathielo.com
+                  href: https://profilarr.m6o.dev
                   description: Quality profiles & custom formats
                   icon: profilarr.png
               - Plex:
-                  href: https://plex.hl.mathielo.com
+                  href: https://plex.m6o.dev
                   description: Media server
                   icon: plex.png
                   widget:
@@ -276,7 +276,7 @@ app-template:
                     username: "{{ "{{HOMEPAGE_VAR_UNIFI_USER}}" }}"
                     password: "{{ "{{HOMEPAGE_VAR_UNIFI_PASS}}" }}"
               - Gluetun:
-                  href: https://qbt-se.hl.mathielo.com
+                  href: https://se.qbt.m6o.dev
                   description: Download VPN · kill-switch
                   icon: proton-vpn.png
                   # qbt-se's tunnel (the privacy-critical one). Its
@@ -288,7 +288,7 @@ app-template:
                     type: gluetun
                     url: http://qbt-se.media.svc.cluster.local:8000
               - ArgoCD:
-                  href: https://argocd.hl.mathielo.com
+                  href: https://argo.m6o.dev
                   description: GitOps deployments
                   icon: argo-cd.png
                   widget:
@@ -296,7 +296,7 @@ app-template:
                     url: http://argocd-server.argocd.svc.cluster.local
                     key: "{{ "{{HOMEPAGE_VAR_ARGOCD_KEY}}" }}"
               - Grafana:
-                  href: https://grafana.hl.mathielo.com
+                  href: https://grafana.m6o.dev
                   description: Metrics & alerts
                   icon: grafana.png
                   widget:
@@ -308,7 +308,7 @@ app-template:
                     username: "{{ "{{HOMEPAGE_VAR_GRAFANA_USERNAME}}" }}"
                     password: "{{ "{{HOMEPAGE_VAR_GRAFANA_PASSWORD}}" }}"
               - Uptime Kuma:
-                  href: https://status.hl.mathielo.com
+                  href: https://status.m6o.dev
                   description: Service monitoring
                   icon: uptime-kuma.png
                   widget:

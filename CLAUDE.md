@@ -40,8 +40,8 @@ This repository is **public**. When making changes:
 
 ## Domain
 
-- **Domain:** `mathielo.com` (managed in Cloudflare)
-- **Homelab services:** accessible as `*.hl.mathielo.com` via split-DNS (Pi-hole + k3s ingress, no public exposure)
+- **Domain:** `m6o.dev` (managed in Cloudflare) — dedicated to the homelab
+- **Homelab services:** accessible as `*.m6o.dev` via split-DNS (Pi-hole + k3s ingress, no public exposure)
 
 ## Repository Structure
 
@@ -92,12 +92,12 @@ Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
   - Agent: `k3s-node-01` (M715Q) at `10.10.50.11`
   - Agent: `k3s-node-02` (M70q Gen 5) at `10.10.50.12`
   - MetalLB VIP: `10.10.50.3` (ingress target, DNS wildcard destination)
-- **Cloudflare (DNS-01 only)**: Cloudflare manages the `mathielo.com` domain and provides DNS-01 challenge validation for Let's Encrypt certificates via cert-manager. No Cloudflare Tunnel — no services are publicly exposed.
+- **Cloudflare (DNS-01 only)**: Cloudflare manages the `m6o.dev` domain and provides DNS-01 challenge validation for Let's Encrypt certificates via cert-manager. No Cloudflare Tunnel — no services are publicly exposed.
 - **Tailscale**: Private overlay network for remote access to k3s services and Pi-hole
   - Tailnet: `qilin-goby.ts.net`
   - k3s server: `100.100.50.10` (mirrors local `10.10.50.10`)
   - Pi-hole: `100.100.53.53` (mirrors local `10.10.53.53`)
-  - Pi-hole wildcard record: `*.hl.mathielo.com → 10.10.50.3` (MetalLB VIP, via `/etc/dnsmasq.d/20-k3s.conf`)
+  - Pi-hole wildcard record: `*.m6o.dev → 10.10.50.3` (MetalLB VIP, via `/etc/dnsmasq.d/20-k3s.conf`)
   - k3s server advertises `10.10.50.0/24` as a Tailscale subnet route so remote tailnet devices can reach LAN IPs
 
 ## MCP Access Policy

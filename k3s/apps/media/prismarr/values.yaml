@@ -29,7 +29,7 @@ app-template:
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-prod
       hosts:
-        - host: prismarr.hl.mathielo.com
+        - host: prismarr.m6o.dev
           paths:
             - path: /
               service:
@@ -37,8 +37,8 @@ app-template:
                 port: http
       tls:
         - hosts:
-            - prismarr.hl.mathielo.com
-          secretName: prismarr-hl-tls
+            - prismarr.m6o.dev
+          secretName: prismarr-tls
 
   persistence:
     data:

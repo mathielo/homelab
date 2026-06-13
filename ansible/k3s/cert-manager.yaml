@@ -4,9 +4,9 @@
 # Prerequisites:
 #   - Add the following to ansible/k3s/cert-manager.sops.yaml (sops --decrypt to edit):
 #       cloudflare_api_token: "<token>"
-#       # Token needs "Edit zone DNS" permission, scoped to zone mathielo.com only.
+#       # Token needs "Edit zone DNS" permission, scoped to zone m6o.dev only.
 #       # Create at: Cloudflare dashboard → My Profile → API Tokens → Create Token
-#       # Template: "Edit zone DNS" → Zone Resources: Include → Specific zone → mathielo.com
+#       # Template: "Edit zone DNS" → Zone Resources: Include → Specific zone → m6o.dev
 #       letsencrypt_email: "your@email.com"  # receives renewal failure notifications
 
 - name: Deploy cert-manager with Let's Encrypt (Cloudflare DNS-01)

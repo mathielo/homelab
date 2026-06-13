@@ -1,5 +1,5 @@
 global:
-  domain: argocd.hl.mathielo.com
+  domain: argo.m6o.dev
 
 configs:
   params:
@@ -25,7 +25,7 @@ server:
   ingress:
     enabled: true
     ingressClassName: nginx
-    hostname: argocd.hl.mathielo.com
+    hostname: argo.m6o.dev
     tls: true
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt-prod

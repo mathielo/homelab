@@ -31,7 +31,7 @@ app-template:
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-prod
       hosts:
-        - host: sonarr.hl.mathielo.com
+        - host: sonarr.m6o.dev
           paths:
             - path: /
               service:
@@ -39,8 +39,8 @@ app-template:
                 port: http
       tls:
         - hosts:
-            - sonarr.hl.mathielo.com
-          secretName: sonarr-hl-tls
+            - sonarr.m6o.dev
+          secretName: sonarr-tls
 
   persistence:
     config:

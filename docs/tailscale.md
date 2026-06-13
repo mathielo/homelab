@@ -23,7 +23,7 @@ These are **static Tailscale IPs**, manually assigned in the Tailscale admin con
 
 The k3s server node advertises the Servers VLAN (`10.10.50.0/24`) as a Tailscale subnet route. This means remote tailnet devices can reach services at their **LAN IPs** (e.g. `10.10.50.3`, the MetalLB VIP) even though they're not physically on the LAN.
 
-This is what makes the wildcard DNS record work remotely: Pi-hole resolves `*.hl.mathielo.com` to `10.10.50.3` (MetalLB VIP), and the subnet route ensures that IP is reachable from anywhere on the tailnet.
+This is what makes the wildcard DNS record work remotely: Pi-hole resolves `*.m6o.dev` to `10.10.50.3` (MetalLB VIP), and the subnet route ensures that IP is reachable from anywhere on the tailnet.
 
 Subnet routes must be approved in the **Tailscale admin console** → Machines → k3s-server → Edit route settings → enable `10.10.50.0/24`.
 
@@ -34,17 +34,17 @@ Pi-hole serves as the DNS resolver for **all** tailnet devices, not just LAN dev
 ```
 LAN device
   → UniFi DHCP assigns Pi-hole (10.10.53.53) as DNS
-  → Pi-hole resolves *.hl.mathielo.com → 10.10.50.3 (MetalLB VIP)
+  → Pi-hole resolves *.m6o.dev → 10.10.50.3 (MetalLB VIP)
   → MetalLB routes to nginx ingress → backend pod
 
 Remote tailnet device
   → Tailscale DNS override → Pi-hole (100.100.53.53)
-  → Pi-hole resolves *.hl.mathielo.com → 10.10.50.3 (MetalLB VIP)
+  → Pi-hole resolves *.m6o.dev → 10.10.50.3 (MetalLB VIP)
   → Subnet route delivers traffic to 10.10.50.3 via tailnet
   → MetalLB routes to nginx ingress → backend pod
 ```
 
-The result: `https://grafana.hl.mathielo.com` works identically whether you're at home or on the other side of the world.
+The result: `https://grafana.m6o.dev` works identically whether you're at home or on the other side of the world.
 
 ## Setup
 

@@ -29,7 +29,7 @@ app-template:
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-prod
       hosts:
-        - host: pulsarr.hl.mathielo.com
+        - host: pulsarr.m6o.dev
           paths:
             - path: /
               service:
@@ -37,8 +37,8 @@ app-template:
                 port: http
       tls:
         - hosts:
-            - pulsarr.hl.mathielo.com
-          secretName: pulsarr-hl-tls
+            - pulsarr.m6o.dev
+          secretName: pulsarr-tls
 
   persistence:
     data:

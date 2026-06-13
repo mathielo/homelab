@@ -74,7 +74,7 @@ After running the playbook, approve the route in the **Tailscale admin console**
 
 ### DNS setup (Pi-hole)
 
-Pi-hole has a wildcard DNS record pointing `*.hl.mathielo.com` to the MetalLB VIP (`10.10.50.3`) via `/etc/dnsmasq.d/20-k3s.conf`. Combined with subnet routing, this resolves correctly for both LAN and tailnet devices.
+Pi-hole has a wildcard DNS record pointing `*.m6o.dev` to the MetalLB VIP (`10.10.50.3`) via `/etc/dnsmasq.d/20-k3s.conf`. Combined with subnet routing, this resolves correctly for both LAN and tailnet devices.
 
 ## Install k3s
 
@@ -130,7 +130,7 @@ All PVCs are on Longhorn, so the pods reschedule freely across nodes.
 
 ### Accessing Grafana
 
-- **URL:** `https://grafana.hl.mathielo.com` (requires Tailscale + Pi-hole DNS, see above)
+- **URL:** `https://grafana.m6o.dev` (requires Tailscale + Pi-hole DNS, see above)
 
 Both Prometheus and Loki datasources are pre-configured — no manual setup needed.
 
@@ -164,4 +164,4 @@ ArgoCD-managed apps live in `k3s/apps/<namespace>/<app>/` as Helm charts (bjw-s/
 2. Add an ArgoCD Application CR in `k3s/argocd/apps/<app>.yaml` pointing to the chart
 3. Commit and push — ArgoCD syncs automatically
 
-The wildcard DNS record (`*.hl.mathielo.com → 10.10.50.3`, the MetalLB VIP) covers all subdomains, so no DNS changes needed for new `<app>.hl.mathielo.com` services. See existing apps in `k3s/apps/media/` for examples.
+The wildcard DNS record (`*.m6o.dev → 10.10.50.3`, the MetalLB VIP) covers all subdomains, so no DNS changes needed for new `<app>.m6o.dev` services. See existing apps in `k3s/apps/media/` for examples.

@@ -51,7 +51,7 @@ app-template:
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-prod
       hosts:
-        - host: status.hl.mathielo.com
+        - host: status.m6o.dev
           paths:
             - path: /
               service:
@@ -59,8 +59,8 @@ app-template:
                 port: http
       tls:
         - hosts:
-            - status.hl.mathielo.com
-          secretName: uptime-kuma-hl-tls
+            - status.m6o.dev
+          secretName: uptime-kuma-tls
 
   persistence:
     data:

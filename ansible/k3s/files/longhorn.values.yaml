@@ -25,9 +25,9 @@ longhornManager:
 ingress:
   enabled: true
   ingressClassName: nginx
-  host: longhorn.hl.mathielo.com
+  host: lh.m6o.dev
   tls: true
-  tlsSecret: longhorn-hl-tls
+  tlsSecret: longhorn-tls
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/backend-protocol: HTTP

@@ -43,7 +43,7 @@ kubectl -n longhorn-system get nodes.longhorn.io   # all READY=True, SCHEDULABLE
 kubectl get sc                                     # longhorn (default), local-path (not)
 ```
 
-UI: `https://longhorn.hl.mathielo.com`.
+UI: `https://lh.m6o.dev`.
 
 ## hostPath prep (after first boot, per node)
 

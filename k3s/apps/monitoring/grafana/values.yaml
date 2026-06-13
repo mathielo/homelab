@@ -65,8 +65,8 @@ grafana:
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt-prod
     hosts:
-      - grafana.hl.mathielo.com
+      - grafana.m6o.dev
     tls:
       - hosts:
-          - grafana.hl.mathielo.com
+          - grafana.m6o.dev
         secretName: grafana-tls

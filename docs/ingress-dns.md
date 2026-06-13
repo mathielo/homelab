@@ -6,7 +6,7 @@ How k3s services are accessed — from DNS resolution to TLS termination. Nothin
 
 ```
 Device (LAN or Tailscale)
-  → Pi-hole resolves *.hl.mathielo.com → 10.10.50.3        (split-DNS wildcard, MetalLB VIP)
+  → Pi-hole resolves *.m6o.dev → 10.10.50.3        (split-DNS wildcard, MetalLB VIP)
   → MetalLB L2 routes to nginx ingress controller          (LoadBalancer service)
   → nginx ingress controller routes by hostname            (k3s, kube-extra namespace)
   → TLS terminated with Let's Encrypt certificate          (cert-manager + Cloudflare DNS-01)
@@ -17,18 +17,18 @@ Device (LAN or Tailscale)
 
 ### 1. Split-DNS (Pi-hole)
 
-Pi-hole has a wildcard dnsmasq record that resolves all `*.hl.mathielo.com` hostnames to the MetalLB VIP:
+Pi-hole has a wildcard dnsmasq record that resolves all `*.m6o.dev` hostnames to the MetalLB VIP:
 
 ```
 # /etc/dnsmasq.d/20-k3s.conf (on Pi-hole)
-address=/hl.mathielo.com/10.10.50.3
+address=/m6o.dev/10.10.50.3
 ```
 
 The VIP `10.10.50.3` is managed by MetalLB (L2 mode). No physical node uses this IP — k3s nodes start at `.10`. MetalLB responds to ARP requests for `.3` and routes traffic to the nginx ingress controller pod.
 
 This record is loaded because Pi-hole v6 has `misc.etc_dnsmasq_d = true` (set by the Pi-hole Ansible playbook).
 
-There is **no public DNS record** for `*.hl.mathielo.com` — it only resolves for devices using Pi-hole as their DNS server:
+There is **no public DNS record** for `*.m6o.dev` — it only resolves for devices using Pi-hole as their DNS server:
 
 - **LAN devices**: UniFi DHCP assigns Pi-hole (`10.10.53.53`) as the DNS server for all VLANs
 - **Remote devices**: Tailscale global nameserver override points to Pi-hole (`100.100.53.53`)
@@ -46,7 +46,7 @@ ingress:
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt-prod
     hosts:
-      - host: <app>.hl.mathielo.com
+      - host: <app>.m6o.dev
         paths:
           - path: /
             service:
@@ -54,7 +54,7 @@ ingress:
     tls:
       - secretName: <app>-tls
         hosts:
-          - <app>.hl.mathielo.com
+          - <app>.m6o.dev
 ```
 
 ### 3. TLS Certificates (cert-manager + Cloudflare)
@@ -80,4 +80,4 @@ Certificates renew automatically before expiry.
 
 ## Adding a New Service
 
-The wildcard DNS record covers all `*.hl.mathielo.com` subdomains — no DNS changes needed. Just add an Ingress resource with the appropriate hostname and cert-manager annotation. See existing apps in `k3s/apps/` for examples.
+The wildcard DNS record covers all `*.m6o.dev` subdomains — no DNS changes needed. Just add an Ingress resource with the appropriate hostname and cert-manager annotation. See existing apps in `k3s/apps/` for examples.

@@ -5,7 +5,7 @@
 # after initial setup.
 #
 # Post-deploy:
-#   1. Open https://plex.hl.mathielo.com and complete the setup wizard
+#   1. Open https://plex.m6o.dev and complete the setup wizard
 #   2. Add libraries: Movies → /media/library/movies, Shows → /media/library/shows
 #   3. Enable hardware transcoding in Settings → Transcoder
 app-template:
@@ -24,7 +24,7 @@ app-template:
             PUID: "1000"
             PGID: "1000"
             TZ: Europe/Stockholm
-            PLEX_ADVERTISE_URL: "https://plex.hl.mathielo.com:443"
+            PLEX_ADVERTISE_URL: "https://plex.m6o.dev:443"
             # PLEX_CLAIM_TOKEN injected via values.sops.yaml
             # Generate at https://plex.tv/claim — expires in ~4 minutes!
             # Only needed for initial server claim; can be removed after first boot.
@@ -56,7 +56,7 @@ app-template:
         nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
         nginx.ingress.kubernetes.io/proxy-buffering: "off"
       hosts:
-        - host: plex.hl.mathielo.com
+        - host: plex.m6o.dev
           paths:
             - path: /
               service:
@@ -64,8 +64,8 @@ app-template:
                 port: http
       tls:
         - hosts:
-            - plex.hl.mathielo.com
-          secretName: plex-hl-tls
+            - plex.m6o.dev
+          secretName: plex-tls
 
   persistence:
     config:

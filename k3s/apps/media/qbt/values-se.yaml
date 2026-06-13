@@ -11,7 +11,7 @@ app-template:
   ingress:
     main:
       hosts:
-        - host: qbt-se.hl.mathielo.com
+        - host: se.qbt.m6o.dev
           paths:
             - path: /
               service:
@@ -19,8 +19,8 @@ app-template:
                 port: http
       tls:
         - hosts:
-            - qbt-se.hl.mathielo.com
-          secretName: qbt-se-hl-tls
+            - se.qbt.m6o.dev
+          secretName: qbt-se-tls
 
   persistence:
     config:

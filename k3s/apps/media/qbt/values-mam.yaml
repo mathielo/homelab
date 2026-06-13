@@ -60,7 +60,7 @@ app-template:
   ingress:
     main:
       hosts:
-        - host: qbt-mam.hl.mathielo.com
+        - host: mam.qbt.m6o.dev
           paths:
             - path: /
               service:
@@ -68,8 +68,8 @@ app-template:
                 port: http
       tls:
         - hosts:
-            - qbt-mam.hl.mathielo.com
-          secretName: qbt-mam-hl-tls
+            - mam.qbt.m6o.dev
+          secretName: qbt-mam-tls
 
   persistence:
     config:
