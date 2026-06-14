@@ -1,4 +1,10 @@
 app-template:
+  # Pinned to k3s-node-02 so the disk-guard check can read the DAS (/r0) free
+  # space directly via df — same node the qbt-* instances and the DAS live on.
+  defaultPodOptions:
+    nodeSelector:
+      kubernetes.io/hostname: k3s-node-02
+
   controllers:
     autobrr:
       containers:
@@ -35,7 +41,6 @@ app-template:
             limits:
               cpu: 200m
               memory: 128Mi
-
   service:
     autobrr:
       controller: autobrr
@@ -65,3 +70,43 @@ app-template:
       existingClaim: autobrr-config-lh
       globalMounts:
         - path: /config
+    disk-guard:
+      type: configMap
+      identifier: disk-guard
+      # Whole-volume mount + defaultMode so the script is executable (subPath
+      # mounts ignore mode bits), letting autobrr exec /scripts/disk-guard.sh
+      # directly.
+      defaultMode: 0755
+      advancedMounts:
+        autobrr:
+          autobrr:
+            - path: /scripts
+    # DAS (/r0) mounted read-only so disk-guard.sh can df it directly — no
+    # Prometheus/qBt dependency. If the DAS detaches, df falls back to node-02's
+    # root fs (well under the threshold) → grabs auto-skip, which is correct.
+    r0:
+      type: hostPath
+      hostPath: /mnt/r0
+      hostPathType: Directory
+      advancedMounts:
+        autobrr:
+          autobrr:
+            - path: /r0
+              readOnly: true
+
+  configMaps:
+    disk-guard:
+      data:
+        # Disk-space gate, exec'd by autobrr as an External "Exec" check
+        # (/scripts/disk-guard.sh): exit 0 lets the grab through, non-zero skips
+        # it. Reads /r0 (the DAS) free space directly via df — no qBt creds, no
+        # Prometheus — so autobrr stops grabbing before the DAS fills and qBt's
+        # move-on-complete starts failing. Threshold defaults to 500 GiB (covers
+        # in-flight downloads still staged on NVMe), overridable per filter via
+        # the first exec argument. Fail-open if df returns nothing.
+        disk-guard.sh: |
+          #!/bin/sh
+          MIN_FREE_GIB=${1:-500}
+          free_kb=$(df -P /r0 | awk 'NR==2{print $4}')
+          [ -z "$free_kb" ] && exit 0
+          [ "$free_kb" -ge "$((MIN_FREE_GIB * 1048576))" ]

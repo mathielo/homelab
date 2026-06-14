@@ -25,8 +25,8 @@ DNS/indexer flow:
 
 ## Services
 
-| Service   | URL                                 | Port  | Purpose                                    |
-| --------- | ----------------------------------- | ----- | ------------------------------------------ |
+| Service   | URL                         | Port  | Purpose                                    |
+| --------- | --------------------------- | ----- | ------------------------------------------ |
 | SABnzbd   | `https://sabnzbd.m6o.dev`   | 8080  | Usenet downloader                          |
 | qBt SE    | `https://se.qbt.m6o.dev`    | 8080  | Torrent downloader                         |
 | qBt BR    | `https://br.qbt.m6o.dev`    | 8080  | Torrent downloader                         |
@@ -99,6 +99,13 @@ qBittorrent categories define the per-category save path (`dl/<category>`). ARR 
 Categories and per-instance preferences are managed declaratively via scripts in [scripts/qbt/](../scripts/qbt/): `apply-categories.sh <instance>` pushes [`categories.yaml`](../scripts/qbt/categories.yaml) (category → save path) and `apply-prefs.sh <instance>` pushes [`prefs.yaml`](../scripts/qbt/prefs.yaml), both through the WebUI API.
 
 > :bulb: qBittorrent persists categories to `/config/config/categories.json` on the Longhorn config PVC, so they survive pod restarts; the scripts are the source of truth and re-apply them to a fresh instance.
+
+### Autobrr disk-space guard (DAS fill protection)
+
+qBittorrent downloads land on the NVMe scratch (`/local/_incomplete`) and only **move to the DAS (`/r0`) on completion**. So a full DAS doesn't fail downloads — it fails the post-completion _move_, stranding finished torrents in `_incomplete` (logged as `Failed to move torrent`). To stop new grabs before that happens, autobrr runs [`disk-guard.sh`](../k3s/apps/media/autobrr/values.yaml) (a ConfigMap-mounted script at `/scripts/disk-guard.sh`) as an External **Exec** check.
+
+- autobrr is pinned to `k3s-node-02` (where the DAS and the qbt-\* instances live) with `/mnt/r0` mounted read-only
+- **Exit 0** while free space ≥ threshold, else **exit 1**.
 
 ## VPN Kill-Switch (Gluetun)
 
