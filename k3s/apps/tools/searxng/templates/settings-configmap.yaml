@@ -1,0 +1,34 @@
+---
+# SearXNG settings.yml. `secret_key` carries a placeholder that the
+# init-settings container (see values.yaml) replaces with $SEARXNG_SECRET
+# from the sops-encrypted values before the app reads the file — so no
+# secret ever lands in this ConfigMap.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: searxng-settings
+  namespace: tools
+data:
+  settings.yml: |
+    # Merge with the image's built-in defaults (engine list, etc.); only the
+    # keys below are overridden.
+    use_default_settings: true
+
+    general:
+      instance_name: "SearXNG"
+
+    server:
+      base_url: "https://srx.m6o.dev/"
+      secret_key: "__SECRET_KEY__"
+      image_proxy: true
+      # Limiter/bot-protection needs a Valkey backend and only matters for
+      # public instances — disabled for this internal single-user deployment.
+      limiter: false
+
+    search:
+      safe_search: 0
+      formats:
+        - html
+
+    ui:
+      default_theme: simple

@@ -1,0 +1,27 @@
+---
+# Manages the tools namespace and its Longhorn PVCs.
+# Must sync before any tools app — ArgoCD respects sync-wave ordering.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tools-infra
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:mathielo/homelab.git
+    targetRevision: main
+    path: k3s/apps/tools/_infra
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tools
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

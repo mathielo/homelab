@@ -1,0 +1,79 @@
+app-template:
+  defaultPodOptions:
+    securityContext:
+      # SearXNG image user is searxng (977:977). fsGroup makes the emptyDir
+      # config volume group-writable so the init container can write the
+      # rendered settings.yml into it.
+      runAsUser: 977
+      runAsGroup: 977
+      fsGroup: 977
+
+  controllers:
+    main:
+      initContainers:
+        # Copies the ConfigMap settings.yml into the writable config emptyDir
+        # and substitutes the secret_key placeholder with $SEARXNG_SECRET
+        # (injected via values.sops.yaml). Runs before the main container so
+        # SearXNG reads a complete, secret-filled settings.yml.
+        init-settings:
+          image:
+            repository: busybox
+            tag: "1.38.0"
+          command:
+            - sh
+            - -c
+            - cp /tmp/cm/settings.yml /etc/searxng/settings.yml && sed -i "s|__SECRET_KEY__|$SEARXNG_SECRET|g" /etc/searxng/settings.yml
+          # SEARXNG_SECRET injected via values.sops.yaml
+
+      containers:
+        searxng:
+          image:
+            repository: searxng/searxng
+            tag: "2026.6.14-b3e08f2a4"
+          env:
+            SEARXNG_PORT: "8080"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 8080
+
+  ingress:
+    main:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      hosts:
+        - host: srx.m6o.dev
+          paths:
+            - path: /
+              service:
+                identifier: main
+                port: http
+      tls:
+        - hosts:
+            - srx.m6o.dev
+          secretName: searxng-tls
+
+  persistence:
+    # Writable config dir. init-settings populates it; searxng reads from it.
+    config:
+      type: emptyDir
+      globalMounts:
+        - path: /etc/searxng
+    # Read-only source of the templated settings.yml.
+    settings:
+      type: configMap
+      name: searxng-settings
+      globalMounts:
+        - path: /tmp/cm
+          readOnly: true
