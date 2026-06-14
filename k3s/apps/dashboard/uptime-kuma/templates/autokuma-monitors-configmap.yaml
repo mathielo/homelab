@@ -26,6 +26,11 @@ data:
       "type": "group",
       "name": "Downloads"
     }
+  tools.json: |
+    {
+      "type": "group",
+      "name": "Tools"
+    }
   # --- Dashboard ---
   homepage.json: |
     {
@@ -111,4 +116,20 @@ data:
       "name": "SABnzbd",
       "url": "http://sabnzbd.media.svc.cluster.local:8080",
       "parent_name": "downloads"
+    }
+
+  # --- Tools ---
+  searxng.json: |
+    {
+      "type": "http",
+      "name": "SearXNG",
+      "url": "http://searxng.tools.svc.cluster.local:8080",
+      "parent_name": "tools"
+    }
+  sure.json: |
+    {
+      "type": "http",
+      "name": "Sure",
+      "url": "http://sure.tools.svc.cluster.local:3000",
+      "parent_name": "tools"
     }
