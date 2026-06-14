@@ -133,3 +133,10 @@ data:
       "url": "http://sure.tools.svc.cluster.local:3000",
       "parent_name": "tools"
     }
+  thelounge.json: |
+    {
+      "type": "http",
+      "name": "The Lounge",
+      "url": "http://thelounge.tools.svc.cluster.local:9000",
+      "parent_name": "tools"
+    }

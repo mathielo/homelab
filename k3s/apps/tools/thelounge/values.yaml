@@ -1,0 +1,73 @@
+app-template:
+  defaultPodOptions:
+    securityContext:
+      # The Lounge image runs as node (1000:1000). fsGroup makes the Longhorn
+      # data volume group-writable so it can create users/, logs/ and the
+      # per-user sqlite history under /var/opt/thelounge.
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+
+  controllers:
+    main:
+      # RWO PVC requires the old pod to release before the new one mounts it.
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: ghcr.io/thelounge/thelounge
+            tag: "4.5.0"
+          env:
+            THELOUNGE_HOME: /var/opt/thelounge
+            TZ: Europe/Stockholm
+          resources:
+            requests:
+              cpu: 25m
+              memory: 96Mi
+            limits:
+              cpu: 500m
+              memory: 384Mi
+
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 9000
+
+  ingress:
+    main:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      hosts:
+        - host: irc.m6o.dev
+          paths:
+            - path: /
+              service:
+                identifier: main
+                port: http
+      tls:
+        - hosts:
+            - irc.m6o.dev
+          secretName: thelounge-tls
+
+  persistence:
+    # Per-user accounts, message history (sqlite) and logs. THELOUNGE_HOME.
+    data:
+      existingClaim: thelounge-data-lh
+      advancedMounts:
+        main:
+          main:
+            - path: /var/opt/thelounge
+    # Server config, mounted read-only over the file inside the data dir.
+    # reverseProxy: true lives here so The Lounge trusts nginx's X-Forwarded-*.
+    config:
+      type: configMap
+      name: thelounge-config
+      advancedMounts:
+        main:
+          main:
+            - path: /var/opt/thelounge/config.js
+              subPath: config.js
+              readOnly: true

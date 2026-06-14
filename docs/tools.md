@@ -4,10 +4,11 @@ More like "services", but using namespace `tools` to not conflict with k8s names
 
 ## Services
 
-| Service | URL                    | Port | Purpose                              |
-| ------- | ---------------------- | ---- | ------------------------------------ |
-| SearXNG | `https://srx.m6o.dev`  | 8080 | Privacy-respecting metasearch engine |
-| Sure    | `https://sure.m6o.dev` | 3000 | Personal finance app                 |
+| Service    | URL                    | Port | Purpose                              |
+| ---------- | ---------------------- | ---- | ------------------------------------ |
+| SearXNG    | `https://srx.m6o.dev`  | 8080 | Privacy-respecting metasearch engine |
+| Sure       | `https://sure.m6o.dev` | 3000 | Personal finance app                 |
+| The Lounge | `https://irc.m6o.dev`  | 9000 | Self-hosted web IRC client           |
 
 ## SearXNG
 
@@ -41,3 +42,20 @@ connections. `web` and `worker` share the `sure-storage-lh` PVC at `/rails/stora
 (Active Storage uploads/imports). DB migrations run from the image entrypoint on
 boot. `PGDATA` is a subdirectory so the Longhorn volume's `lost+found` doesn't make
 `initdb` refuse a non-empty data directory.
+
+## The Lounge
+
+Single pod running as `node` (1000:1000); `fsGroup: 1000` makes the
+`thelounge-data-lh` PVC writable. Private (bouncer) mode — it holds persistent IRC
+connections and per-user scrollback.
+
+- `config.js` ships as a ConfigMap mounted **read-only** at
+  `/var/opt/thelounge/config.js` (server config only, no secrets). `reverseProxy:
+  true` makes it trust nginx's `X-Forwarded-*` headers behind the ingress.
+- Everything else (`users/`, sqlite history, logs) lives on the PVC at
+  `THELOUNGE_HOME=/var/opt/thelounge`.
+- **Accounts are imperative** — private mode has no signup. Create users with:
+  ```
+  kubectl exec -it -n tools deploy/thelounge -- thelounge add <username>
+  ```
+  The account persists on the PVC; this is the one manual step after first deploy.
