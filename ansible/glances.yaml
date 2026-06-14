@@ -16,6 +16,18 @@
         cmd: curl -LsSf https://astral.sh/uv/install.sh | sh
         creates: "/home/{{ ansible_user }}/.local/bin/uv"
 
+    # The service runs as root and writes root-owned __pycache__ dirs into the
+    # user-owned uv tool venv. The next user-level `uv tool install` upgrade then
+    # fails to remove them ("Permission denied"). Chowning the tree back to the
+    # user before the install lets uv replace those dirs.
+    - name: Fix ownership of Glances uv tools directory
+      file:
+        path: "/home/{{ ansible_user }}/.local/share/uv/tools/glances"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        recurse: true
+      ignore_errors: true
+
     # A previous interrupted `uv tool install` can leave an empty/corrupt env
     # dir; uv then refuses every reinstall with "Invalid environment ...:
     # directory is empty". A valid uv tool venv always has pyvenv.cfg, so its

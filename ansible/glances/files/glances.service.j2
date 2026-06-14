@@ -5,6 +5,9 @@ After=network.target
 [Service]
 Type=simple
 User=root
+# Running as root, Python would otherwise write root-owned __pycache__ into the
+# user-owned uv tool venv, breaking the next user-level `uv tool install`.
+Environment=PYTHONDONTWRITEBYTECODE=1
 ExecStart=/home/{{ ansible_user }}/.local/bin/glances -w
 Restart=on-failure
 RestartSec=5
