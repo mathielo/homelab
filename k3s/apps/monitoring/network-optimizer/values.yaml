@@ -1,0 +1,76 @@
+# Read-only deployment: UniFi credentials are entered in the web UI and stored
+# in the /app/data SQLite DB (no env/secret for them). No ssh-keys volume and no
+# speedtest sidecar, so WAN Steering / Adaptive SQM (the only write features)
+# cannot run — UniFi is reached over its HTTPS API only. APP_PASSWORD gates the
+# app's own login and comes from the `network-optimizer` secret (values.sops.yaml).
+#
+# The image's entrypoint starts as root to chown /app/data, then drops to its
+# own app user (uid 1654) — so no pod securityContext override here.
+app-template:
+  controllers:
+    main:
+      # RWO PVC requires the old pod to release before the new one mounts it.
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: ghcr.io/ozark-connect/network-optimizer
+            tag: "1.20.3"
+          env:
+            TZ: Europe/Stockholm
+            # Listen on 0.0.0.0:8042 so the ClusterIP Service / ingress can
+            # reach it (the ingress controller is a separate pod, not localhost).
+            BIND_LOCALHOST_ONLY: "false"
+            # Makes the app emit correct https:// canonical URLs behind nginx.
+            REVERSE_PROXIED_HOST_NAME: netopt.m6o.dev
+          envFrom:
+            - secretRef:
+                identifier: network-optimizer # APP_PASSWORD
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+
+  secrets:
+    network-optimizer:
+      enabled: true
+      # stringData (APP_PASSWORD) supplied by values.sops.yaml
+      stringData: {}
+
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 8042
+
+  ingress:
+    main:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      hosts:
+        - host: netopt.m6o.dev
+          paths:
+            - path: /
+              service:
+                identifier: main
+                port: http
+      tls:
+        - hosts:
+            - netopt.m6o.dev
+          secretName: network-optimizer-tls
+
+  persistence:
+    # SQLite DB, app config, license and the stored UniFi credentials. The data
+    # is re-creatable (re-enter UniFi creds, re-run audits), so an app-template
+    # managed PVC is fine here — no separate _infra claim like the tools apps.
+    data:
+      accessMode: ReadWriteOnce
+      size: 2Gi
+      storageClass: longhorn
+      globalMounts:
+        - path: /app/data

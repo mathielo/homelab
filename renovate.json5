@@ -249,6 +249,16 @@
       groupName: 'monitoring-infra',
     },
     {
+      description: 'Network Optimizer (UniFi analyzer)',
+      matchDatasources: [
+        'docker',
+      ],
+      matchPackageNames: [
+        'ghcr.io/ozark-connect/network-optimizer',
+      ],
+      groupName: 'network-optimizer',
+    },
+    {
       description: 'tools namespace images (SearXNG, Sure + their datastores)',
       matchDatasources: [
         'docker',
