@@ -12,7 +12,7 @@ defaultSettings:
   # - nolock (disable kernel-level locking)
   # The other options are the defaults from Longhorn that get overwritten by the nfsOptions query string
   # See https://oneuptime.com/blog/post/2026-03-20-configure-longhorn-backup-target-nfs/view
-  backupTarget: "nfs://10.10.1.4:/var/nfs/shared/k3s?nfsOptions=vers=3,nolock,actimeo=1,soft,timeo=300,retry=2"
+  backupTarget: "nfs://10.10.50.4:/var/nfs/shared/k3s?nfsOptions=vers=3,nolock,actimeo=1,soft,timeo=300,retry=2"
 
 persistence:
   defaultClass: true

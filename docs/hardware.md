@@ -61,17 +61,20 @@ See [Longhorn Storage](storage-longhorn.md) for disk preparation and Longhorn se
 
 | Device               | Hardware                           | Storage                                                                         | VLAN | IP        |
 | -------------------- | ---------------------------------- | ------------------------------------------------------------------------------- | ---- | --------- |
-| UNAS-4               | UniFi NAS                          | 4 x 24TB 7200RPM HDD (RAID 5, ~72TB usable) + 2x 500GB M.2 SSD read-write cache | 1    | 10.10.1.4 |
+| UNAS-4               | UniFi NAS                          | 4 x 24TB 7200RPM HDD (RAID 5, ~72TB usable) + 2x 500GB M.2 SSD read-write cache | 50   | 10.10.50.4 |
 | Cenmate 802U3-5G DAS | USB-3 2-bay DAS (ASMT 2115 bridge) | 2 x 4TB HDD (software RAID 0 via mdadm, ~7.3 TiB) — attached to `k3s-node-02`   | -    | -         |
 
 ## Networking
 
-All UniFi networking equipment lives on VLAN 1 (management). Only the gateway, NVR, and NAS have static IPs; everything else uses DHCP.
+UniFi networking equipment lives on VLAN 1 (management). The UNVR-I sits on the
+Protect VLAN (20) alongside the cameras, and the UNAS-4 on the Servers VLAN (50)
+with the k3s nodes. Static IPs are used for the gateway, NVR, and NAS; everything
+else uses DHCP.
 
-| Device          | Model              | IP        |
-| --------------- | ------------------ | --------- |
-| R18 UGC Max     | UniFi Gateway      | 10.10.1.1 |
-| UNVR-I          | UniFi NVR Instant  | 10.10.1.2 |
+| Device          | Model              | IP         |
+| --------------- | ------------------ | ---------- |
+| R18 UGC Max     | UniFi Gateway      | 10.10.1.1  |
+| UNVR-I          | UniFi NVR Instant  | 10.10.20.2 |
 | USW Lite 8 PoE  | UniFi Switch       | Dynamic   |
 | U7 Pro XG       | UniFi AP           | Dynamic   |
 | UDB Homelab     | UniFi Dream Bridge | Dynamic   |

@@ -5,7 +5,9 @@
 # NFS access is restricted to k3s nodes (10.10.50.10, 10.10.50.11, 10.10.50.12) on the NAS side.
 # No CSI driver or provisioner needed — k3s uses kernel NFS via nfs-common.
 #
-# PersistentVolume to the "Media" share on the UniFi NAS (10.10.1.4, VLAN 1).
+# PersistentVolume to the "Media" share on the UniFi NAS (10.10.50.4, VLAN 50).
+# NAS shares the Servers VLAN with the k3s nodes, so NFS stays intra-VLAN (no
+# inter-VLAN gateway hop).
 # ---------------------------------------------------------------------------
 apiVersion: v1
 kind: PersistentVolume
@@ -21,7 +23,7 @@ spec:
   mountOptions:
     - nconnect=4
   nfs:
-    server: 10.10.1.4
+    server: 10.10.50.4
     path: /var/nfs/shared/Media
 
 ---

@@ -63,7 +63,7 @@ sudo mkdir -p /mnt/nvme/local/qbt-br /mnt/nvme/local/qbt-se && sudo chown 1000:1
 Target: the dedicated `k3s` NFS share on UNAS-4 (NFSv3 forced; UNAS only exports v3):
 
 ```
-nfs://10.10.1.4:/var/nfs/shared/k3s?nfsOptions=vers=3,actimeo=1,soft,timeo=300,retry=2
+nfs://10.10.50.4:/var/nfs/shared/k3s?nfsOptions=vers=3,actimeo=1,soft,timeo=300,retry=2
 ```
 
 Set in `ansible/k3s/files/longhorn.values.yaml`, patched onto the `default` BackupTarget CR by the Ansible playbook.

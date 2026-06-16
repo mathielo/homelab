@@ -62,15 +62,16 @@ Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
 | ---- | -------------- | ----- | ------------------------ | --------------------- |
 | 1    | 10.10.1.0/24   | 254   | 2001:2042:37b0:1c00::/64 | UniFi management      |
 | 10   | 10.10.10.0/24  | 254   | 2001:2042:37b0:1c02::/64 | Trusted (PCs, phones) |
+| 20   | 10.10.20.0/24  | 254   | -                        | UniFi Protect         |
 | 40   | 10.10.40.0/24  | 254   | -                        | Guest                 |
 | 50   | 10.10.50.0/24  | 254   | -                        | Servers (k3s)         |
 | 53   | 10.10.53.0/24  | 254   | 2001:2042:37b0:1c35::/64 | DNS (Pi-hole)         |
 | 107  | 10.10.107.0/24 | 254   | -                        | IoT (lights, sensors) |
 
 - Gateway at .1 in each VLAN (e.g. `10.10.10.1` for VLAN 10)
-- Only Trusted (VLAN 10) can access Servers + IoT; all others isolated
+- Only Trusted (VLAN 10) can access Servers, IoT, and Protect; all others isolated
 - All VLANs can reach Pi-hole (`10.10.53.53`) on port 53 for DNS
-- Guest, Servers, DNS, and IoT have no IPv6 (simpler, more secure)
+- Guest, Protect, Servers, DNS, and IoT have no IPv6 (simpler, more secure)
 - DNS fallback: Quad9 (9.9.9.9, 149.112.112.112)
 
 ## Current Services
@@ -81,7 +82,7 @@ Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
   - DNS service: `pihole-FTL` (restart with `sudo systemctl restart pihole-FTL`)
   - **Unbound** runs as recursive resolver on `127.0.0.1:5335`; Pi-hole uses it as upstream instead of Quad9 directly
   - DNS chain: Device → Pi-hole (`:53`) → Unbound (`127.0.0.1:5335`) → root nameservers
-- **UNAS-4** (UniFi NAS): Network-attached storage on VLAN 1 (`10.10.1.4`)
+- **UNAS-4** (UniFi NAS): Network-attached storage on VLAN 50 (`10.10.50.4`, shares the Servers VLAN with the k3s nodes so NFS stays intra-VLAN)
   - 4×24 TB 7200RPM HDD in RAID 5 (~72 TB usable) + 2×500 GB M.2 SSD read-write cache
   - NFS share `Media` (52 TB quota) exported to k3s nodes at `/var/nfs/shared/Media`
   - NFS share `Backups` exported to k3s nodes at `/var/nfs/shared/Backups`
