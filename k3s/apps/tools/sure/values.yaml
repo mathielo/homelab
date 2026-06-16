@@ -16,7 +16,7 @@ app-template:
           restartPolicy: Always
           image:
             repository: postgres
-            tag: "16.14-alpine"
+            tag: "18.4-alpine"
           env:
             POSTGRES_USER: sure_user
             POSTGRES_DB: sure_production
@@ -38,7 +38,7 @@ app-template:
           restartPolicy: Always
           image:
             repository: valkey/valkey
-            tag: "8.1.8-alpine"
+            tag: "9.1.0-alpine"
           resources:
             requests:
               cpu: 10m
@@ -52,7 +52,7 @@ app-template:
           dependsOn: postgres
           image:
             repository: postgres
-            tag: "16.14-alpine"
+            tag: "18.4-alpine"
           command:
             - sh
             - -c
