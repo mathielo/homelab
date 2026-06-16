@@ -249,14 +249,28 @@
       groupName: 'monitoring-infra',
     },
     {
-      description: 'Network Optimizer (UniFi analyzer)',
+      description: 'Network Optimizer (UniFi analyzer) + its in-pod InfluxDB',
       matchDatasources: [
         'docker',
       ],
       matchPackageNames: [
         'ghcr.io/ozark-connect/network-optimizer',
+        'influxdb',
       ],
       groupName: 'network-optimizer',
+    },
+    {
+      // Network Optimizer's monitoring wizard provisions buckets + scoped
+      // tokens via the InfluxDB 2 management API, which InfluxDB 3 drops. Stay
+      // on 2.x; lift this fence only once NetOpt supports v3.
+      description: 'Pin InfluxDB to the 2.x line',
+      matchDatasources: [
+        'docker',
+      ],
+      matchPackageNames: [
+        'influxdb',
+      ],
+      allowedVersions: '/^2\\./',
     },
     {
       description: 'tools namespace images (SearXNG, Sure + their datastores)',

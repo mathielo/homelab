@@ -10,6 +10,35 @@ app-template:
     main:
       # RWO PVC requires the old pod to release before the new one mounts it.
       strategy: Recreate
+
+      initContainers:
+        # InfluxDB 2 runs in-pod so Network Optimizer reaches it over localhost:8086.
+        # restartPolicy: Always promotes it to a native sidecar: it starts
+        # before the main container and is torn down after it. Pinned to 2.x —
+        # NetOpt's wizard provisions buckets/tokens via the v2 management API,
+        # which InfluxDB 3 drops (Renovate fences v3 out to match).
+        influxdb:
+          restartPolicy: Always
+          image:
+            repository: influxdb
+            tag: "2.9.1"
+          env:
+            TZ: Europe/Stockholm
+            DOCKER_INFLUXDB_INIT_MODE: setup
+            DOCKER_INFLUXDB_INIT_USERNAME: admin
+            DOCKER_INFLUXDB_INIT_ORG: homelab
+            DOCKER_INFLUXDB_INIT_BUCKET: default
+          envFrom:
+            - secretRef:
+                identifier: network-optimizer-influxdb # INIT_PASSWORD + INIT_ADMIN_TOKEN
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+
       containers:
         main:
           image:
@@ -41,6 +70,11 @@ app-template:
     network-optimizer-ssh:
       enabled: true
       # stringData (id_rsa: <private key>) supplied by values.sops.yaml.
+      stringData: {}
+    network-optimizer-influxdb:
+      enabled: true
+      # stringData (DOCKER_INFLUXDB_INIT_PASSWORD, DOCKER_INFLUXDB_INIT_ADMIN_TOKEN)
+      # supplied by values.sops.yaml.
       stringData: {}
 
   service:
@@ -75,13 +109,26 @@ app-template:
       accessMode: ReadWriteOnce
       size: 2Gi
       storageClass: longhorn
-      globalMounts:
-        - path: /app/data
+      advancedMounts:
+        main:
+          main:
+            - path: /app/data
     # SSH private key the app uses to reach the console + UniFi devices.
     ssh-keys:
       type: secret
       identifier: network-optimizer-ssh
       defaultMode: 0640
-      globalMounts:
-        - path: /app/ssh-keys
-          readOnly: true
+      advancedMounts:
+        main:
+          main:
+            - path: /app/ssh-keys
+              readOnly: true
+    # InfluxDB 2 time-series store (port counters, latency probes, SFP levels).
+    influxdb-data:
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      storageClass: longhorn
+      advancedMounts:
+        main:
+          influxdb:
+            - path: /var/lib/influxdb2
