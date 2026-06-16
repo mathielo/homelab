@@ -3,6 +3,9 @@ app-template:
         network-optimizer:
             stringData:
                 APP_PASSWORD: ENC[AES256_GCM,data:HkopnPDMC3fD5fnjzeo7HNK5BEyaSA7q7r7+iDS0rc6a3Cza,iv:jf77XvNKcScvjLM3YT44N3ysynCk86bdDWeJ3/Bbr4w=,tag:qA9xRFHc721dNiU1j41eMg==,type:str]
+        network-optimizer-ssh:
+            stringData:
+                id_rsa: ENC[AES256_GCM,data:d5BV6kY4KBMm+Cx4WYLXSM3DCIVACnp/ARdOOth74LjOxU/ZiHKZUjxkxExHcXTo+UxB66jzkjckxrIri06v/+Jp/rGVp1Dz/BCXX6RN+wYccRiYsvAQDsnyMhSUMmke0bRxMi1RCIASoLYssMxM/J7hc7d+IHxIf8b0u3gM1ilQE1bjYJN0i7KCEqIWx8SlZ5fKN1mCOiD+XTguumMY8V4t28O0idrWaZM9o5Cm7k4B4qUdIC2jrIGQ7+d8fIlqvV4iqEoRKGlGYzeKmG+9DCu02gV4jA0BSiGe+TA/hHWzRmC48PEE1ke71kt0tBymoe3qf4Ec1OVUIUmtmrvmZSXvgHbJzpa3q38RoTLFW98WXofRHCW659pxzG5jP3y6CAqSr1lmVOGgJJcZ91+ZpcqUq2GS3/ArW7FIDM3kmZ9LftjIXxy9a7AFShp1K0LWkwTWBuAV8GjUdAIRIPLCoyKqufo7HTCaSmO710Jpy3UYFqge4gwi7knzzaGvXSVf+eCw,iv:2I0lYgvFhxTUiyCtv6aNYUE4pR6y01SUJw/LWPvKCY8=,tag:ru412W1nDRiqHku69QYLtA==,type:str]
 sops:
     age:
         - enc: |
@@ -23,7 +26,7 @@ sops:
             jwi/hA/eJtMK3DRDy9xvVXvqrTTCR8D8lonH26P7iX8ZJygYc7xlrw==
             -----END AGE ENCRYPTED FILE-----
           recipient: age1kt5aynyagn4t6v4epgl95ls9gpskq49f07j2v797g99zhje8teussmnytu
-    lastmodified: "2026-06-15T06:05:36Z"
-    mac: ENC[AES256_GCM,data:+6hpHqbxMpyRjmtWb84FqrWHT1PXdrv4fcbEHYV8+upSbyqH9sjBaLH6Wi976cWZfmVMMmmzl36mW4ru+1vNLMjNoA1cXRPxjr6H1Q387slF47YyUNuHAxtu5YbJM5U5+yjiLaJDXNxLJd6x4LHijFlFGtD4o4eykm3cQQNWg68=,iv:Yn10FWTmeIet+Ch/JZRvvNwCvdQ1RRX+v4V+0NQ3bOQ=,tag:wSFPwwpqA14uSTb/5g1xnw==,type:str]
+    lastmodified: "2026-06-16T06:01:09Z"
+    mac: ENC[AES256_GCM,data:IUHi3m5n9cHbrRdiIumsR/cShbBpvTDzvX3aq2xbTr/ZUuSecA7irE8mLJ6vST0gOyex4WvaqR4yG+nRd+zO2z4ktSMyhUt90GFplVH+JL3l0q52MKFFQQDc5HYluv7S8nXHymGLcPE7USEDcbJh5uBbZeESdnzPDVPzrK6hAQw=,iv:LTcqZqs/ZxIaRcxFkWpfAvW4MPiQc82noze3FJZI/Pc=,tag:DA+DSRUFrB7jh5Fvb2GS/A==,type:str]
     unencrypted_suffix: _unencrypted
     version: 3.13.0

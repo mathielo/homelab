@@ -1,12 +1,11 @@
-# Read-only deployment: UniFi credentials are entered in the web UI and stored
-# in the /app/data SQLite DB (no env/secret for them). No ssh-keys volume and no
-# speedtest sidecar, so WAN Steering / Adaptive SQM (the only write features)
-# cannot run — UniFi is reached over its HTTPS API only. APP_PASSWORD gates the
-# app's own login and comes from the `network-optimizer` secret (values.sops.yaml).
-#
-# The image's entrypoint starts as root to chown /app/data, then drops to its
-# own app user (uid 1654) — so no pod securityContext override here.
+# The entrypoint starts as root to chown /app/data then drops to the app user via
+# gosu, so we don't set runAsUser. fsGroup 1654 makes the secret-volume files
+# group-owned by the app group so uid 1654 can read the key at mode 0640.
 app-template:
+  defaultPodOptions:
+    securityContext:
+      fsGroup: 1654
+
   controllers:
     main:
       # RWO PVC requires the old pod to release before the new one mounts it.
@@ -38,6 +37,10 @@ app-template:
     network-optimizer:
       enabled: true
       # stringData (APP_PASSWORD) supplied by values.sops.yaml
+      stringData: {}
+    network-optimizer-ssh:
+      enabled: true
+      # stringData (id_rsa: <private key>) supplied by values.sops.yaml.
       stringData: {}
 
   service:
@@ -74,3 +77,11 @@ app-template:
       storageClass: longhorn
       globalMounts:
         - path: /app/data
+    # SSH private key the app uses to reach the console + UniFi devices.
+    ssh-keys:
+      type: secret
+      identifier: network-optimizer-ssh
+      defaultMode: 0640
+      globalMounts:
+        - path: /app/ssh-keys
+          readOnly: true
