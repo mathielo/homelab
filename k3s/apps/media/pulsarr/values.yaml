@@ -5,7 +5,7 @@ app-template:
         pulsarr:
           image:
             repository: lakker/pulsarr
-            tag: 0.16.0
+            tag: 1.1.6
           env:
             TZ: Europe/Stockholm
           resources:
