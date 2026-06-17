@@ -15,7 +15,11 @@ app-template:
         pinchflat:
           image:
             repository: ghcr.io/kieraneglin/pinchflat
-            tag: v2025.9.26
+            # tag: v2025.9.26
+            # Apparently Pinchflat doesn't tag the last version with its git tag,
+            # only as "latest".
+            # https://github.com/kieraneglin/pinchflat/pkgs/container/pinchflat
+            tag: latest
           env:
             TZ: Europe/Stockholm
           resources:

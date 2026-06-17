@@ -198,18 +198,6 @@
       groupName: 'media-bots',
     },
     {
-      // Pinchflat tags are date-stamped: v2025.9.26
-      description: 'Pinchflat date-versioned tags',
-      matchDatasources: [
-        'docker',
-      ],
-      matchPackageNames: [
-        'ghcr.io/kieraneglin/pinchflat',
-      ],
-      versioning: 'regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$',
-      groupName: 'pinchflat',
-    },
-    {
       description: 'Dashboard images',
       matchDatasources: [
         'docker',
