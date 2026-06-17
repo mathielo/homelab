@@ -1,0 +1,65 @@
+app-template:
+  defaultPodOptions:
+    nodeSelector:
+      kubernetes.io/hostname: k3s-node-02
+    securityContext:
+      # Pinchflat has no PUID/PGID; run as 1000:1000 to match the media-data
+      # NFS ownership used across the stack.
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+
+  controllers:
+    pinchflat:
+      containers:
+        pinchflat:
+          image:
+            repository: ghcr.io/kieraneglin/pinchflat
+            tag: v2025.9.26
+          env:
+            TZ: Europe/Stockholm
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              # 4 cores — caps the libx265 recode so it can't starve qbt.
+              cpu: "4"
+              memory: 2Gi
+
+  service:
+    pinchflat:
+      controller: pinchflat
+      ports:
+        http:
+          port: 8945
+
+  ingress:
+    pinchflat:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      hosts:
+        - host: yt.m6o.dev
+          paths:
+            - path: /
+              service:
+                identifier: pinchflat
+                port: http
+      tls:
+        - hosts:
+            - yt.m6o.dev
+          secretName: pinchflat-tls
+
+  persistence:
+    # SQLite DB + app state on Longhorn (block storage — WAL is fine here).
+    config:
+      existingClaim: pinchflat-config-lh
+      globalMounts:
+        - path: /config
+    # Shared NAS volume; Pinchflat writes downloads under /media/lib/videos.
+    media:
+      type: persistentVolumeClaim
+      existingClaim: media-data
+      globalMounts:
+        - path: /media
