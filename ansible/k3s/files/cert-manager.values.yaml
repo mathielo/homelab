@@ -2,6 +2,14 @@
 # CRDs are installed via --set installCRDs=true at the CLI level (not here),
 # which avoids the Helm upgrade-then-delete-CRD footgun.
 
+# Route the DNS-01 propagation self-check through Pi-hole. VLAN 50 (Servers) is
+# blocked from querying external nameservers directly (the "Block ext DNS -
+# Internal" firewall rule), so the default authoritative-NS probe times out.
+# Unbound behind Pi-hole resolves the public _acme-challenge TXT recursively.
+extraArgs:
+  - --dns01-recursive-nameservers=10.10.53.53:53
+  - --dns01-recursive-nameservers-only=true
+
 resources:
   requests:
     cpu: 10m

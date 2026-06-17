@@ -78,6 +78,8 @@ Beyond the zone defaults, explicit policies cover three things.
 
 This drops plaintext DNS (53), DoT/DoQ (853), and DoH (443 to known providers) to anything other than Pi-hole. The **DNS VLAN is excluded** from the blocks so the recursive resolver can still reach root nameservers and NTP.
 
+> The Internal block covers VLAN 50 (Servers), so cluster workloads that probe external nameservers directly will time out — notably cert-manager's DNS-01 self-check, which is pinned to Pi-hole (`10.10.53.53`) to compensate. See [`ingress-dns.md`](ingress-dns.md#3-tls-certificates-cert-manager--cloudflare).
+
 **2. Pi-hole reachability** — isolated zones still need the resolver:
 
 | Policy                          | Source                | Destination  |

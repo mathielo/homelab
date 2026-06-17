@@ -1,6 +1,11 @@
 ---
 # Installs cert-manager and configures Let's Encrypt (DNS-01 via Cloudflare) for the k3s cluster.
 #
+# Note: the DNS-01 self-check is pinned to Pi-hole (--dns01-recursive-nameservers
+# in files/cert-manager.values.yaml). VLAN 50 is blocked from external DNS by the
+# "Block ext DNS - Internal" firewall rule, so the default authoritative-NS probe
+# would time out and challenges would hang pending. See docs/ingress-dns.md.
+#
 # Prerequisites:
 #   - Add the following to ansible/k3s/cert-manager.sops.yaml (sops --decrypt to edit):
 #       cloudflare_api_token: "<token>"

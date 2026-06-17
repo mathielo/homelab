@@ -78,6 +78,16 @@ When a new Ingress with the `cert-manager.io/cluster-issuer` annotation is creat
 
 Certificates renew automatically before expiry.
 
+**DNS-01 self-check goes through Pi-hole.** Before asking Let's Encrypt to validate, cert-manager queries DNS itself to confirm the TXT record has propagated. By default it probes the domain's authoritative nameservers directly — but VLAN 50 (Servers) is blocked from reaching external DNS by the "Block ext DNS – Internal" firewall rule, so that probe times out and challenges hang in `pending`. The controller is pinned to Pi-hole for this check via `extraArgs` in `ansible/k3s/files/cert-manager.values.yaml`:
+
+```yaml
+extraArgs:
+  - --dns01-recursive-nameservers=10.10.53.53:53
+  - --dns01-recursive-nameservers-only=true
+```
+
+Unbound behind Pi-hole resolves the public `_acme-challenge` TXT recursively, so the check passes without opening external DNS egress on VLAN 50. If Pi-hole's IP or the DNS firewall rules change, update these args to match.
+
 ## Adding a New Service
 
 The wildcard DNS record covers all `*.m6o.dev` subdomains — no DNS changes needed. Just add an Ingress resource with the appropriate hostname and cert-manager annotation. See existing apps in `k3s/apps/` for examples.
