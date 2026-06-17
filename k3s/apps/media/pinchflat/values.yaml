@@ -67,3 +67,9 @@ app-template:
       existingClaim: media-data
       globalMounts:
         - path: /media
+    # /downloads is Pinchflat's built-in default; its startup permission check
+    # requires it writable even though profiles output to /media/lib/videos.
+    downloads:
+      type: emptyDir
+      globalMounts:
+        - path: /downloads
