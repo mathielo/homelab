@@ -17,8 +17,10 @@ data:
 
     presets:
       # Shared HEVC re-encode + cleanup, layered onto a player preset below.
-      # crf 20 / preset medium is high quality; lower crf = higher quality +
-      # larger files. The 4-core cap (values.yaml) bounds this.
+      # Hardware encode on the Intel iGPU (hevc_vaapi). ytdl-sub builds the
+      # command as `ffmpeg -i <in> <args> <out>`, so the source is decoded in
+      # software (HW decode would need flags before -i) then uploaded to the GPU
+      # for encoding. -qp 23 ≈ high quality; lower qp = higher quality + bigger.
       _hevc_encode:
         ytdl_options:
           format: "bv*+ba/b"
@@ -26,7 +28,10 @@ data:
           convert_to: "mkv"
           convert_with: "ffmpeg"
           ffmpeg_post_process_args: >-
-            -c:v libx265 -preset medium -crf 20 -c:a aac -b:a 192k
+            -vaapi_device /dev/dri/renderD128
+            -vf format=nv12,hwupload
+            -c:v hevc_vaapi -qp 23
+            -c:a aac -b:a 192k
         embed_thumbnail: True
         chapters:
           embed_chapters: True
@@ -74,10 +79,10 @@ data:
       = Music:
         "Music Videos": "https://www.youtube.com/playlist?list=PL4ytre2boUiLdi5l28JREv3LiGVKuG-5t"
 
-    concerts:
-      = Concert:
-        "Concerts": "https://www.youtube.com/playlist?list=PL4ytre2boUiJz8AB9txijKYGTGYaZZ0uP"
+    # concerts:
+    #   = Concert:
+    #     "Concerts": "https://www.youtube.com/playlist?list=PL4ytre2boUiJz8AB9txijKYGTGYaZZ0uP"
 
-    youtube_hevc:
-      = Cats:
-        "Cat TV": "https://www.youtube.com/playlist?list=PL4ytre2boUiKcBwDq1bkQ7fR3nF87LiY-"
+    # youtube_hevc:
+    #   = Cats:
+    #     "Cat TV": "https://www.youtube.com/playlist?list=PL4ytre2boUiKcBwDq1bkQ7fR3nF87LiY-"

@@ -1,10 +1,9 @@
 # ytdl-sub — declarative, config-as-code YouTube downloader (yt-dlp) feeding Plex.
 #
-# Runs as a CronJob on k3s-node-02: every hour it reads the subscriptions from the
+# Runs as a CronJob on k3s-node-02: each run reads the subscriptions from the
 # ytdl-sub-config ConfigMap, downloads any new channel/playlist videos to local
-# NVMe (/working), re-encodes them to HEVC there, then moves the finished file to
-# its target folder under /media/lib on the NAS. CPU is capped at 4 so a
-# transcode can't starve qbt.
+# NVMe (/working), re-encodes them to HEVC on the node's Intel iGPU (VA-API),
+# then moves the finished file to its target folder under /media/lib on the NAS.
 app-template:
   defaultPodOptions:
     nodeSelector:
@@ -14,12 +13,17 @@ app-template:
       runAsUser: 1000
       runAsGroup: 1000
       fsGroup: 1000
+      # render group (GID 993 on k3s-node-02) — grants access to
+      # /dev/dri/renderD128 for VA-API hardware HEVC encoding.
+      supplementalGroups:
+        - 993
 
   controllers:
     ytdl-sub:
       type: cronjob
       cronjob:
         schedule: "0 */1 * * *"
+        suspend: true
         # Forbid: never overlap runs — a transcode can outlast the 1h tick.
         concurrencyPolicy: Forbid
         backoffLimit: 0
@@ -44,7 +48,9 @@ app-template:
       containers:
         ytdl-sub:
           image:
-            repository: ghcr.io/jmbannon/ytdl-sub
+            # Custom image = upstream ytdl-sub (Alpine) + Intel VA-API driver;
+            # see Dockerfile. Tag matches the base ytdl-sub version.
+            repository: ghcr.io/mathielo/ytdl-sub-vaapi
             tag: "2026.06.12"
           command:
             - ytdl-sub
@@ -64,9 +70,13 @@ app-template:
               cpu: 100m
               memory: 256Mi
             limits:
-              # 4 cores — caps the libx265 transcode so it can't starve qbt.
+              # HEVC encode is on the iGPU now; CPU is only for AV1/VP9 software
+              # decode. Keep a 4-core cap so a decode burst can't starve qbt.
               cpu: "4"
               memory: 4Gi
+              # One Intel iGPU slot (shared-dev-num=1, otherwise unused on this
+              # node) — the device plugin injects /dev/dri for VA-API.
+              gpu.intel.com/i915: "1"
 
   persistence:
     # config.yaml + subscriptions.yaml from the ConfigMap above.

@@ -198,8 +198,8 @@
       groupName: 'media-bots',
     },
     {
-      // ytdl-sub tags are date-versioned: 2026.06.12 (occasionally .postN).
-      // Excludes the ubuntu-* and latest tags.
+      // ytdl-sub is consumed only as the FROM base of our VA-API Dockerfile
+      // (Alpine variant): 2026.06.12 (rarely .postN). Excludes ubuntu-*/latest.
       description: 'ytdl-sub date-versioned tags',
       matchDatasources: [
         'docker',
@@ -209,6 +209,18 @@
       ],
       versioning: 'regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(\\.post(?<build>\\d+))?$',
       groupName: 'ytdl-sub',
+    },
+    {
+      // Our derived VA-API image lives in our own registry and is built by hand
+      // from the Dockerfile above; track the base (jmbannon/ytdl-sub), not this.
+      description: 'Ignore the hand-built ytdl-sub VA-API image',
+      matchDatasources: [
+        'docker',
+      ],
+      matchPackageNames: [
+        'ghcr.io/mathielo/ytdl-sub-vaapi',
+      ],
+      enabled: false,
     },
     {
       description: 'Dashboard images',
