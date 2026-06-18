@@ -1,0 +1,83 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ytdl-sub-config
+  namespace: media
+data:
+  config.yaml: |
+    configuration:
+      # Local NVMe scratch: incomplete downloads + the ffmpeg transcode stay
+      # here and only the final .mkv is moved to the target folder on completion.
+      working_directory: "/working"
+      # The lock defaults to a path relative to cwd (/config, a read-only
+      # ConfigMap mount) — point it at the writable scratch instead.
+      lock_directory: "/working"
+      umask: "002"
+
+    presets:
+      # Shared HEVC re-encode + cleanup, layered onto a player preset below.
+      # crf 20 / preset medium is high quality; lower crf = higher quality +
+      # larger files. The 4-core cap (values.yaml) bounds this.
+      _hevc_encode:
+        ytdl_options:
+          format: "bv*+ba/b"
+        file_convert:
+          convert_to: "mkv"
+          convert_with: "ffmpeg"
+          ffmpeg_post_process_args: >-
+            -c:v libx265 -preset medium -crf 20 -c:a aac -b:a 192k
+        embed_thumbnail: True
+        chapters:
+          embed_chapters: True
+          sponsorblock_categories:
+            - "sponsor"
+            - "selfpromo"
+            - "interaction"
+          remove_sponsorblock_categories:
+            - "sponsor"
+            - "selfpromo"
+
+      # The "Music Videos" presets are flat (no Season/episode nesting) and let
+      # us override both the folder and the file name. "Band - Song"/"Band -
+      # Concert" comes from the YouTube video title as-is; year is the release
+      # year when the source has it, otherwise the upload year.
+      musicvids:
+        preset:
+          - "Plex Music Videos"
+          - "_hevc_encode"
+        overrides:
+          music_video_directory: "/media/lib/musicvids"
+          music_video_file_name: "{title_sanitized} - {music_video_year}"
+
+      concerts:
+        preset:
+          - "Plex Music Videos"
+          - "_hevc_encode"
+        overrides:
+          music_video_directory: "/media/lib/concerts"
+          music_video_file_name: "{title_sanitized} - {music_video_year}"
+
+      # General YouTube: nested one folder per playlist, file name = video title.
+      youtube_hevc:
+        preset:
+          - "Plex Music Videos"
+          - "_hevc_encode"
+        overrides:
+          music_video_directory: "/media/lib/yt"
+          music_video_file_name: "{subscription_name_sanitized}/{title_sanitized}"
+
+  subscriptions.yaml: |
+    # Each top-level key is a preset that already targets its output folder, so
+    # entries are just "Name: url". "= Genre:" sets the genre tag in the NFO.
+    musicvids:
+      = Music:
+        "Music Videos": "https://www.youtube.com/playlist?list=PL4ytre2boUiLdi5l28JREv3LiGVKuG-5t"
+
+    concerts:
+      = Concert:
+        "Concerts": "https://www.youtube.com/playlist?list=PL4ytre2boUiJz8AB9txijKYGTGYaZZ0uP"
+
+    youtube_hevc:
+      = Cats:
+        "Cat TV": "https://www.youtube.com/playlist?list=PL4ytre2boUiKcBwDq1bkQ7fR3nF87LiY-"

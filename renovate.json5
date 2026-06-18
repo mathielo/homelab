@@ -198,6 +198,19 @@
       groupName: 'media-bots',
     },
     {
+      // ytdl-sub tags are date-versioned: 2026.06.12 (occasionally .postN).
+      // Excludes the ubuntu-* and latest tags.
+      description: 'ytdl-sub date-versioned tags',
+      matchDatasources: [
+        'docker',
+      ],
+      matchPackageNames: [
+        'ghcr.io/jmbannon/ytdl-sub',
+      ],
+      versioning: 'regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(\\.post(?<build>\\d+))?$',
+      groupName: 'ytdl-sub',
+    },
+    {
       description: 'Dashboard images',
       matchDatasources: [
         'docker',

@@ -1,0 +1,8 @@
+apiVersion: v2
+name: ytdl-sub
+description: Declarative yt-dlp automation — downloads channels/playlists for Plex
+version: 1.0.0
+dependencies:
+  - name: app-template
+    repository: https://bjw-s-labs.github.io/helm-charts/
+    version: "5.*"

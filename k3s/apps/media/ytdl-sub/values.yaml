@@ -1,0 +1,91 @@
+# ytdl-sub — declarative, config-as-code YouTube downloader (yt-dlp) feeding Plex.
+#
+# Runs as a CronJob on k3s-node-02: every hour it reads the subscriptions from the
+# ytdl-sub-config ConfigMap, downloads any new channel/playlist videos to local
+# NVMe (/working), re-encodes them to HEVC there, then moves the finished file to
+# its target folder under /media/lib on the NAS. CPU is capped at 4 so a
+# transcode can't starve qbt.
+app-template:
+  defaultPodOptions:
+    nodeSelector:
+      kubernetes.io/hostname: k3s-node-02
+    securityContext:
+      # Write to the NAS as 1000:1000 to match the rest of the media stack.
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+
+  controllers:
+    ytdl-sub:
+      type: cronjob
+      cronjob:
+        schedule: "0 */1 * * *"
+        # Forbid: never overlap runs — a transcode can outlast the 1h tick.
+        concurrencyPolicy: Forbid
+        backoffLimit: 0
+        successfulJobsHistory: 3
+        failedJobsHistory: 3
+        ttlSecondsAfterFinished: 86400
+
+      initContainers:
+        # /mnt/nvme/local is root-owned, so a DirectoryOrCreate working dir lands
+        # as root. Chown it so the uid-1000 main container can write its scratch.
+        init-workdir:
+          image:
+            repository: busybox
+            tag: "1.38.0"
+          command:
+            - sh
+            - -c
+            - mkdir -p /working && chown 1000:1000 /working
+          securityContext:
+            runAsUser: 0
+
+      containers:
+        ytdl-sub:
+          image:
+            repository: ghcr.io/jmbannon/ytdl-sub
+            tag: "2026.06.12"
+          command:
+            - ytdl-sub
+          args:
+            - "--config"
+            - "/config/config.yaml"
+            - "sub"
+            - "/config/subscriptions.yaml"
+          env:
+            TZ: Europe/Stockholm
+            # HOME defaults to the read-only /config mount, so yt-dlp can't
+            # persist its signature/JS-challenge cache (~/.cache). Point it at
+            # the writable NVMe scratch so the cache survives between runs.
+            HOME: "/working"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              # 4 cores — caps the libx265 transcode so it can't starve qbt.
+              cpu: "4"
+              memory: 4Gi
+
+  persistence:
+    # config.yaml + subscriptions.yaml from the ConfigMap above.
+    config:
+      type: configMap
+      name: ytdl-sub-config
+      globalMounts:
+        - path: /config
+          readOnly: true
+    # Local NVMe scratch on k3s-node-02: incomplete downloads + transcode.
+    working:
+      type: hostPath
+      hostPath: /mnt/nvme/local/ytdl-sub
+      hostPathType: DirectoryOrCreate
+      globalMounts:
+        - path: /working
+    # Shared NAS volume — finished HEVC files land in /media/lib/yt.
+    media:
+      type: persistentVolumeClaim
+      existingClaim: media-data
+      globalMounts:
+        - path: /media
