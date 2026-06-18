@@ -28,7 +28,7 @@ spec:
   task: backup
   cron: "15 0 * * *"
   retain: 14 # 2 weeks
-  concurrency: 2
+  concurrency: 1 # serialize NFS writes — 1 GbE + low-RAM NAS chokes on parallel backup streams
   groups:
     - default
 ---
@@ -41,7 +41,7 @@ spec:
   task: backup
   cron: "30 0 * * 0" # Sundays
   retain: 8 # ~2 months
-  concurrency: 2
+  concurrency: 1
   groups:
     - default
 ---
@@ -54,6 +54,6 @@ spec:
   task: backup
   cron: "45 0 1 * *" # 1st of month
   retain: 6 # 6 months
-  concurrency: 2
+  concurrency: 1
   groups:
     - default
