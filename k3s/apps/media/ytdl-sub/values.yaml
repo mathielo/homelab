@@ -23,7 +23,7 @@ app-template:
       type: cronjob
       cronjob:
         schedule: "0 */1 * * *"
-        suspend: true
+        suspend: false
         # Forbid: never overlap runs — a transcode can outlast the 1h tick.
         concurrencyPolicy: Forbid
         backoffLimit: 0
