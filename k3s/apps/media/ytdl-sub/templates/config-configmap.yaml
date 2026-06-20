@@ -25,7 +25,10 @@ data:
       # -qp 23 ≈ high quality; lower qp = higher quality + bigger.
       _h264_encode:
         ytdl_options:
-          format: "bv*+ba/b"
+          # Cap at 4K: the iGPU h264_vaapi encoder rejects frames over 4096x4096,
+          # so an 8K source (e.g. 7680x4320 AV1) would fail to encode. Prefer the
+          # best video+audio ≤2160p, then fall back to best available ≤2160p.
+          format: "bv*[height<=2160]+ba/b[height<=2160]/bv*+ba/b"
         file_convert:
           convert_to: "mp4"
           convert_with: "ffmpeg"
