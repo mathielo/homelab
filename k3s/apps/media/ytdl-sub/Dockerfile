@@ -1,4 +1,4 @@
-# Derived ytdl-sub image adding the Intel VA-API driver for hardware HEVC
+# Derived ytdl-sub image adding the Intel VA-API driver for hardware H.264
 # encoding on k3s-node-02's iGPU. The default (Alpine) ytdl-sub image already
 # ships a VAAPI-capable ffmpeg from Alpine's repos, so we only add the matching
 # distro driver + libva — no version skew between ffmpeg and the driver.

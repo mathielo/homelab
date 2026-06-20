@@ -11,4 +11,5 @@ startup: ## Bring the cluster back up: wait for nodes, then uncordon
 	./scripts/rack/startup
 
 ytdl: ## Create new job to manually triger ytdl-sub run
+	kubectl delete job -n media ytdl-sub-manual --ignore-not-found
 	kubectl create job -n media --from=cronjob/ytdl-sub ytdl-sub-manual

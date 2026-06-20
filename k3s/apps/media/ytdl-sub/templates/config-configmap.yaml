@@ -16,23 +16,29 @@ data:
       umask: "002"
 
     presets:
-      # Shared HEVC re-encode + cleanup, layered onto a player preset below.
-      # Hardware encode on the Intel iGPU (hevc_vaapi). ytdl-sub builds the
-      # command as `ffmpeg -i <in> <args> <out>`, so the source is decoded in
-      # software (HW decode would need flags before -i) then uploaded to the GPU
-      # for encoding. -qp 23 ≈ high quality; lower qp = higher quality + bigger.
-      _hevc_encode:
+      # Shared H.264 re-encode + cleanup, layered onto a player preset below.
+      # Hardware encode on the Intel iGPU (h264_vaapi). H.264/AAC in mp4 is the
+      # universal direct-play target — every Plex client (browsers included)
+      # plays it with no server-side transcode. ytdl-sub builds the command as
+      # `ffmpeg -i <in> <args> <out>`, so the source is decoded in software (HW
+      # decode would need flags before -i) then uploaded to the GPU for encoding.
+      # -qp 23 ≈ high quality; lower qp = higher quality + bigger.
+      _h264_encode:
         ytdl_options:
           format: "bv*+ba/b"
         file_convert:
-          convert_to: "mkv"
+          convert_to: "mp4"
           convert_with: "ffmpeg"
           ffmpeg_post_process_args: >-
             -vaapi_device /dev/dri/renderD128
             -vf format=nv12,hwupload
-            -c:v hevc_vaapi -qp 23
+            -c:v h264_vaapi -qp 23
             -c:a aac -b:a 192k
-        embed_thumbnail: True
+            -movflags +faststart
+        # No embedded thumbnail — the sidecar .jpg next to the file is all Plex
+        # needs for the poster. (Embedded into an mkv it became an MJPEG video
+        # track that Plex selected as the primary video instead of the encode.)
+        embed_thumbnail: False
         chapters:
           embed_chapters: True
           sponsorblock_categories:
@@ -50,7 +56,7 @@ data:
       musicvids:
         preset:
           - "Plex Music Videos"
-          - "_hevc_encode"
+          - "_h264_encode"
         overrides:
           music_video_directory: "/media/lib/musicvids"
           music_video_file_name: "{title_sanitized} - {music_video_year}"
@@ -58,16 +64,16 @@ data:
       concerts:
         preset:
           - "Plex Music Videos"
-          - "_hevc_encode"
+          - "_h264_encode"
         overrides:
           music_video_directory: "/media/lib/concerts"
           music_video_file_name: "{title_sanitized} - {music_video_year}"
 
       # General YouTube: nested one folder per playlist, file name = video title.
-      youtube_hevc:
+      youtube:
         preset:
           - "Plex Music Videos"
-          - "_hevc_encode"
+          - "_h264_encode"
         overrides:
           music_video_directory: "/media/lib/yt"
           music_video_file_name: "{subscription_name_sanitized}/{title_sanitized}"
@@ -79,10 +85,10 @@ data:
       = Music:
         "Music Videos": "https://www.youtube.com/playlist?list=PL4ytre2boUiLdi5l28JREv3LiGVKuG-5t"
 
-    # concerts:
-    #   = Concert:
-    #     "Concerts": "https://www.youtube.com/playlist?list=PL4ytre2boUiJz8AB9txijKYGTGYaZZ0uP"
+    concerts:
+      = Concert:
+        "Concerts": "https://www.youtube.com/playlist?list=PL4ytre2boUiJz8AB9txijKYGTGYaZZ0uP"
 
-    # youtube_hevc:
+    # youtube:
     #   = Cats:
     #     "Cat TV": "https://www.youtube.com/playlist?list=PL4ytre2boUiKcBwDq1bkQ7fR3nF87LiY-"

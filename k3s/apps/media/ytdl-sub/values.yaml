@@ -2,7 +2,7 @@
 #
 # Runs as a CronJob on k3s-node-02: each run reads the subscriptions from the
 # ytdl-sub-config ConfigMap, downloads any new channel/playlist videos to local
-# NVMe (/working), re-encodes them to HEVC on the node's Intel iGPU (VA-API),
+# NVMe (/working), re-encodes them to H.264 on the node's Intel iGPU (VA-API),
 # then moves the finished file to its target folder under /media/lib on the NAS.
 app-template:
   defaultPodOptions:
@@ -14,7 +14,7 @@ app-template:
       runAsGroup: 1000
       fsGroup: 1000
       # render group (GID 993 on k3s-node-02) — grants access to
-      # /dev/dri/renderD128 for VA-API hardware HEVC encoding.
+      # /dev/dri/renderD128 for VA-API hardware H.264 encoding.
       supplementalGroups:
         - 993
 
@@ -70,9 +70,9 @@ app-template:
               cpu: 100m
               memory: 256Mi
             limits:
-              # HEVC encode is on the iGPU now; CPU is only for AV1/VP9 software
-              # decode. Keep a 4-core cap so a decode burst can't starve qbt.
-              cpu: "4"
+              # H.264 encode is on the iGPU now; CPU is only for AV1/VP9 software
+              # decode. Keep a 8-core cap so a decode burst can't starve qbt.
+              cpu: "8"
               memory: 4Gi
               # One Intel iGPU slot (shared-dev-num=1, otherwise unused on this
               # node) — the device plugin injects /dev/dri for VA-API.
