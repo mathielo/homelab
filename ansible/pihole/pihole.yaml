@@ -5,6 +5,7 @@
   vars:
     pihole_interface: eth0
     pihole_vip: 10.10.53.53
+    pihole_vip6: "2001:2042:37b0:1c35::53"
     nebula_sync_version: "0.11.2"
     # Hourly — config/blocklists change rarely, and each sync restarts FTL on the
     # RPi3 standby via teleporter import, so keep the cadence gentle.

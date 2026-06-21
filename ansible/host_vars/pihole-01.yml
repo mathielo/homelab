@@ -1,6 +1,7 @@
 # RPi5 — keepalived MASTER, runs nebula-sync (config push to the replica).
+# Own addresses are .51 / ::51; the VIPs .53 / ::53 float via keepalived.
 pihole_ipv4_address: "10.10.53.51/24"
-pihole_ipv6_address: "2001:2042:37b0:1c35::53/64"
+pihole_ipv6_address: "2001:2042:37b0:1c35::51/64"
 pihole_ipv6_gateway: "2001:2042:37b0:1c35::1"
 
 keepalived_state: MASTER

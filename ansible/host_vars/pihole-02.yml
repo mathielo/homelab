@@ -1,6 +1,8 @@
-# RPi3 B+ — keepalived BACKUP. No static IPv6 (IPv4 VIP only); the IPv6 task is
-# skipped because pihole_ipv6_address is left undefined here.
+# RPi3 B+ — keepalived BACKUP. Own addresses .52 / ::52; the VIPs .53 / ::53
+# float via keepalived.
 pihole_ipv4_address: "10.10.53.52/24"
+pihole_ipv6_address: "2001:2042:37b0:1c35::52/64"
+pihole_ipv6_gateway: "2001:2042:37b0:1c35::1"
 
 keepalived_state: BACKUP
 keepalived_priority: 100

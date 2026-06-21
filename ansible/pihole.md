@@ -6,9 +6,9 @@ Two nodes run in active/standby. `10.10.53.53` is a **keepalived VRRP virtual IP
 
 | Host      | Role             | LAN IP      | LAN IPv6                | Tailscale IP  |
 | --------- | ---------------- | ----------- | ----------------------- | ------------- |
-| —         | VIP (keepalived) | 10.10.53.53 | —                       | —             |
-| pihole-01 | MASTER (RPi5)    | 10.10.53.51 | 2001:2042:37b0:1c35::53 | 100.100.53.53 |
-| pihole-02 | BACKUP (RPi3 B+) | 10.10.53.52 | —                       | —             |
+| —         | VIP (keepalived) | 10.10.53.53 | 2001:2042:37b0:1c35::53 | —             |
+| pihole-01 | MASTER (RPi5)    | 10.10.53.51 | 2001:2042:37b0:1c35::51 | 100.100.53.53 |
+| pihole-02 | BACKUP (RPi3 B+) | 10.10.53.52 | 2001:2042:37b0:1c35::52 | —             |
 
 > Full hardware specs: [docs/hardware.md](../docs/hardware.md)
 
@@ -100,11 +100,11 @@ This will, on **both** nodes:
 - Write `/etc/pihole/setupVars.conf` with the network and DNS configuration
 - Install Pi-hole (query logging enabled)
 - Set the admin password from the secrets file
-- Configure a static IPv6 address (`2001:2042:37b0:1c35::53/64`) on `eth0` via NetworkManager — **pihole-01 only** (`pihole_ipv6_address` is defined only for that host)
+- Configure a static IPv6 address on `eth0` via NetworkManager (`::51` on pihole-01, `::52` on pihole-02); `::53` floats as the IPv6 VIP via keepalived
 - Install and configure Unbound as a recursive resolver on `127.0.0.1:5335`
 - Configure Pi-hole to use Unbound as its upstream (`127.0.0.1#5335`)
 - Enable `/etc/dnsmasq.d/` loading for wildcard DNS records
-- Install **keepalived** with a `pihole-FTL` health check; the node holds VRRP state per `keepalived_state`/`keepalived_priority` (host_vars) and the active node owns the `10.10.53.53` VIP. `keepalived_start=false` stages it masked (used during cutover)
+- Install **keepalived** with a `pihole-FTL` health check (a real query, so a wedged FTL is caught); two VRRP instances — IPv4 `10.10.53.53` + IPv6 `::53` — in one sync group so both VIPs fail over together. The node holds state per `keepalived_state`/`keepalived_priority` (host_vars); `keepalived_start=false` stages it masked (used during cutover)
 
 And on **pihole-01 only** (`nebula_sync_host: true`):
 

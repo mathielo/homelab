@@ -1,7 +1,9 @@
 # Managed by Ansible — Pi-hole VRRP failover.
-# chk_pihole has no weight, so on failure the active node enters FAULT and
-# releases the VIP entirely; the standby then claims {{ pihole_vip }} within a
-# couple of seconds. When the master recovers it preempts back (default).
+# IPv4 (.53) and IPv6 (::53) VIPs are kept in one sync group so they always fail
+# over together — never split across nodes. chk_pihole has no weight, so on
+# failure the active node enters FAULT and releases both VIPs; the standby claims
+# them within a couple seconds. The master preempts back on recovery.
+# IPv6 requires VRRPv3 (which has no authentication); IPv4 stays VRRPv2 + PASS.
 
 vrrp_script chk_pihole {
     script "/usr/local/bin/chk_pihole"
@@ -9,6 +11,13 @@ vrrp_script chk_pihole {
     timeout 3
     fall 2
     rise 2
+}
+
+vrrp_sync_group PIHOLE {
+    group {
+        PIHOLE_V4
+        PIHOLE_V6
+    }
 }
 
 vrrp_instance PIHOLE_V4 {
@@ -23,6 +32,21 @@ vrrp_instance PIHOLE_V4 {
     }
     virtual_ipaddress {
         {{ pihole_vip }}/24
+    }
+    track_script {
+        chk_pihole
+    }
+}
+
+vrrp_instance PIHOLE_V6 {
+    state {{ keepalived_state }}
+    interface {{ pihole_interface }}
+    version 3
+    virtual_router_id 63
+    priority {{ keepalived_priority }}
+    advert_int 1
+    virtual_ipaddress {
+        {{ pihole_vip6 }}/64
     }
     track_script {
         chk_pihole
