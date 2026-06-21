@@ -6,7 +6,9 @@
     pihole_interface: eth0
     pihole_vip: 10.10.53.53
     nebula_sync_version: "0.11.2"
-    nebula_sync_cron: "*/15 * * * *"
+    # Hourly — config/blocklists change rarely, and each sync restarts FTL on the
+    # RPi3 standby via teleporter import, so keep the cadence gentle.
+    nebula_sync_cron: "0 * * * *"
     # Set false to stage keepalived (package + config) on a node WITHOUT it
     # claiming the VIP — used during cutover so a not-yet-live node never
     # fights 10.10.53.53 with the box that still holds it statically.
