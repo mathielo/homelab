@@ -1,4 +1,4 @@
-.PHONY: help shutdown startup ytdl
+.PHONY: help shutdown startup ytdl pihole-ha-check
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -13,3 +13,8 @@ startup: ## Bring the cluster back up: wait for nodes, then uncordon
 ytdl: ## Create new job to manually triger ytdl-sub run
 	kubectl delete job -n media ytdl-sub-manual --ignore-not-found
 	kubectl create job -n media --from=cronjob/ytdl-sub ytdl-sub-manual
+
+pihole-ha-check: ## Show which Pi-hole node currently holds the VIP (master)
+	@for h in pihole-01 pihole-02; do \
+		ssh $$h "hostname; ip -4 addr show eth0 | grep -q 10.10.53.53 && echo '  -> MASTER (holds VIP)' || echo '  -> backup'"; \
+	done

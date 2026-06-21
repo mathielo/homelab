@@ -167,6 +167,13 @@
         mode: "0644"
       notify: Restart pihole-FTL
 
+    - name: Deploy pihole.m6o.dev admin record (points at the VIP)
+      copy:
+        src: files/30-pihole.conf
+        dest: /etc/dnsmasq.d/30-pihole.conf
+        mode: "0644"
+      notify: Restart pihole-FTL
+
     - name: Deploy Pi-hole upgrade script (handles Tailscale DNS conflict)
       copy:
         src: files/pihole-upgrade.sh

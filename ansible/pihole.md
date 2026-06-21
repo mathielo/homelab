@@ -2,7 +2,7 @@
 
 Using a Raspberry Pi as the host for [Pi-hole](https://docs.pi-hole.net/) as the network's default DNS Resolver. All network traffic is meant to go through it to block unwanted ads, malware or any other type of blacklisted domains.
 
-Two nodes run in active/standby. `10.10.53.53` is a **keepalived VRRP virtual IP** that floats between them, so clients always target one address that transparently fails over. See [docs/pihole-ha.md](../docs/pihole-ha.md) for the design rationale and rollout order.
+Two nodes run in active/standby. `10.10.53.53` / `::53` are **keepalived VRRP virtual IPs** (IPv4 + IPv6, in one sync group) that float between the nodes, so clients always target one address that transparently fails over. keepalived health-checks `pihole-FTL` with a real DNS query, so a wedged-but-running FTL is caught and the standby takes over.
 
 | Host      | Role             | LAN IP      | LAN IPv6                | Tailscale IP  |
 | --------- | ---------------- | ----------- | ----------------------- | ------------- |

@@ -76,12 +76,14 @@ Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
 
 ## Current Services
 
-- **Pi-hole v6** on Raspberry Pi 5: Network-wide DNS resolver for ad/malware blocking (`10.10.53.53` / `100.100.53.53` on Tailscale)
+- **Pi-hole v6** in active/standby on two Raspberry Pis: Network-wide DNS resolver for ad/malware blocking. Clients use the floating keepalived VIP `10.10.53.53` / `2001:2042:37b0:1c35::53` (+ `100.100.53.53` on Tailscale, pihole-01 only). Setup + runbook: [`ansible/pihole.md`](ansible/pihole.md)
+  - **HA:** `pihole-01` (RPi5, `.51`/`::51`, MASTER) + `pihole-02` (RPi3 B+, `.52`/`::52`, BACKUP). keepalived runs IPv4 (VRRPv2) + IPv6 (VRRPv3) VIP instances in one sync group; the `chk_pihole` health check runs a real DNS query, so a wedged-but-running FTL fails over. Deployed by `ansible/pihole/pihole.yaml` (single playbook, per-host vars).
+  - **Sync:** `nebula-sync` on pihole-01 pushes config/blocklists pihole-01 → pihole-02 hourly via the v6 API/Teleporter (`RUN_GRAVITY=false` — the RPi3 hangs FTL on gravity rebuilds).
   - Config: `/etc/pihole/pihole.toml` (v6 uses TOML, not the legacy dnsmasq conf files)
   - v6 ignores `/etc/dnsmasq.d/` by default (`misc.etc_dnsmasq_d = false`) — must be explicitly enabled
   - DNS service: `pihole-FTL` (restart with `sudo systemctl restart pihole-FTL`)
-  - **Unbound** runs as recursive resolver on `127.0.0.1:5335`; Pi-hole uses it as upstream instead of Quad9 directly
-  - DNS chain: Device → Pi-hole (`:53`) → Unbound (`127.0.0.1:5335`) → root nameservers
+  - **Unbound** runs as recursive resolver on `127.0.0.1:5335` on each node; Pi-hole uses it as upstream instead of Quad9 directly
+  - DNS chain: Device → Pi-hole VIP (`:53`) → Unbound (`127.0.0.1:5335`) → root nameservers
 - **UNAS-4** (UniFi NAS): Network-attached storage on VLAN 50 (`10.10.50.4`, shares the Servers VLAN with the k3s nodes so NFS stays intra-VLAN)
   - 4×24 TB 7200RPM HDD in RAID 5 (~72 TB usable) + 2×500 GB M.2 SSD read-write cache
   - NFS share `Media` (52 TB quota) exported to k3s nodes at `/var/nfs/shared/Media`

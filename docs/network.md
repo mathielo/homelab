@@ -26,13 +26,16 @@ For each VLAN in **Settings → Networks → [VLAN] → DHCP**:
 
 | Setting           | Value                        |
 | ----------------- | ---------------------------- |
-| Primary DNS       | `10.10.53.53` (Pi-hole)      |
+| Primary DNS       | `10.10.53.53` (Pi-hole VIP)  |
 | ~~Secondary DNS~~ | ~~9.9.9.9 (Quad9 fallback)~~ |
 | IPv6 DNS          | `2001:2042:37b0:1c35::53`    |
 
-> :bulb: There are no secondary DNS resolvers for any VLANs. This makes the Pi-hole the sole DNS resolver for the entire network.
->
-> While this ensures all traffic is properly filtered and controlled by the Pi-hole, it also turns it into a single point of failure. If the Pi-hole is down, all DNS resolving stops in the network.
+> :bulb: There is a single DNS target per VLAN on purpose — `10.10.53.53` / `::53`
+> are **keepalived VRRP virtual IPs**, not one box. Two Pi-holes (pihole-01 active,
+> pihole-02 standby) share the VIPs, so the address keeps answering if a node dies.
+> A DHCP "secondary DNS" is deliberately avoided: it isn't ordered failover
+> (clients race resolvers) and would let queries bypass Pi-hole. See
+> [`ansible/pihole.md`](../ansible/pihole.md).
 
 This ensures **per-client** visibility in Pi-hole logs for statistics and **per-device blocking**.
 

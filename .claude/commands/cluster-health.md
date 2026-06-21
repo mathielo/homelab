@@ -86,11 +86,43 @@ kubectl logs -n "$ns" "$pod" --all-containers --prefix --since="$1" 2>/dev/null 
   | tail -5
 ```
 
-## 6. Warnings sweep & assessment (the headline section)
+## 6. Pi-hole HA (dual resolver + VIP)
+
+Pi-hole runs active/standby on `pihole-01` (`.51`/`::51`, normal master) and
+`pihole-02` (`.52`/`::52`), sharing keepalived VIPs `10.10.53.53` / `::53`. SSH
+both (read-only) and confirm a healthy one-master / one-backup state:
+
+```
+for h in pihole-01 pihole-02; do echo "### $h"; ssh -o ConnectTimeout=5 "$h" '
+  for s in pihole-FTL unbound keepalived; do printf "%s=%s " "$s" "$(systemctl is-active $s)"; done; echo
+  ip -4 addr show eth0 | grep -q 10.10.53.53 && v4=MASTER || v4=backup
+  ip -6 addr show eth0 | grep -q 1c35::53 && v6=MASTER || v6=backup
+  echo "vip_v4=$v4 vip_v6=$v6"
+  dig +short +time=2 +tries=1 @127.0.0.1 pi.hole >/dev/null 2>&1 && echo "FTL_answering=yes" || echo "FTL_answering=NO"
+  echo "nebula-sync=$(systemctl is-active nebula-sync 2>/dev/null)"'; echo; done
+```
+
+Flag (carry breaches to §7). Healthy = exactly one node holds each VIP, both FTL
+answering, and `nebula-sync` active on pihole-01 only (inactive/not-found on
+pihole-02 is correct):
+
+- 🔴 **No master** — neither node holds a VIP: DNS is down network-wide.
+- 🔴 **Split-brain** — both hold the same VIP: IP conflict.
+- 🔴 **FTL not answering** on a node whose process is `active` — the wedged-FTL
+  failure mode (often after a heavy nebula-sync); `sudo systemctl restart pihole-FTL` there.
+- 🟡 **Failover active** — pihole-02 holds the VIP (pihole-01 is normally master):
+  pihole-01 or its FTL is down; investigate why it didn't preempt back.
+- 🟡 **v4/v6 split** — the two VIPs sit on different nodes (the sync group should
+  keep them together).
+- 🟡 **nebula-sync** not `active` on pihole-01, or its last run failed
+  (`journalctl -u nebula-sync -n 20`): replica config drifts.
+
+## 7. Warnings sweep & assessment (the headline section)
 
 Aim: warning-free. Aggregate **every** warning from all sources — `kubectl get
-events -A --field-selector type=Warning`, the WARN/ERROR log lines from §5, and
-the metric-threshold breaches from §1 — then assess each one. Present a table:
+events -A --field-selector type=Warning`, the WARN/ERROR log lines from §5, the
+metric-threshold breaches from §1, and the Pi-hole HA breaches from §6 — then
+assess each one. Present a table:
 
 `Source | Warning | Frequency | Assessment`
 
@@ -136,7 +168,7 @@ when calling out a specific warning in prose.
    its 🟢/🟡/🔴 Status column.
 3. Short **per-area** lines (pods / ArgoCD / Longhorn) each prefixed with a
    🟢/🟡/🔴 marker.
-4. The **Warnings & assessment** table from §6 — the focus. For 🔧 fixable ones,
+4. The **Warnings & assessment** table from §7 — the focus. For 🔧 fixable ones,
    propose the change as code/commands; **don't apply** — per repo policy all
    changes are GitOps/IaC and the user runs them.
 

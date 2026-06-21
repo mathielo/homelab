@@ -11,7 +11,8 @@ All physical devices in the homelab.
 | k3s-server    | [Lenovo ThinkCentre M75q-1](https://www.lenovo.com/us/en/p/desktops/thinkcentre/m-series-tiny/thinkcentre-m75q-1/11tc1mtm73q)                                | Ryzen 5 PRO 3400GE @ 3.30GHz | 32GB DDR4      | 256GB NVMe SSD<br>1TB Kingston SATA SSD | 50   | 10.10.50.10  |
 | k3s-node-01   | [Lenovo ThinkCentre M715Q](https://www.lenovo.com/us/en/p/desktops/thinkcentre/m-series-tiny/thinkcentre-m715q-tiny/11tc1mt715q)                             | Ryzen 3 2200GE @ 3.20GHz     | 32GB DDR4      | 256GB NVMe SSD<br>1TB Kingston SATA SSD | 50   | 10.10.50.11  |
 | k3s-node-02   | [Lenovo ThinkCentre M70q Gen 5 Tiny](https://www.lenovo.com/us/en/p/desktops/thinkcentre/m-series-tiny/lenovo-thinkcentre-m70q-gen-5-tiny-intel/len102c0052) | Intel Core i5-14500T vPro    | 16GB DDR5 5600 | 2TB Samsung 990 Pro NVMe                | 50   | 10.10.50.12  |
-| pihole        | Raspberry Pi 5 Model B                                                                                                                                       | ARM Cortex-A76 (4-core)      | 8GB            | SD card                                 | 53   | 10.10.53.53  |
+| pihole-01     | Raspberry Pi 5 Model B                                                                                                                                       | ARM Cortex-A76 (4-core)      | 8GB            | SD card                                 | 53   | 10.10.53.51  |
+| pihole-02     | Raspberry Pi 3 Model B+                                                                                                                                      | ARM Cortex-A53 (4-core)      | 1GB            | SD card                                 | 53   | 10.10.53.52  |
 | homeassistant | Raspberry Pi 5 Model B                                                                                                                                       | ARM Cortex-A76 (4-core)      | 8GB            | SD card                                 | 50   | 10.10.50.123 |
 
 ### Workload pinning
@@ -55,14 +56,16 @@ Longhorn is sized to match the other two nodes once they migrate — replicas st
 
 See [Longhorn Storage](storage-longhorn.md) for disk preparation and Longhorn setup details.
 
+> **pihole-01 / pihole-02** run Pi-hole in active/standby; clients use the floating keepalived VIP `10.10.53.53` / `::53` (pihole-01 is the normal master). See [ansible/pihole.md](../ansible/pihole.md).
+
 **k3s-node-02 external storage:** a Cenmate 802U3-5G USB-3 2-bay DAS with 2×4 TB 3.5" HDDs in software RAID 0 (mdadm), ext4, mounted at `/mnt/r0` (~7.3 TiB). Provisioned by [`ansible/das-raid.yaml`](../ansible/das-raid.yaml); maintenance via `das-up` / `das-down` on the node (see playbook header). Both `qbt-*` instances mount the DAS root at `/r0`. The marker file `/mnt/r0/.r0-mounted` (placed on the DAS filesystem by the playbook) gates both startup (strict `File` hostPath) and runtime (liveness probe reading it every 30s) — disconnect → pod crashloops → recovers automatically on `das-up`.
 
 ## Storage
 
-| Device               | Hardware                           | Storage                                                                         | VLAN | IP        |
-| -------------------- | ---------------------------------- | ------------------------------------------------------------------------------- | ---- | --------- |
+| Device               | Hardware                           | Storage                                                                         | VLAN | IP         |
+| -------------------- | ---------------------------------- | ------------------------------------------------------------------------------- | ---- | ---------- |
 | UNAS-4               | UniFi NAS                          | 4 x 24TB 7200RPM HDD (RAID 5, ~72TB usable) + 2x 500GB M.2 SSD read-write cache | 50   | 10.10.50.4 |
-| Cenmate 802U3-5G DAS | USB-3 2-bay DAS (ASMT 2115 bridge) | 2 x 4TB HDD (software RAID 0 via mdadm, ~7.3 TiB) — attached to `k3s-node-02`   | -    | -         |
+| Cenmate 802U3-5G DAS | USB-3 2-bay DAS (ASMT 2115 bridge) | 2 x 4TB HDD (software RAID 0 via mdadm, ~7.3 TiB) — attached to `k3s-node-02`   | -    | -          |
 
 ## Networking
 
@@ -71,11 +74,11 @@ Protect VLAN (20) alongside the cameras, and the UNAS-4 on the Servers VLAN (50)
 with the k3s nodes. Static IPs are used for the gateway, NVR, and NAS; everything
 else uses DHCP.
 
-| Device          | Model              | IP         |
-| --------------- | ------------------ | ---------- |
-| R18 UGC Max     | UniFi Gateway      | 10.10.1.1  |
-| UNVR-I          | UniFi NVR Instant  | 10.10.20.2 |
-| USW Lite 8 PoE  | UniFi Switch       | Dynamic   |
-| U7 Pro XG       | UniFi AP           | Dynamic   |
-| UDB Homelab     | UniFi Dream Bridge | Dynamic   |
-| UDB Living Room | UniFi Dream Bridge | Dynamic   |
+| Device              | Model              | IP         |
+| ------------------- | ------------------ | ---------- |
+| R18 UGC Max         | UniFi Gateway      | 10.10.1.1  |
+| UNVR-I              | UniFi NVR Instant  | 10.10.20.2 |
+| USW Flex 2.5G 8 PoE | UniFi Switch       | Dynamic    |
+| U7 Pro XG           | UniFi AP           | Dynamic    |
+| UDB Homelab         | UniFi Dream Bridge | Dynamic    |
+| UDB Living Room     | UniFi Dream Bridge | Dynamic    |
