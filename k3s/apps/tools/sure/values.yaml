@@ -62,7 +62,7 @@ app-template:
         web:
           image:
             repository: ghcr.io/we-promise/sure
-            tag: "0.7.2-alpha.7"
+            tag: "0.7.2-alpha.8"
           env: &sureEnv
             SELF_HOSTED: "true"
             RAILS_ENV: production
@@ -90,7 +90,7 @@ app-template:
         worker:
           image:
             repository: ghcr.io/we-promise/sure
-            tag: "0.7.2-alpha.7"
+            tag: "0.7.2-alpha.8"
           command:
             - bundle
             - exec
