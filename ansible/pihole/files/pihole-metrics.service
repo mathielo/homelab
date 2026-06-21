@@ -1,0 +1,7 @@
+[Unit]
+Description=Write Pi-hole HA metrics for the node_exporter textfile collector
+After=pihole-FTL.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/pihole-metrics

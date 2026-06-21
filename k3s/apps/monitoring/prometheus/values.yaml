@@ -59,6 +59,17 @@ prometheus:
           action: keep
           regex: longhorn-backend;manager
 
+    # The two Pi-holes are standalone RPis (not k8s nodes), so scrape their
+    # node_exporter (host health + the pihole_* HA textfile metrics) statically.
+    - job_name: pihole
+      static_configs:
+        - targets: ["10.10.53.51:9100"]
+          labels:
+            instance: pihole-01
+        - targets: ["10.10.53.52:9100"]
+          labels:
+            instance: pihole-02
+
   serverFiles:
     alerting_rules.yml:
       groups:
@@ -268,6 +279,64 @@ prometheus:
                 severity: warning
               annotations:
                 summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} is not Ready (renewal may be failing)"
+
+        # Pi-hole HA (two standalone RPis sharing keepalived VIPs 10.10.53.53 / ::53).
+        # Host CPU/mem/disk are already covered by the generic node-health group
+        # above (the Pis now expose node_exporter); these are the HA-specific signals.
+        - name: pihole-ha
+          rules:
+            # No node holds a VIP → the whole network has no resolver. (A normal
+            # failover flips the holder within seconds, so 1m avoids flapping.)
+            - alert: PiholeNoActiveVIP
+              expr: sum by (family) (pihole_holds_vip) == 0
+              for: 1m
+              labels:
+                severity: critical
+              annotations:
+                summary: "No Pi-hole holds the {{ $labels.family }} DNS VIP — network DNS is down"
+
+            - alert: PiholeSplitBrain
+              expr: sum by (family) (pihole_holds_vip) > 1
+              for: 1m
+              labels:
+                severity: critical
+              annotations:
+                summary: "Both Pi-holes claim the {{ $labels.family }} VIP (split-brain / IP conflict)"
+
+            # node_exporter unreachable: host down or off the network.
+            - alert: PiholeNodeDown
+              expr: up{job="pihole"} == 0
+              for: 3m
+              labels:
+                severity: warning
+              annotations:
+                summary: "Pi-hole node {{ $labels.instance }} is unreachable (node_exporter down)"
+
+            # FTL process up but not answering — the bound-but-wedged failure mode.
+            - alert: PiholeResolverWedged
+              expr: pihole_dns_up == 0
+              for: 2m
+              labels:
+                severity: warning
+              annotations:
+                summary: "Pi-hole {{ $labels.instance }} is not answering DNS (FTL wedged?) — restart pihole-FTL"
+
+            # Standby is serving and hasn't handed back — primary is down or not preempting.
+            - alert: PiholeFailoverActive
+              expr: pihole_holds_vip{instance="pihole-02", family="ipv4"} == 1
+              for: 5m
+              labels:
+                severity: warning
+              annotations:
+                summary: "Pi-hole standby (pihole-02) is serving — pihole-01 is down or not preempting"
+
+            - alert: PiholeKeepalivedDown
+              expr: pihole_keepalived_up == 0
+              for: 3m
+              labels:
+                severity: warning
+              annotations:
+                summary: "keepalived is not running on {{ $labels.instance }} — that node can't fail over"
 
   prometheus-pushgateway:
     enabled: false

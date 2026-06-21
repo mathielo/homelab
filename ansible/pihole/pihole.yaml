@@ -268,10 +268,67 @@
         daemon_reload: true
       when: nebula_sync_host | default(false)
 
+    # --- Monitoring (node_exporter + Pi-hole HA metrics for Prometheus) ---
+
+    - name: Install Prometheus node_exporter
+      apt:
+        name: prometheus-node-exporter
+        state: present
+        update_cache: true
+
+    - name: Point node_exporter at the textfile collector directory
+      copy:
+        dest: /etc/default/prometheus-node-exporter
+        content: |
+          ARGS="--collector.textfile.directory=/var/lib/prometheus/node-exporter"
+        mode: "0644"
+      notify: Restart node_exporter
+
+    - name: Ensure textfile collector directory exists
+      file:
+        path: /var/lib/prometheus/node-exporter
+        state: directory
+        owner: prometheus
+        group: prometheus
+        mode: "0755"
+
+    - name: Deploy Pi-hole HA metrics collector
+      copy:
+        src: files/pihole-metrics.sh
+        dest: /usr/local/bin/pihole-metrics
+        mode: "0755"
+
+    - name: Install Pi-hole HA metrics service + timer
+      copy:
+        src: "files/{{ item }}"
+        dest: "/etc/systemd/system/{{ item }}"
+        mode: "0644"
+      loop:
+        - pihole-metrics.service
+        - pihole-metrics.timer
+
+    - name: Enable and start node_exporter
+      systemd:
+        name: prometheus-node-exporter
+        enabled: true
+        state: started
+
+    - name: Enable and start the Pi-hole HA metrics timer
+      systemd:
+        name: pihole-metrics.timer
+        enabled: true
+        state: started
+        daemon_reload: true
+
   handlers:
     - name: Restart timesyncd
       systemd:
         name: systemd-timesyncd
+        state: restarted
+
+    - name: Restart node_exporter
+      systemd:
+        name: prometheus-node-exporter
         state: restarted
 
     - name: Restart unbound
