@@ -132,27 +132,30 @@
 
     # --- Pi-hole upstream ---
 
+    # These pihole-FTL --config writes are idempotent in effect and v6 hot-reloads
+    # pihole.toml, so they apply live without an FTL restart. changed_when: false
+    # stops every converge run from bouncing FTL (and blipping the VIP).
     - name: Configure Pi-hole to use Unbound as upstream
       command: >
         pihole-FTL --config dns.upstreams '["127.0.0.1#5335"]'
-      notify: Restart pihole-FTL
+      changed_when: false
 
     - name: Configure conditional forwarding for local hostname resolution
       command: >
         pihole-FTL --config dns.revServers
         '["true,10.10.1.0/24,10.10.1.1,localdomain",
           "true,10.10.10.0/24,10.10.10.1,localdomain",
-          "true,10.10.10.0/24,10.10.20.1,localdomain",
+          "true,10.10.20.0/24,10.10.20.1,localdomain",
           "true,10.10.40.0/24,10.10.40.1,localdomain",
           "true,10.10.50.0/24,10.10.50.1,localdomain",
           "true,10.10.53.0/24,10.10.53.1,localdomain",
           "true,10.10.107.0/24,10.10.107.1,localdomain",
           "true,100.64.0.0/10,100.100.100.100,qilin-goby.ts.net"]'
-      notify: Restart pihole-FTL
+      changed_when: false
 
     - name: Enable loading of /etc/dnsmasq.d/ config files (required for wildcard DNS)
       command: pihole-FTL --config misc.etc_dnsmasq_d true
-      notify: Restart pihole-FTL
+      changed_when: false
 
     - name: Deploy k3s wildcard DNS record for *.m6o.dev
       copy:
@@ -169,9 +172,11 @@
 
     # --- keepalived (VRRP virtual IP for transparent DNS failover) ---
 
-    - name: Install keepalived
+    - name: Install keepalived and dig (chk_pihole health check)
       apt:
-        name: keepalived
+        name:
+          - keepalived
+          - dnsutils
         state: present
         update_cache: true
 

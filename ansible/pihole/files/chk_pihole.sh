@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# keepalived health check. Healthy only if pihole-FTL is running AND accepting
-# DNS on TCP/53 — a bare process check would keep the VIP on a box whose
-# resolver has wedged. Uses bash /dev/tcp to avoid a dig dependency.
+# keepalived health check. Pi-hole is healthy only if pihole-FTL actually ANSWERS
+# a query — a TCP connect to :53 succeeds against a bound-but-wedged FTL (the
+# kernel completes the handshake even when FTL never replies), so a connect check
+# would hand the VIP to a dead resolver. Query pi.hole, which FTL answers locally
+# (no upstream needed), so the check is independent of Unbound/internet.
 pgrep -x pihole-FTL >/dev/null || exit 1
-exec 3<>/dev/tcp/127.0.0.1/53 || exit 1
-exec 3>&- 3<&-
+dig +tries=1 +time=2 @127.0.0.1 pi.hole >/dev/null 2>&1 || exit 1
 exit 0

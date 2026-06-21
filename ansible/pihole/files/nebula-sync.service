@@ -5,6 +5,10 @@ Wants=network-online.target
 
 [Service]
 EnvironmentFile=/etc/nebula-sync/nebula-sync.env
+# Wait for the local Pi-hole API (:80) before the first sync, so starting right
+# after pihole-FTL bounces doesn't fail on connection-refused. Gives up after
+# ~60s and lets the sync run anyway (Restart=on-failure is the backstop).
+ExecStartPre=/bin/bash -c 'for i in {1..30}; do (exec 3<>/dev/tcp/127.0.0.1/80) 2>/dev/null && exit 0; sleep 2; done; exit 0'
 ExecStart=/usr/local/bin/nebula-sync run
 Restart=on-failure
 RestartSec=30
