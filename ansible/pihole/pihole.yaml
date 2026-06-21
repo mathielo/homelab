@@ -4,9 +4,15 @@
   become: true
   vars:
     pihole_interface: eth0
-    pihole_ipv4_address: "10.10.53.53/24"
-    pihole_ipv6_address: "2001:2042:37b0:1c35::53/64"
-    pihole_ipv6_gateway: "2001:2042:37b0:1c35::1"
+    pihole_vip: 10.10.53.53
+    nebula_sync_version: "0.11.2"
+    nebula_sync_cron: "*/15 * * * *"
+    # Set false to stage keepalived (package + config) on a node WITHOUT it
+    # claiming the VIP — used during cutover so a not-yet-live node never
+    # fights 10.10.53.53 with the box that still holds it statically.
+    keepalived_start: true
+    # Per-host: pihole_ipv4_address, pihole_ipv6_address (pihole-01 only),
+    # keepalived_state/priority, nebula_sync_host — see host_vars/.
 
   tasks:
     - name: Load Pi-hole secrets
@@ -37,7 +43,7 @@
         content: |
           PIHOLE_INTERFACE={{ pihole_interface }}
           IPV4_ADDRESS={{ pihole_ipv4_address }}
-          IPV6_ADDRESS={{ pihole_ipv6_address }}
+          IPV6_ADDRESS={{ pihole_ipv6_address | default('') }}
           QUERY_LOGGING=true
           BLOCKING_ENABLED=true
           DNSSEC=false
@@ -48,6 +54,7 @@
         mode: "0644"
 
     - name: Configure static IPv6 address on {{ pihole_interface }}
+      when: pihole_ipv6_address is defined
       shell: |
         CONN=$(nmcli -g NAME,DEVICE con show | grep ':{{ pihole_interface }}$' | cut -d: -f1 | head -1)
         CURRENT=$(nmcli -g ipv6.addresses con show "$CONN")
@@ -135,6 +142,7 @@
         pihole-FTL --config dns.revServers
         '["true,10.10.1.0/24,10.10.1.1,localdomain",
           "true,10.10.10.0/24,10.10.10.1,localdomain",
+          "true,10.10.10.0/24,10.10.20.1,localdomain",
           "true,10.10.40.0/24,10.10.40.1,localdomain",
           "true,10.10.50.0/24,10.10.50.1,localdomain",
           "true,10.10.53.0/24,10.10.53.1,localdomain",
@@ -159,6 +167,92 @@
         dest: /usr/local/bin/pihole-upgrade
         mode: "0755"
 
+    # --- keepalived (VRRP virtual IP for transparent DNS failover) ---
+
+    - name: Install keepalived
+      apt:
+        name: keepalived
+        state: present
+        update_cache: true
+
+    - name: Deploy Pi-hole health check for keepalived
+      copy:
+        src: files/chk_pihole.sh
+        dest: /usr/local/bin/chk_pihole
+        mode: "0755"
+
+    - name: Write keepalived configuration
+      template:
+        src: templates/keepalived.conf.j2
+        dest: /etc/keepalived/keepalived.conf
+        mode: "0644"
+      register: keepalived_conf
+
+    # When keepalived_start is false the unit is masked, so neither apt's
+    # post-install start nor a config change can bring up the VIP while staging.
+    # keepalived_start | bool — a CLI `-e keepalived_start=false` arrives as the
+    # STRING "false", which is truthy in Jinja; | bool coerces it correctly.
+    - name: Manage keepalived service state
+      systemd:
+        name: keepalived
+        masked: "{{ not (keepalived_start | bool) }}"
+        enabled: "{{ keepalived_start | bool }}"
+        state: >-
+          {{ 'restarted' if (keepalived_start | bool and keepalived_conf is changed)
+             else ('started' if keepalived_start | bool else 'stopped') }}
+
+    # --- nebula-sync (config replication, primary only) ---
+
+    - name: Download nebula-sync release tarball
+      get_url:
+        url: "https://github.com/lovelaze/nebula-sync/releases/download/v{{ nebula_sync_version }}/nebula-sync_{{ nebula_sync_version }}_linux_arm64.tar.gz"
+        dest: "/tmp/nebula-sync_{{ nebula_sync_version }}.tar.gz"
+        mode: "0644"
+      when: nebula_sync_host | default(false)
+
+    - name: Install nebula-sync binary
+      unarchive:
+        src: "/tmp/nebula-sync_{{ nebula_sync_version }}.tar.gz"
+        dest: /usr/local/bin
+        remote_src: true
+        include:
+          - nebula-sync
+        mode: "0755"
+      when: nebula_sync_host | default(false)
+      notify: Restart nebula-sync
+
+    - name: Ensure /etc/nebula-sync directory exists
+      file:
+        path: /etc/nebula-sync
+        state: directory
+        mode: "0700"
+      when: nebula_sync_host | default(false)
+
+    - name: Write nebula-sync environment file
+      template:
+        src: templates/nebula-sync.env.j2
+        dest: /etc/nebula-sync/nebula-sync.env
+        mode: "0600"
+      no_log: true
+      when: nebula_sync_host | default(false)
+      notify: Restart nebula-sync
+
+    - name: Install nebula-sync systemd unit
+      copy:
+        src: files/nebula-sync.service
+        dest: /etc/systemd/system/nebula-sync.service
+        mode: "0644"
+      when: nebula_sync_host | default(false)
+      notify: Restart nebula-sync
+
+    - name: Enable and start nebula-sync
+      systemd:
+        name: nebula-sync
+        enabled: true
+        state: started
+        daemon_reload: true
+      when: nebula_sync_host | default(false)
+
   handlers:
     - name: Restart timesyncd
       systemd:
@@ -174,3 +268,9 @@
       systemd:
         name: pihole-FTL
         state: restarted
+
+    - name: Restart nebula-sync
+      systemd:
+        name: nebula-sync
+        state: restarted
+        daemon_reload: true

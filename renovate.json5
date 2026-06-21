@@ -86,6 +86,17 @@
     {
       customType: 'regex',
       managerFilePatterns: [
+        '/ansible/pihole/pihole\\.yaml$/',
+      ],
+      matchStrings: [
+        'nebula_sync_version:\\s*"(?<currentValue>[\\d.]+)"',
+      ],
+      depNameTemplate: 'lovelaze/nebula-sync',
+      datasourceTemplate: 'github-releases',
+    },
+    {
+      customType: 'regex',
+      managerFilePatterns: [
         '/ansible/k3s/longhorn\\.yaml$/',
       ],
       matchStrings: [

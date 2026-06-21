@@ -1,0 +1,30 @@
+# Managed by Ansible — Pi-hole VRRP failover.
+# chk_pihole has no weight, so on failure the active node enters FAULT and
+# releases the VIP entirely; the standby then claims {{ pihole_vip }} within a
+# couple of seconds. When the master recovers it preempts back (default).
+
+vrrp_script chk_pihole {
+    script "/usr/local/bin/chk_pihole"
+    interval 2
+    timeout 3
+    fall 2
+    rise 2
+}
+
+vrrp_instance PIHOLE_V4 {
+    state {{ keepalived_state }}
+    interface {{ pihole_interface }}
+    virtual_router_id 53
+    priority {{ keepalived_priority }}
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass {{ keepalived_auth_pass }}
+    }
+    virtual_ipaddress {
+        {{ pihole_vip }}/24
+    }
+    track_script {
+        chk_pihole
+    }
+}

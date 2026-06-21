@@ -1,0 +1,9 @@
+# RPi5 — keepalived MASTER, runs nebula-sync (config push to the replica).
+pihole_ipv4_address: "10.10.53.51/24"
+pihole_ipv6_address: "2001:2042:37b0:1c35::53/64"
+pihole_ipv6_gateway: "2001:2042:37b0:1c35::1"
+
+keepalived_state: MASTER
+keepalived_priority: 150
+
+nebula_sync_host: true

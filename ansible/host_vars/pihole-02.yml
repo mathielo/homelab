@@ -1,0 +1,6 @@
+# RPi3 B+ — keepalived BACKUP. No static IPv6 (IPv4 VIP only); the IPv6 task is
+# skipped because pihole_ipv6_address is left undefined here.
+pihole_ipv4_address: "10.10.53.52/24"
+
+keepalived_state: BACKUP
+keepalived_priority: 100

@@ -2,9 +2,13 @@
 
 Using a Raspberry Pi as the host for [Pi-hole](https://docs.pi-hole.net/) as the network's default DNS Resolver. All network traffic is meant to go through it to block unwanted ads, malware or any other type of blacklisted domains.
 
-| Host   | LAN IP      | LAN IPv6                | Tailscale IP  |
-| ------ | ----------- | ----------------------- | ------------- |
-| pihole | 10.10.53.53 | 2001:2042:37b0:1c35::53 | 100.100.53.53 |
+Two nodes run in active/standby. `10.10.53.53` is a **keepalived VRRP virtual IP** that floats between them, so clients always target one address that transparently fails over. See [docs/pihole-ha.md](../docs/pihole-ha.md) for the design rationale and rollout order.
+
+| Host      | Role             | LAN IP      | LAN IPv6                | Tailscale IP  |
+| --------- | ---------------- | ----------- | ----------------------- | ------------- |
+| —         | VIP (keepalived) | 10.10.53.53 | —                       | —             |
+| pihole-01 | MASTER (RPi5)    | 10.10.53.51 | 2001:2042:37b0:1c35::53 | 100.100.53.53 |
+| pihole-02 | BACKUP (RPi3 B+) | 10.10.53.52 | —                       | —             |
 
 > Full hardware specs: [docs/hardware.md](../docs/hardware.md)
 
@@ -16,22 +20,23 @@ These steps are one-time manual steps that must be completed before running the 
 
 Use the official [Raspberry Pi Imager](https://www.raspberrypi.com/software/) to flash **Raspberry Pi OS Lite (64-bit)** to the SD card. In the imager's advanced settings:
 
-- Set hostname: `pihole`
+- Set hostname: `pihole-01` (RPi5) or `pihole-02` (RPi3 B+)
 - Set username: `m8hl`
 - Enable SSH with password authentication (will be disabled by the bootstrap playbook)
 
 ### 2. Set a static IP
 
-Pi-hole must have a static IP since it's the network's DNS resolver. SSH into the Pi (using the DHCP-assigned IP or `pihole.local`) and run:
+Each node needs a static IP since they back the network's DNS resolver. Use `10.10.53.51` for `pihole-01` and `10.10.53.52` for `pihole-02` (the `.53` VIP is owned by keepalived — never assign it to an interface). SSH into the Pi (using the DHCP-assigned IP or `pihole.local`) and run:
 
 ```bash
 # List connections to find the NAME of the active connection
 nmcli connection show
 
-# Set static IPv4 (replace netplan-eth0 with your connection name)
+# Set static IPv4 (replace netplan-eth0 with your connection name,
+# and the address with .51 or .52 for this node)
 sudo nmcli connection modify "netplan-eth0" \
   ipv4.method manual \
-  ipv4.addresses 10.10.53.53/24 \
+  ipv4.addresses 10.10.53.51/24 \
   ipv4.gateway 10.10.53.1 \
   ipv4.dns "127.0.0.1"
 
@@ -41,7 +46,7 @@ sudo nmcli connection up "netplan-eth0"
 
 > :bulb: DNS is set to `127.0.0.1` — the Pi resolves via its own Pi-hole → Unbound chain.
 
-> :bulb: After this, the Pi is reachable at `10.10.53.53` — which is what the Ansible inventory uses.
+> :bulb: After this the node is reachable at its `.51`/`.52` address — which is what the Ansible inventory uses.
 
 ### 3. Configure UniFi for IPv6
 
@@ -90,17 +95,22 @@ Install Pi-hole using the official installer in unattended mode:
 ansible-playbook pihole/pihole.yaml
 ```
 
-This will:
+This will, on **both** nodes:
 
 - Write `/etc/pihole/setupVars.conf` with the network and DNS configuration
 - Install Pi-hole (query logging enabled)
 - Set the admin password from the secrets file
-- Configure a static IPv6 address (`2001:2042:37b0:1c35::53/64`) on `eth0` via NetworkManager
+- Configure a static IPv6 address (`2001:2042:37b0:1c35::53/64`) on `eth0` via NetworkManager — **pihole-01 only** (`pihole_ipv6_address` is defined only for that host)
 - Install and configure Unbound as a recursive resolver on `127.0.0.1:5335`
 - Configure Pi-hole to use Unbound as its upstream (`127.0.0.1#5335`)
 - Enable `/etc/dnsmasq.d/` loading for wildcard DNS records
+- Install **keepalived** with a `pihole-FTL` health check; the node holds VRRP state per `keepalived_state`/`keepalived_priority` (host_vars) and the active node owns the `10.10.53.53` VIP. `keepalived_start=false` stages it masked (used during cutover)
 
-The admin panel is available at `http://10.10.53.53/admin` after installation.
+And on **pihole-01 only** (`nebula_sync_host: true`):
+
+- Install [nebula-sync](https://github.com/lovelaze/nebula-sync) (arm64 binary + systemd unit) to replicate Pi-hole config/gravity/lists from pihole-01 → pihole-02 on a cron. It authenticates with the admin web password (`pihole_password` from `pihole.sops.yaml`) — no app password needed.
+
+The admin panel is available at `http://10.10.53.53/admin` (VIP) after installation, or directly per node at `.51`/`.52`.
 
 > :bulb: This playbook targets **Pi-hole v6**. Key v6 differences:
 >
@@ -112,10 +122,11 @@ The admin panel is available at `http://10.10.53.53/admin` after installation.
 
 ## Upgrading Pi-hole
 
-Always use the upgrade script instead of `pihole -up` directly:
+Always use the upgrade script instead of `pihole -up` directly. Upgrade each node (the script is deployed to both):
 
 ```bash
-ssh pihole "sudo pihole-upgrade"
+ssh pihole-01 "sudo pihole-upgrade"
+ssh pihole-02 "sudo pihole-upgrade"
 ```
 
 The script handles a circular DNS dependency: Tailscale manages `/etc/resolv.conf` and routes DNS through Pi-hole itself. When `pihole -up` restarts FTL mid-upgrade, DNS breaks and the upgrade can't reach GitHub to finish.
@@ -137,7 +148,9 @@ ansible-playbook pihole/pihole.yaml
 
 ## Tailscale
 
-Pi-hole is a member of the tailnet so it can serve DNS to all tailnet devices regardless of their physical location. See [docs/tailscale.md](../docs/tailscale.md) for the overall architecture (IP convention, subnet routing, DNS flow).
+Only **pihole-01** joins the tailnet (`100.100.53.53`) and serves DNS to tailnet devices regardless of physical location. See [docs/tailscale.md](../docs/tailscale.md) for the overall architecture (IP convention, subnet routing, DNS flow).
+
+> :warning: VRRP does not cover the tailnet — if pihole-01 itself dies, tailnet DNS drops (LAN clients still fail over via the VIP). Optional follow-up: join pihole-02 to the tailnet as a fallback Tailscale nameserver.
 
 ### Setup
 

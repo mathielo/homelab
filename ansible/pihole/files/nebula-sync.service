@@ -1,0 +1,13 @@
+[Unit]
+Description=nebula-sync — Pi-hole config replication (primary -> replica)
+After=network-online.target pihole-FTL.service
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=/etc/nebula-sync/nebula-sync.env
+ExecStart=/usr/local/bin/nebula-sync run
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
