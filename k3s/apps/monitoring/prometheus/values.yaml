@@ -36,6 +36,20 @@ prometheus:
         group_interval: 5m
         repeat_interval: 4h
         routes:
+          # /mnt/r0 is a data drive that runs near-full by design — remind once a
+          # day instead of hourly. Must precede the disk and critical routes below
+          # (first match wins).
+          - receiver: telegram
+            matchers:
+              - alertname=~"NodeDiskPressure|NodeDiskCritical"
+              - mountpoint="/mnt/r0"
+            repeat_interval: 24h
+          # Any other mount filling up is a real incident, but hourly nagging is
+          # excessive — re-notify every 6h while it persists.
+          - receiver: telegram
+            matchers:
+              - alertname=~"NodeDiskPressure|NodeDiskCritical"
+            repeat_interval: 6h
           - receiver: telegram
             matchers:
               - severity=critical
