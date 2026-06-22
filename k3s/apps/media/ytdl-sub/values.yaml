@@ -1,9 +1,10 @@
 # ytdl-sub — declarative, config-as-code YouTube downloader (yt-dlp) feeding Plex.
 #
-# Runs as a CronJob on k3s-node-02: each run reads the subscriptions from the
-# ytdl-sub-config ConfigMap, downloads any new channel/playlist videos to local
-# NVMe (/working), re-encodes them to H.264 on the node's Intel iGPU (VA-API),
-# then moves the finished file to its target folder under /media/lib on the NAS.
+# Runs as a CronJob on k3s-node-02 once nightly: each run reads the subscriptions
+# from the ytdl-sub-config ConfigMap, downloads any new channel/playlist videos to
+# local NVMe (/working), re-encodes them to H.264 on the node's Intel iGPU
+# (VA-API), then moves the finished file to its target folder under /media/lib on
+# the NAS. A wrapper (notify-run.sh) posts a Telegram summary on new files/errors.
 app-template:
   defaultPodOptions:
     nodeSelector:
@@ -22,9 +23,16 @@ app-template:
     ytdl-sub:
       type: cronjob
       cronjob:
-        schedule: "0 */1 * * *"
+        # Once nightly at 23:00. ytdl-sub is incremental (download-archive), so a
+        # missed/failed night is just picked up at the next run — no intra-night
+        # retries: a per-video error is logged and skipped, not worth re-running.
+        schedule: "0 23 * * *"
+        # k8s interprets the schedule in UTC unless told otherwise (the container
+        # TZ env only sets the clock, not the trigger). Pin local time so 23:00
+        # means 23:00 here, not 01:00.
+        timeZone: Europe/Stockholm
         suspend: false
-        # Forbid: never overlap runs — a transcode can outlast the 1h tick.
+        # Forbid: never overlap runs — a long transcode could outlast midnight.
         concurrencyPolicy: Forbid
         backoffLimit: 0
         successfulJobsHistory: 3
@@ -52,19 +60,20 @@ app-template:
             # see Dockerfile. Tag matches the base ytdl-sub version.
             repository: ghcr.io/mathielo/ytdl-sub-vaapi
             tag: "2026.06.12"
+          # Wrapper runs ytdl-sub, then posts a Telegram summary when new files
+          # landed or the run failed; see notify-run.sh in the ConfigMap.
           command:
-            - ytdl-sub
+            - /bin/sh
           args:
-            - "--config"
-            - "/config/config.yaml"
-            - "sub"
-            - "/config/subscriptions.yaml"
+            - "/config/notify-run.sh"
           env:
             TZ: Europe/Stockholm
             # HOME defaults to the read-only /config mount, so yt-dlp can't
             # persist its signature/JS-challenge cache (~/.cache). Point it at
             # the writable NVMe scratch so the cache survives between runs.
             HOME: "/working"
+            # YTDLSUB_TG_BOT_TOKEN + YTDLSUB_TG_CHAT_ID are injected from
+            # values.sops.yaml (reuses the *arr/searcharr Telegram bot + chat).
           resources:
             requests:
               cpu: 100m

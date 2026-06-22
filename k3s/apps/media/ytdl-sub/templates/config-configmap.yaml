@@ -24,6 +24,11 @@ data:
       # decode would need flags before -i) then uploaded to the GPU for encoding.
       # -qp 23 ≈ high quality; lower qp = higher quality + bigger.
       _h264_encode:
+        output_options:
+          # yt-dlp's raw metadata dump — Plex never reads it, so skip the sidecar
+          # (empty string disables the write). The .jpg sidecar stays: it's the
+          # Plex poster (see embed_thumbnail note below).
+          info_json_name: ""
         ytdl_options:
           # Cap at 4K: the iGPU h264_vaapi encoder rejects frames over 4096x4096,
           # so an 8K source (e.g. 7680x4320 AV1) would fail to encode. Prefer the
@@ -63,6 +68,7 @@ data:
         overrides:
           music_video_directory: "/media/lib/musicvids"
           music_video_file_name: "{title_sanitized} - {music_video_year}"
+          music_video_album: "Music Videos"
 
       concerts:
         preset:
@@ -84,9 +90,14 @@ data:
   subscriptions.yaml: |
     # Each top-level key is a preset that already targets its output folder, so
     # entries are just "Name: url". "= Genre:" sets the genre tag in the NFO.
+    # Every entry here lands in /media/lib/musicvids and is tagged album="Music
+    # Videos" → one Plex "Music Videos" collection. Add playlists as more
+    # "Name: url" lines under "= Music:" (Name becomes the per-video artist tag).
     musicvids:
       = Music:
         "Music Videos": "https://www.youtube.com/playlist?list=PL4ytre2boUiLdi5l28JREv3LiGVKuG-5t"
+        "2000-2010 Rock Music Videos": "https://www.youtube.com/playlist?list=PLJGccvC-yhA269oq16Dh3q0uAUYgdJug8"
+        "80s Heavy Metal / Hard Rock Top 1000": "https://www.youtube.com/playlist?list=PL5fRL6A4m-DFddDPJU5Ugr3NRhxrm5GtR"
 
     concerts:
       = Concert:
@@ -95,3 +106,62 @@ data:
     # youtube:
     #   = Cats:
     #     "Cat TV": "https://www.youtube.com/playlist?list=PL4ytre2boUiKcBwDq1bkQ7fR3nF87LiY-"
+
+  notify-run.sh: |
+    #!/bin/sh
+    # Run ytdl-sub, then notify Telegram only when new files were downloaded or
+    # the run failed — quiet on successful no-op nights. The message is just the
+    # new video titles plus ytdl-sub's Download Summary. Bot token/chat ID come
+    # from the pod env (injected from values.sops.yaml), so this stays secret-free.
+    set -o pipefail
+    txn=/working/transaction.log
+    out=/working/run.log
+
+    # tee keeps the run streaming to the pod logs while capturing stdout for the
+    # Download Summary (printed to stdout, not the transaction log). pipefail
+    # makes rc reflect ytdl-sub's exit rather than tee's.
+    ytdl-sub --config /config/config.yaml --transaction-log "$txn" sub /config/subscriptions.yaml 2>&1 | tee "$out"
+    rc=$?
+
+    # New videos are the .mp4 entries in the transaction log; strip the indent
+    # and extension to get one clean title per line.
+    videos=$(grep -E '\.mp4$' "$txn" | sed 's/^[[:space:]]*//; s/\.mp4$//')
+
+    if [ "$rc" -ne 0 ]; then
+      export TG_TEXT="🚨 ytdl-sub run FAILED (exit $rc)
+
+    $(tail -n 20 "$out")"
+    elif [ -n "$videos" ]; then
+      export TG_TEXT="✅ ytdl-sub — new downloads
+
+    $videos
+
+    $(sed -n '/Download Summary:/,$p' "$out" | sed 's/^\[ytdl-sub\] //')"
+    else
+      exit 0
+    fi
+
+    python3 /config/telegram-send.py
+
+  telegram-send.py: |
+    # Posts $TG_TEXT to Telegram. Bot token/chat ID come from the pod env
+    # (injected from values.sops.yaml), so this file carries no secrets.
+    import os, re, sys, urllib.parse, urllib.request, urllib.error
+
+    # ytdl-sub colorizes its Download Summary; strip the ANSI codes for Telegram.
+    text = re.sub(r"\x1b\[[0-9;]*m", "", os.environ["TG_TEXT"])[:4000]
+    token = os.environ["YTDLSUB_TG_BOT_TOKEN"]
+    body = urllib.parse.urlencode(
+        {
+            "chat_id": os.environ["YTDLSUB_TG_CHAT_ID"],
+            "text": text,
+            "disable_web_page_preview": "true",
+        }
+    ).encode()
+    try:
+        urllib.request.urlopen(
+            f"https://api.telegram.org/bot{token}/sendMessage", data=body, timeout=30
+        )
+    except urllib.error.HTTPError as e:
+        # Surface Telegram's reason (e.g. "chat not found") instead of a traceback.
+        sys.exit(f"Telegram API {e.code}: {e.read().decode(errors='replace')}")

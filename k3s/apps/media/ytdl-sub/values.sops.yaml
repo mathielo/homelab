@@ -1,0 +1,32 @@
+app-template:
+    controllers:
+        ytdl-sub:
+            containers:
+                ytdl-sub:
+                    env:
+                        YTDLSUB_TG_BOT_TOKEN: ENC[AES256_GCM,data:iw+sjlMFc0j5S9zEZgOdOatPkCE5eqq4iMug4qs9btbEtgSO4w/A7yXjmtCOUQ==,iv:UuBtdro4dXY3eNYgVNfTm35Ez5BEB+uouuSFw03LP84=,tag:bgrqRONZ5moDHHnG0+rGgw==,type:str]
+                        YTDLSUB_TG_CHAT_ID: ENC[AES256_GCM,data:SqHjJDZMNiVsu4U=,iv:HXDjRO0D42P4kfK5l5vxY+5q6qCjZwmqK3oK6PHQwbY=,tag:5R/lqYwBlbMLduLb2HQj5Q==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBJOFd2cHE5Nnl0SnY5UGVx
+            cG1BcGYvRUVPQmhRNGpleGlRbXg4ak9BdkZnCjl1YUFpNFlGL2ozNGFMM2JPc3NV
+            d2JuM2JPeHpVKytMSExSQVhmeW1nVjgKLS0tIHdvTC9DYTZTNVRPaUdDWVU0OFZv
+            SXdscnRnWldvdE5xWTllTlFZU2FCNzAK0EY4U5xCAY+Sfr1pgnhWcrhVZmaAYfNC
+            JXF1igJwRKH2aoJ6tS/SkybbNCa6Vyq/QhRKmJobtwbtBi4F5jcUXg==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1gyywmz5ypukdr265ltj45s3vtnckyvd7qn5ddr8qepj8ktdzsers20cz6t
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBaOEJKYnFCOTdnSlRPT2RL
+            RFQ1SUFEMjVhWTRDa3U3UWg3aEtMcXZCZjFZCm1xVTNCSjZJNmgwZ1g3NDlEVXhv
+            UG1BSUtKd1hXTURybEd2ZEw3WDVFclUKLS0tIFRabXQ5Zk1CUUVFZWhIZFJDZ1VM
+            WGcrUDdvK0J4M1ZmQzBsWmNPNXlZTHMKltGGDGuOLOzvWcT5nGlWsAublmXOvCR0
+            mf/kFGfjhtFozoHN13ThovKOjxa8ahu+HqXzXoE64jyEkJruTiMMww==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1kt5aynyagn4t6v4epgl95ls9gpskq49f07j2v797g99zhje8teussmnytu
+    lastmodified: "2026-06-22T19:17:51Z"
+    mac: ENC[AES256_GCM,data:ZYig2H5m2jpC+JEM1B4AXhcQ0Q9zEO9v23WPEF/aaRVOnWn9z+GCnZd6pM++fmMoWR1Mykrr9g7fnxkWFiufa70rx72VHsqsVnzn9tucVfy2+ueUX6aLRBm1Gn4bwcHLb396WzjE+9DRrwyKxAEAu1tq/ZkjuRvL8nui0TacC78=,iv:MQxR2kIHRPXEinB+JyeKJcSHws2CC0r1wV3dDf8ozms=,tag:qbzcBi1nfdWY7QDribl3mA==,type:str]
+    unencrypted_suffix: _unencrypted
+    version: 3.13.0
