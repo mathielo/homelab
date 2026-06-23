@@ -96,10 +96,10 @@ data:
     musicvids:
       = Music:
         "Music Videos": "https://www.youtube.com/playlist?list=PL4ytre2boUiLdi5l28JREv3LiGVKuG-5t"
-        "2000-2010 Rock Music Videos": "https://www.youtube.com/playlist?list=PLJGccvC-yhA269oq16Dh3q0uAUYgdJug8"
+        # "2000-2010 Rock Music Videos": "https://www.youtube.com/playlist?list=PLJGccvC-yhA269oq16Dh3q0uAUYgdJug8"
         # No "/" in the name: it becomes the download-archive filename, and a
         # slash there is read as a path separator (FileNotFoundError on write).
-        "80s Heavy Metal & Hard Rock Top 1000": "https://www.youtube.com/playlist?list=PL5fRL6A4m-DFddDPJU5Ugr3NRhxrm5GtR"
+        # "80s Heavy Metal & Hard Rock Top 1000": "https://www.youtube.com/playlist?list=PL5fRL6A4m-DFddDPJU5Ugr3NRhxrm5GtR"
 
     concerts:
       = Concert:
