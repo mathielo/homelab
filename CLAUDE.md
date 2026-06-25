@@ -74,6 +74,13 @@ Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
 - Guest, Protect, Servers, DNS, and IoT have no IPv6 (simpler, more secure)
 - DNS fallback: Quad9 (9.9.9.9, 149.112.112.112)
 
+### Expected-offline devices
+
+- **AirWire** (`UAPEA07`): powered on only for occasional ad-hoc use, otherwise
+  intentionally offline. In any network health check, treat its offline state as
+  expected — do not flag or list it. **Any *other* offline UniFi device is not
+  expected and should be flagged.**
+
 ## Current Services
 
 - **Pi-hole v6** in active/standby on two Raspberry Pis: Network-wide DNS resolver for ad/malware blocking. Clients use the floating keepalived VIP `10.10.53.53` / `2001:2042:37b0:1c35::53` (+ `100.100.53.53` on Tailscale, pihole-01 only). Setup + runbook: [`ansible/pihole.md`](ansible/pihole.md)

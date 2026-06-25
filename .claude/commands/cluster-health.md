@@ -33,20 +33,24 @@ for h in k3s-server k3s-node-01 k3s-node-02; do echo "### $h"; ssh -o ConnectTim
 ```
 
 Render **two tables** so runs can be eyeballed side by side. Lead **every row**
-with a **Status** column — 🟢 ok / 🟡 warning / 🔴 critical — so the state of each
-node/mount is scannable at a glance (a row's status = its worst breached metric):
+with a **Status** column — 🟢 ok / 🟡 warning / 🔴 critical / ⚪ by-design (looked
+at, but the threshold doesn't apply here) — so the state of each node/mount is
+scannable at a glance (a row's status = its worst breached metric):
 
 - **Compute** — one row per node: `Status | Cores | Load 1/5/15 | Load÷core | CPU busy% | iowait% | Blk I/O in/out | Mem`.
   `Load÷core` (load15 ÷ cores) is the real saturation signal, not raw load.
 - **Disk** — one row per mount (`Status | Mount | Size | Used | Use%`) for `/`,
   `/boot`, `/mnt/nvme/longhorn`, and the node-specific `/mnt/ssd/local`,
-  `/mnt/nvme/local`, `/mnt/r0` per docs/hardware.md.
+  `/mnt/nvme/local`, `/mnt/r0` per docs/hardware.md. **`/mnt/r0` (k3s-node-02)
+  is intentionally kept near full — that's its designed usage. Always render it
+  ⚪ regardless of Use%; never 🟡/🔴 and never carry it to the §7 warnings sweep.**
 
 Flag with thresholds (these are warnings — carry to §6):
 `Load÷core` 🟡 >1.0 / 🔴 >2.0 sustained · `CPU busy` 🟡 >85% · `iowait` 🟡 >20% ·
-`Mem` 🟡 >90% · `Disk` 🟡 ≥85% / 🔴 ≥90%. The 40 GiB `/` partitions trend high
-(containerd image cache in `/var/lib/k3s/agent`); note ≥85% but know kubelet
-image-GC self-prunes around 85% of the image filesystem.
+`Mem` 🟡 >90% · `Disk` 🟡 ≥85% / 🔴 ≥90% (except `/mnt/r0` — always ⚪, see
+above). The 40 GiB `/` partitions trend high (containerd image cache in
+`/var/lib/k3s/agent`); note ≥85% but know kubelet image-GC self-prunes around
+85% of the image filesystem.
 
 ## 2. Node conditions & pods
 
@@ -160,8 +164,9 @@ OOMKills, real `panic`, a *new* app erroring, a disk crossing 90%).
 ## Output
 
 Use the 🟢 / 🟡 / 🔴 traffic-light system everywhere state is reported (verdict,
-table rows, per-area lines) so status is scannable at a glance. Use ⚠️ inline
-when calling out a specific warning in prose.
+table rows, per-area lines) so status is scannable at a glance — plus ⚪ for
+by-design rows that are deliberately exempt from their threshold (e.g.
+`/mnt/r0`). Use ⚠️ inline when calling out a specific warning in prose.
 
 1. One-line **verdict** (🟢 healthy / 🟡 N warnings / 🔴 issues).
 2. The two **node-metrics tables** from §1 (the glanceable part), each row led by
