@@ -9,7 +9,7 @@ app-template:
         qui:
           image:
             repository: ghcr.io/autobrr/qui
-            tag: v1.20.0
+            tag: v1.21.0
           env:
             TZ: Europe/Stockholm
           resources:
