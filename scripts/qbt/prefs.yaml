@@ -15,7 +15,7 @@ category_changed_tmm_enabled: true # Relocate torrents when category save path c
 delete_torrent_content_files: true # When removing a torrent, default to "delete content"
 
 # === Disk I/O & Memory ===
-disk_cache: 768 # Disk cache size (MiB)
+disk_cache: 384 # Disk cache size (MiB) — capped to keep peak RSS clear of the 4Gi container limit (libtorrent spikes OOM-killed qbt-se at 768)
 disk_cache_ttl: 60 # Disk cache expiry (seconds)
 async_io_threads: 8 # Async I/O threads
 file_pool_size: 400 # Max open file handles
