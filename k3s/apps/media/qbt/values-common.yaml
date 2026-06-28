@@ -9,6 +9,9 @@
 #     eliminating any startup/shutdown leak window.
 #   - qBittorrent shares Gluetun's network namespace automatically (same pod).
 #   - All qBittorrent traffic exits through the ProtonVPN WireGuard tunnel.
+#   - A vpn-port-healer sidecar watches the forwarded port and restarts the
+#     tunnel IN-PROCESS (via Gluetun's control server) if ProtonVPN drops the
+#     NAT-PMP forward — recovering without killing the Gluetun container.
 app-template:
   defaultPodOptions:
     nodeSelector:
@@ -79,12 +82,7 @@ app-template:
                   command:
                     - /bin/sh
                     - -c
-                    # Passes only when the tunnel is healthy AND a port is
-                    # currently forwarded; an empty forwarded_port file fails the
-                    # probe, restarting the container to re-acquire a port.
-                    - '/gluetun-entrypoint healthcheck && [ -s /tmp/gluetun/forwarded_port ]'
-                # 3 × 30s ≈ 90s of sustained port-0 before restart — rides out the
-                # normal 45s keep-alive cycle without false restarts.
+                    - "/gluetun-entrypoint healthcheck"
                 initialDelaySeconds: 60
                 periodSeconds: 30
                 failureThreshold: 3
@@ -124,6 +122,24 @@ app-template:
             limits:
               cpu: 2000m
               memory: 1Gi
+
+        # Self-heals a lost ProtonVPN NAT-PMP port-forward (gluetun #1749) by
+        # restarting the tunnel IN-PROCESS through Gluetun's control server.
+        vpn-port-healer:
+          image:
+            repository: curlimages/curl
+            tag: "8.21.0"
+          restartPolicy: Always
+          command:
+            - /bin/sh
+            - /scripts/vpn-port-healer.sh
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 32Mi
 
       containers:
         main:
@@ -194,7 +210,47 @@ app-template:
         cert-manager.io/cluster-issuer: letsencrypt-prod
       # hosts[] and tls[] set in values-<instance>.yaml
 
+  configMaps:
+    healer:
+      data:
+        vpn-port-healer.sh: |
+          #!/bin/sh
+          # Re-acquire a lapsed ProtonVPN NAT-PMP port-forward (gluetun #1749) by
+          # restarting the tunnel IN-PROCESS via gluetun's control server
+          CONTROL=http://127.0.0.1:8000
+
+          sleep 90   # grace: let the tunnel connect and acquire its first port
+          miss=0
+          while true; do
+            port=$(curl -fsS --max-time 10 "$CONTROL/v1/openvpn/portforwarded" | tr -dc 0-9)
+            if [ "${port:-0}" -gt 0 ]; then
+              miss=0
+            else
+              # Require ~90s of sustained port-0 (3 × 30s) to ride out the normal
+              # NAT-PMP keep-alive window without a false restart.
+              miss=$((miss + 1))
+              if [ "$miss" -ge 3 ]; then
+                echo "vpn-port-healer: no forwarded port — restarting VPN via control server"
+                curl -fsS --max-time 10 -X PUT -d '{"status":"stopped"}' "$CONTROL/v1/vpn/status"
+                sleep 5
+                curl -fsS --max-time 10 -X PUT -d '{"status":"running"}' "$CONTROL/v1/vpn/status"
+                miss=0
+                sleep 60   # let gluetun reconnect and re-acquire before re-checking
+              fi
+            fi
+            sleep 30
+          done
+
   persistence:
+    healer:
+      type: configMap
+      identifier: healer
+      defaultMode: 0555
+      advancedMounts:
+        main:
+          vpn-port-healer:
+            - path: /scripts
+              readOnly: true
     config:
       # existingClaim set in values-<instance>.yaml
       globalMounts:
