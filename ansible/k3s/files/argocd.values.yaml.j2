@@ -98,7 +98,7 @@ repoServer:
       command: [sh, -ec]
       args:
         - |
-          SOPS=v3.13.1
+          SOPS=v3.13.2
           mkdir -p /custom-tools/helm-plugins
           wget -qO- https://github.com/jkroepke/helm-secrets/releases/latest/download/helm-secrets.tar.gz \
             | tar -xzf- -C /custom-tools/helm-plugins
