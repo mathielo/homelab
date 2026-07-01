@@ -135,10 +135,3 @@ data:
       "url": "https://sure.m6o.dev",
       "parent_name": "tools"
     }
-  thelounge.json: |
-    {
-      "type": "http",
-      "name": "The Lounge",
-      "url": "http://thelounge.tools.svc.cluster.local:9000",
-      "parent_name": "tools"
-    }
