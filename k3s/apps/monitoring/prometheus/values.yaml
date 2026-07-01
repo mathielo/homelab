@@ -366,7 +366,10 @@ prometheus:
           memory: 32Mi
 
   server:
-    retention: 30d
+    retention: 15d
+    # Hard guardrail so the TSDB self-prunes before the 10Gi PVC fills, even if
+    # ingestion grows — whichever of time/size limits hits first wins.
+    retentionSize: "7GB"
     resources:
       requests:
         cpu: 100m
