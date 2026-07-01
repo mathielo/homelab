@@ -294,8 +294,8 @@
         content: |
           apiVersion: kubelet.config.k8s.io/v1beta1
           kind: KubeletConfiguration
-          imageGCHighThresholdPercent: 75
-          imageGCLowThresholdPercent: 70
+          imageGCHighThresholdPercent: 85
+          imageGCLowThresholdPercent: 80
       notify: Restart k3s
 
 # Play 5 — Label all k3s nodes
