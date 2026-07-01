@@ -2,6 +2,9 @@
 # Recurring snapshot + backup jobs for all Longhorn volumes.
 # Every volume is auto-enrolled via the `default` group label Longhorn
 # assigns on creation. Backups land on the UNAS-4 NFS target.
+# Exception: volumes provisioned from the `longhorn-no-bkp` StorageClass
+# are pinned to the `none` group and so are excluded from every job
+# below — used for disposable monitoring metrics/logs.
 #
 # Retention is tiered (GFS) so silent corruption discovered late is still
 # recoverable: daily (2 weeks) + weekly (2 months) + monthly (6 months).

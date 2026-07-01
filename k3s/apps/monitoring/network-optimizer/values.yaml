@@ -127,7 +127,7 @@ app-template:
     influxdb-data:
       accessMode: ReadWriteOnce
       size: 5Gi
-      storageClass: longhorn
+      storageClass: longhorn-no-bkp # disposable time-series metrics — not backed up
       advancedMounts:
         main:
           influxdb:

@@ -5,7 +5,7 @@ prometheus:
     enabled: true
     persistence:
       enabled: true
-      storageClass: longhorn
+      storageClass: longhorn-no-bkp # disposable alert state — not backed up
       size: 1Gi
     resources:
       requests:
@@ -379,7 +379,7 @@ prometheus:
         memory: 1Gi
     persistentVolume:
       enabled: true
-      storageClass: longhorn
+      storageClass: longhorn-no-bkp # disposable metrics TSDB — not backed up
       size: 10Gi
 
   prometheus-node-exporter:

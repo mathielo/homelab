@@ -1,0 +1,28 @@
+---
+# StorageClass for disposable data (monitoring metrics/logs) that must NOT be
+# snapshotted or backed up. Identical to the default `longhorn` class except for
+# `recurringJobSelector`, which pins provisioned volumes to the `none` group.
+# No RecurringJob targets `none`, and an explicit group label suppresses
+# Longhorn's automatic `default` enrollment.
+#
+# Not marked default-class — only charts that opt in (storageClass:
+# longhorn-no-bkp) land here.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: longhorn-no-bkp
+provisioner: driver.longhorn.io
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+parameters:
+  numberOfReplicas: "2"
+  staleReplicaTimeout: "30"
+  fromBackup: ""
+  fsType: ext4
+  dataLocality: disabled
+  unmapMarkSnapChainRemoved: ignored
+  disableRevisionCounter: "true"
+  dataEngine: v1
+  backupTargetName: default
+  recurringJobSelector: '[{"name":"none","isGroup":true}]'

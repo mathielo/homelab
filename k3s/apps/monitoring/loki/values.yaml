@@ -43,7 +43,7 @@ loki:
         memory: 1Gi
     persistence:
       enabled: true
-      storageClass: longhorn
+      storageClass: longhorn-no-bkp # disposable log store — not backed up
       size: 10Gi
 
   # Chart defaults size memcached for production. `allocatedMemory` drives its
