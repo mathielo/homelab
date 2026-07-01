@@ -285,6 +285,19 @@
           shutdownGracePeriodCriticalPods: 10s
       notify: Restart k3s
 
+    # 40 GB root partitions trend high from containerd image churn (Renovate tag
+    # bumps). Trimming below the 85% default keeps headroom without hand-pruning.
+    - name: Drop image-GC KubeletConfiguration
+      copy:
+        dest: /var/lib/k3s/agent/etc/kubelet.conf.d/91-image-gc.conf
+        mode: "0600"
+        content: |
+          apiVersion: kubelet.config.k8s.io/v1beta1
+          kind: KubeletConfiguration
+          imageGCHighThresholdPercent: 75
+          imageGCLowThresholdPercent: 70
+      notify: Restart k3s
+
 # Play 5 — Label all k3s nodes
 - name: Label k3s nodes
   hosts: k3s_server
