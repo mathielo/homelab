@@ -309,13 +309,14 @@
       allowedVersions: '/^2\\./',
     },
     {
-      description: 'tools namespace images (SearXNG, Sure + their datastores)',
+      description: 'tools namespace images (SearXNG, Sure, Miniflux + their datastores)',
       matchDatasources: [
         'docker',
       ],
       matchPackageNames: [
         'searxng/searxng',
         'ghcr.io/we-promise/sure',
+        'miniflux/miniflux',
         'valkey/valkey',
         'postgres',
       ],

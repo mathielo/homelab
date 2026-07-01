@@ -1,0 +1,113 @@
+# Miniflux runs as a single pod: Postgres is a native sidecar (initContainer
+# with restartPolicy: Always) so it starts — and is waited on — before the
+# Miniflux container boots. All feed/entry state lives in Postgres, so there is
+# no separate app PVC. DATABASE_URL, ADMIN_PASSWORD and POSTGRES_PASSWORD come
+# from the `miniflux` secret, populated by values.sops.yaml.
+app-template:
+  controllers:
+    main:
+      # RWO Postgres PVC requires the old pod to fully release before the new
+      # one mounts it.
+      strategy: Recreate
+
+      initContainers:
+        postgres:
+          # restartPolicy: Always promotes this to a native sidecar — starts
+          # before the app container and is torn down after it. The default
+          # superuser is used in DATABASE_URL so Miniflux's migrations can
+          # CREATE EXTENSION hstore.
+          restartPolicy: Always
+          image:
+            repository: postgres
+            tag: "18.4-alpine"
+          env:
+            POSTGRES_USER: miniflux
+            POSTGRES_DB: miniflux
+            # PGDATA in a subdir so the Longhorn volume's lost+found doesn't
+            # make initdb refuse a "non-empty" data directory.
+            PGDATA: /var/lib/postgresql/data/pgdata
+          envFrom:
+            - secretRef:
+                identifier: miniflux # POSTGRES_PASSWORD
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+
+        # Blocks the app container until Postgres accepts connections.
+        wait-for-db:
+          dependsOn: postgres
+          image:
+            repository: postgres
+            tag: "18.4-alpine"
+          command:
+            - sh
+            - -c
+            - until pg_isready -h localhost -p 5432 -U miniflux; do echo "waiting for postgres"; sleep 2; done
+
+      containers:
+        app:
+          image:
+            repository: miniflux/miniflux
+            tag: "2.3.2"
+          env:
+            # Default LISTEN_ADDR is 127.0.0.1:8080; setting PORT rebinds it to
+            # 0.0.0.0:8080 so the Service can reach it.
+            PORT: "8080"
+            BASE_URL: https://miniflux.m6o.dev
+            RUN_MIGRATIONS: "1"
+            CREATE_ADMIN: "1"
+            ADMIN_USERNAME: admin
+            TZ: Europe/Stockholm
+          envFrom:
+            - secretRef:
+                identifier: miniflux # DATABASE_URL + ADMIN_PASSWORD + POSTGRES_PASSWORD
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+
+  secrets:
+    miniflux:
+      enabled: true
+      # stringData (DATABASE_URL, ADMIN_PASSWORD, POSTGRES_PASSWORD) supplied
+      # by values.sops.yaml
+      stringData: {}
+
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 8080
+
+  ingress:
+    main:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      hosts:
+        - host: miniflux.m6o.dev
+          paths:
+            - path: /
+              service:
+                identifier: main
+                port: http
+      tls:
+        - hosts:
+            - miniflux.m6o.dev
+          secretName: miniflux-tls
+
+  persistence:
+    postgres-data:
+      existingClaim: miniflux-postgres-lh
+      advancedMounts:
+        main:
+          postgres:
+            - path: /var/lib/postgresql/data
