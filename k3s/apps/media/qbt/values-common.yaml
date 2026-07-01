@@ -211,6 +211,17 @@ app-template:
       # hosts[] and tls[] set in values-<instance>.yaml
 
   configMaps:
+    gluetun-auth:
+      data:
+        # The control server binds 127.0.0.1:8000 inside the pod netns, reachable
+        # only by the qBittorrent + vpn-port-healer sidecars sharing it — nothing
+        # on the network can hit it. Declaring the healer's two routes auth="none"
+        # makes that explicit and silences gluetun's per-request warnings.
+        config.toml: |
+          [[roles]]
+          name = "vpn-port-healer"
+          routes = ["GET /v1/openvpn/portforwarded", "PUT /v1/vpn/status"]
+          auth = "none"
     healer:
       data:
         vpn-port-healer.sh: |
@@ -242,6 +253,15 @@ app-template:
           done
 
   persistence:
+    gluetun-auth:
+      type: configMap
+      identifier: gluetun-auth
+      defaultMode: 0444
+      advancedMounts:
+        main:
+          gluetun:
+            - path: /gluetun/auth
+              readOnly: true
     healer:
       type: configMap
       identifier: healer
