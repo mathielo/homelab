@@ -1,6 +1,6 @@
-# Plex Media Server with AMD VA-API hardware transcoding.
+# Plex Media Server with Intel Quick Sync hardware transcoding.
 #
-# Pinned to k3s-server (M75q-1) for its Ryzen 5 PRO 3400GE + Radeon Vega 10.
+# Pinned to k3s-node-02 (M70q Gen 5) for its Intel i5-14500T iGPU (i915).
 # Hardware transcoding requires Plex Pass — enable in Settings → Transcoder
 # after initial setup.
 #
@@ -11,7 +11,7 @@
 app-template:
   defaultPodOptions:
     nodeSelector:
-      kubernetes.io/hostname: k3s-server
+      kubernetes.io/hostname: k3s-node-02
 
   controllers:
     plex:
@@ -35,10 +35,10 @@ app-template:
             limits:
               cpu: 4000m
               memory: 6Gi
-              # AMD VA-API hardware transcoding (Radeon Vega 10 on k3s-server).
+              # Intel Quick Sync hardware transcoding (i5-14500T on k3s-node-02).
               # Requires Plex Pass + enabling "Use hardware acceleration" in
               # Settings → Transcoder after initial setup.
-              amd.com/gpu: "1"
+              gpu.intel.com/i915: "1"
 
   service:
     plex:
@@ -74,7 +74,7 @@ app-template:
         - path: /config
     transcode:
       type: hostPath
-      hostPath: /mnt/ssd/local/plex
+      hostPath: /mnt/nvme/local/plex
       hostPathType: DirectoryOrCreate
       globalMounts:
         - path: /transcode
