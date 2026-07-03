@@ -83,8 +83,8 @@ app-template:
               # decode. Keep a 8-core cap so a decode burst can't starve qbt.
               cpu: "8"
               memory: 4Gi
-              # One Intel iGPU slot (shared-dev-num=1, otherwise unused on this
-              # node) — the device plugin injects /dev/dri for VA-API.
+              # One Intel iGPU slot (shared-dev-num=2, shared with Plex) — the
+              # device plugin injects /dev/dri for VA-API.
               gpu.intel.com/i915: "1"
 
   persistence:

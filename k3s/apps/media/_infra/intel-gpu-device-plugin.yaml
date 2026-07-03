@@ -39,9 +39,11 @@ spec:
           image: intel/intel-gpu-plugin:0.36.0
           imagePullPolicy: IfNotPresent
           # -shared-dev-num lets one physical iGPU advertise N allocatable
-          # resources; raise above 1 if multiple pods need to share the GPU.
+          # resources. Set to 2 so Plex (holds a slot 24/7) and the nightly
+          # ytdl-sub CronJob can each schedule against the same iGPU — Quick
+          # Sync multiplexes concurrent VA-API contexts at the hardware level.
           args:
-            - -shared-dev-num=1
+            - -shared-dev-num=2
           env:
             - name: NODE_NAME
               valueFrom:
