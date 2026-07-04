@@ -32,6 +32,7 @@ app-template:
       className: nginx
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-prod
+        nginx.ingress.kubernetes.io/proxy-body-size: 8m
       hosts:
         - host: qui.m6o.dev
           paths:
