@@ -4,6 +4,9 @@ app-template:
             stringData:
                 SECRET_KEY_BASE: ENC[AES256_GCM,data:LL8VStH4zRsWBWsDlXFRkKWN6V24SDTT7IO+ejG1lyCjBzmIZNibUASsowpoGz8GfIjQ+QNYEFmUcKK1YcHJ4AWz6/EXTZBMcBVVebWjHo/lEeEGUrMbgs0Egq5lDQ2/c5prP514NmGK53H45rKaFFU2AKRl1RXmbLxEjfPJdiQ=,iv:u1Gde/ZUOsB6FUZ32fb9TKp8Lsx/lCOaeVJmfn3f8o0=,tag:Hr9ANveCJuKFe5fk8V2jsA==,type:str]
                 POSTGRES_PASSWORD: ENC[AES256_GCM,data:afemVZaJ9pt4B/d8UfLq0tu2KASz6uIPso10xrYYyUHtJrmz,iv:mL2Scz4F+6TRkcQ/SBN+GabrbrR91YS1SG2Iqm3BIP4=,tag:uQgNnZ85LXfFmwez1jfVIg==,type:str]
+                ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY: ENC[AES256_GCM,data:/b+MpUdOWNkc9+zd6BQqFd1A2wb8v+kxuOmJHySQQcg=,iv:dGDdrKY2mglrn/mEx/W3TWbys/pgKL/o1j0uhir12SQ=,tag:c/skQGTCRQTWyYgt1FDIgw==,type:str]
+                ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY: ENC[AES256_GCM,data:iC3NRSP0NBXdNcBfaGmg0HevVIFT06IpE/xdWv5jG08=,iv:FR0uL8C15Q1n9ewoitjNbYUNobz4gR6SLtOgFrqc6Ks=,tag:1bhLiGeslyQ5tJ5ZWSAjoA==,type:str]
+                ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT: ENC[AES256_GCM,data:IAEbKk5dn5nbEqZ7tvrYlH7en26Crmf5K+HOWpJWtCY=,iv:ZlgJ7+EXhav429j98qSeDSBOTjTPutRxEHpXsR6Zlc4=,tag:QibEow3noFzx14D1dIj8+g==,type:str]
 sops:
     age:
         - enc: |
@@ -24,7 +27,7 @@ sops:
             7nEgbuqnoWQLHD63SnpNpP1cs06IayCVkr4S1GJFallgTBb4EmW7uw==
             -----END AGE ENCRYPTED FILE-----
           recipient: age1kt5aynyagn4t6v4epgl95ls9gpskq49f07j2v797g99zhje8teussmnytu
-    lastmodified: "2026-06-14T15:42:08Z"
-    mac: ENC[AES256_GCM,data:yhwcbxLIKWALrKTARYnAu7Wmdd9mkWvGx/S74TyUKIzZKm6ypaG6zYkyf7WTBnuhtgD6Gv9t6gHw79sGx4j7prdB9Y1xQir7XFMKAkDd99F5arwiPjVsSYtXCyYbm3zDhX/280Bj6p7VoougD+ihCjs6DmEk8/2/ScsCPWPIL30=,iv:Hpu4nqKreo1cuC2yWOHkUtRb3suML0SYf6VA4xtphTA=,tag:/y/6EVcKTJIRsPOR7UUCHg==,type:str]
+    lastmodified: "2026-07-05T14:02:51Z"
+    mac: ENC[AES256_GCM,data:bv3sP0M/ck1o2nkaFJB01WnLzhQcjiRNAkkoen68afVT9O0gtrRrYQDERUwMhHV1Ds8lGHcXhU7cshiaFczB7kvLIsjgQRxqcvqVyqLUkSpYGqlpsE4ayAH+nw+PmjByWtoSp/AHwzPlkv86mEIviuFDbUM/kRoOWmW9++IJULU=,iv:YO5mGBYxwFhZDrk/Egs03Wk3R9fjC78GTaXmqR09Lhw=,tag:9spLzzXlJoplQlGyjufkVQ==,type:str]
     unencrypted_suffix: _unencrypted
     version: 3.13.0
