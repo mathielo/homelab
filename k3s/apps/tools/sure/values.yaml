@@ -3,6 +3,11 @@
 # on — before the Rails web/worker containers boot. SECRET_KEY_BASE and
 # POSTGRES_PASSWORD come from the `sure` secret, populated by values.sops.yaml.
 app-template:
+  defaultPodOptions:
+    securityContext:
+      fsGroup: 1000
+      fsGroupChangePolicy: OnRootMismatch
+
   controllers:
     main:
       # RWO PVCs (Postgres + storage) require the old pod to fully release
