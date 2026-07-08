@@ -2,6 +2,13 @@ app-template:
   defaultPodOptions:
     nodeSelector:
       kubernetes.io/hostname: k3s-node-02
+    # Run as the same uid/gid as the qbt-* instances (hotio PUID/PGID 1000) so
+    # cross-seed hardlinks/dirs qui creates under /r0/cross-seed are owned by
+    # the same PUID
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
 
   controllers:
     qui:
