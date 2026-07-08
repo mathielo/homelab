@@ -221,7 +221,7 @@ app-template:
         config.toml: |
           [[roles]]
           name = "vpn-port-healer"
-          routes = ["GET /v1/openvpn/portforwarded", "PUT /v1/vpn/status"]
+          routes = ["GET /v1/portforward", "PUT /v1/vpn/status"]
           auth = "none"
     healer:
       data:
@@ -234,7 +234,7 @@ app-template:
           sleep 90   # grace: let the tunnel connect and acquire its first port
           miss=0
           while true; do
-            port=$(curl -fsS --max-time 10 "$CONTROL/v1/openvpn/portforwarded" | tr -dc 0-9)
+            port=$(curl -fsS --max-time 10 "$CONTROL/v1/portforward" | sed -n 's/.*"port": *\([0-9]\+\).*/\1/p')
             if [ "${port:-0}" -gt 0 ]; then
               miss=0
             else
