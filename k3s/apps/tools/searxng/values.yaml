@@ -29,7 +29,7 @@ app-template:
         searxng:
           image:
             repository: searxng/searxng
-            tag: "2026.7.7-f69b22c45"
+            tag: "2026.7.11-62a1ab7ed"
           env:
             SEARXNG_PORT: "8080"
           resources:
