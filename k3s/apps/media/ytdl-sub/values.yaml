@@ -59,7 +59,7 @@ app-template:
             # Custom image = upstream ytdl-sub (Alpine) + Intel VA-API driver;
             # see Dockerfile. Tag matches the base ytdl-sub version.
             repository: ghcr.io/mathielo/ytdl-sub-vaapi
-            tag: "2026.06.12"
+            tag: "2026.07.17"
           # Wrapper runs ytdl-sub, then posts a Telegram summary when new files
           # landed or the run failed; see notify-run.sh in the ConfigMap.
           command:
