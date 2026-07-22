@@ -6,6 +6,13 @@ app-template:
           image:
             repository: toddrob/searcharr
             tag: v3.4.0
+          # -c adds a stdout handler on top of the log files, so the app's logs
+          # reach `kubectl logs` instead of only /app/logs.
+          command:
+            - python3
+            - searcharr.py
+          args:
+            - -c
           resources:
             requests:
               cpu: 10m
