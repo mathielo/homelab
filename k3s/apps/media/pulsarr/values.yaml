@@ -8,6 +8,8 @@ app-template:
             tag: 0.17.3
           env:
             TZ: Europe/Stockholm
+            # Use in-cluster URL instead of automatic IP discovery
+            plexServerUrl: "http://plex.media.svc.cluster.local:32400"
           resources:
             requests:
               cpu: 50m
