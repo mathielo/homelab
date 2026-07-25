@@ -43,7 +43,7 @@ app-template:
           restartPolicy: Always
           image:
             repository: valkey/valkey
-            tag: "9.1.0-alpine"
+            tag: "9.1.1-alpine"
           resources:
             requests:
               cpu: 10m
@@ -67,7 +67,7 @@ app-template:
         web:
           image:
             repository: ghcr.io/we-promise/sure
-            tag: "0.7.3-alpha.3"
+            tag: "0.7.3-alpha.4"
           env: &sureEnv
             SELF_HOSTED: "true"
             RAILS_ENV: production
@@ -95,7 +95,7 @@ app-template:
         worker:
           image:
             repository: ghcr.io/we-promise/sure
-            tag: "0.7.3-alpha.3"
+            tag: "0.7.3-alpha.4"
           command:
             - bundle
             - exec
