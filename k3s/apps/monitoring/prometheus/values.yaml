@@ -36,16 +36,6 @@ prometheus:
         group_interval: 5m
         repeat_interval: 4h
         routes:
-          # /mnt/r0 is a data drive that runs near-full by design — remind once a
-          # day instead of hourly. Must precede the disk and critical routes below
-          # (first match wins).
-          - receiver: telegram
-            matchers:
-              - alertname=~"NodeDiskPressure|NodeDiskCritical"
-              - mountpoint="/mnt/r0"
-            repeat_interval: 24h
-          # Any other mount filling up is a real incident, but hourly nagging is
-          # excessive — re-notify every 6h while it persists.
           - receiver: telegram
             matchers:
               - alertname=~"NodeDiskPressure|NodeDiskCritical"
@@ -191,8 +181,9 @@ prometheus:
               annotations:
                 summary: "Node {{ $labels.instance }} CPU usage above 85% (sustained 15m)"
 
+            # /mnt/r0 (qbt store on k3s-node-02) runs near-full by design so it's excluded from alerts.
             - alert: NodeDiskPressure
-              expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) > 0.85
+              expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay",mountpoint!="/mnt/r0"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay",mountpoint!="/mnt/r0"}) > 0.85
               for: 5m
               labels:
                 severity: warning
@@ -200,12 +191,21 @@ prometheus:
                 summary: "Node {{ $labels.instance }} disk {{ $labels.mountpoint }} usage above 85%"
 
             - alert: NodeDiskCritical
-              expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) > 0.90
+              expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay",mountpoint!="/mnt/r0"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay",mountpoint!="/mnt/r0"}) > 0.90
               for: 5m
               labels:
                 severity: critical
               annotations:
                 summary: "Node {{ $labels.instance }} disk {{ $labels.mountpoint }} usage above 90%"
+
+            # Safety net for /mnt/r0, which is excluded from the alerts above.
+            - alert: QbtStoreExhausted
+              expr: (1 - node_filesystem_avail_bytes{mountpoint="/mnt/r0"} / node_filesystem_size_bytes{mountpoint="/mnt/r0"}) > 0.98
+              for: 30m
+              labels:
+                severity: critical
+              annotations:
+                summary: "Node {{ $labels.instance }} qbt store /mnt/r0 usage above 98% — out of headroom"
 
             # Fires while a slow fill is still recoverable, ahead of the static
             # NodeDiskPressure threshold.
