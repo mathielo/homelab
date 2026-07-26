@@ -17,6 +17,14 @@ app-template:
             SERVER_NAMES: "SE#178,SE#221,SE#274,SE#321,SE#378"
 
       containers:
+        main:
+          # Overrides the defaults in values-common.yaml.
+          resources:
+            requests:
+              memory: 256Mi
+            limits:
+              memory: 2Gi
+
         # Keeps MAM's seedbox IP current via dynamicSeedbox.php from inside the VPN
         # netns. Seeds from MAM_ID (values-mam.sops.yaml), then reuses a refreshed
         # cookie jar on the config PVC. Rate limit 1/hour — loop backs off per case below.
