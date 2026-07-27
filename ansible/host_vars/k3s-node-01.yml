@@ -1,0 +1,7 @@
+# Realtek r8169, 4 CPUs.
+# Mask is 0xe (CPU1-3), deliberately excluding CPU0. IRQ 53 is bound to CPU0 and
+# RPS steers a flow to a single CPU chosen by its hash — with only 4 cores, an
+# all-CPU mask would leave a 1-in-4 chance of landing the tunnel's protocol
+# processing right back on the core already doing NAPI, for no gain.
+nic_device: enp1s0f0
+nic_rps_cpus: e

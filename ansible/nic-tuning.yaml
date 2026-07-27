@@ -1,29 +1,30 @@
 ---
-# NIC tuning for k3s-node-02 (the VPN/torrent node).
+# NIC tuning for the nodes that push a WireGuard tunnel at line rate.
 #
-# qBittorrent + Gluetun on this node push hundreds of Mbps through a single
-# WireGuard tunnel. WireGuard's outer flow is one UDP 4-tuple → it hashes to
-# a single CPU for NAPI/softirq, and the default 256-entry eno1 RX ring is
-# too small to absorb start-of-torrent connection bursts. Result: kernel
-# drops packets at the NIC → TCP retransmits → visible LAN hiccup as a new
-# torrent ramps up.
+# WireGuard's outer flow is one UDP 4-tuple: it hashes to a single CPU for
+# NAPI/softirq. That CPU then does the whole pipeline (NAPI poll → WireGuard
+# decrypt → TCP → socket) while the rest of the cores idle. Symptoms are
+# NIC-level drops under burst and, on node-01, a huge time_squeeze count on
+# CPU0 (`/proc/net/softnet_stat`) — NAPI running out of budget with work still
+# queued.
 #
-# Two fixes here:
-#   1. RX ring 256 → 4096 (hardware max): absorbs short bursts without
-#      dropping while the kernel drains.
-#   2. RPS on rx-0 across all 20 CPUs: moves packet processing off the
-#      IRQ-handling CPU, freeing it for the next interrupt instead of doing
-#      the whole pipeline itself. Won't redistribute a single-tunnel flow
-#      across cores (same hash every time), but does decouple IRQ from
-#      protocol processing — useful under burst.
-#   3. net.core.netdev_max_backlog 1000 → 8192: the queue between NAPI poll
-#      and the protocol stack. Backs up when softirq is briefly behind;
-#      raising it gives the same "absorb burst" effect at the next layer.
+# Levers, per host (see host_vars):
+#   1. RPS over the CPUs in the host's mask: moves protocol processing off the
+#      IRQ-handling CPU, freeing it for the next interrupt. Won't redistribute a
+#      single-tunnel flow across cores (same hash every time), but does decouple
+#      IRQ from protocol processing.
+#   2. RX/TX ring to the hardware maximum, where the driver allows raising it.
+#      The r8169 in node-01 caps at 256 and is already there, so nic_rx_ring is
+#      only set for node-02's e1000e.
+#   3. net.core.netdev_max_backlog 1000 → 8192: the queue between NAPI poll and
+#      the protocol stack. Headroom rather than a fix for an observed overflow —
+#      the softnet drop counters are 0 on both hosts — but the default is small
+#      for a link that runs at wire rate for hours.
 #
 # Reapplied at boot via a systemd oneshot — ethtool ring + rps_cpus don't
 # persist across reboots.
-- name: Tune eno1 on the VPN node
-  hosts: k3s-node-02
+- name: Tune the NIC on the WireGuard nodes
+  hosts: nic_tuning
   become: true
 
   handlers:
@@ -55,17 +56,17 @@
         dest: /etc/systemd/system/nic-tuning.service
         content: |
           [Unit]
-          Description=Tune eno1 RX ring and RPS for WireGuard burst absorption
-          After=sys-subsystem-net-devices-eno1.device
-          Wants=sys-subsystem-net-devices-eno1.device
+          Description=Tune {{ nic_device }} ring and RPS for WireGuard burst absorption
+          After=sys-subsystem-net-devices-{{ nic_device }}.device
+          Wants=sys-subsystem-net-devices-{{ nic_device }}.device
 
           [Service]
           Type=oneshot
           RemainAfterExit=yes
-          # Hardware max per `ethtool -g eno1` is 4096. e1000e supports this.
-          ExecStart=/sbin/ethtool -G eno1 rx 4096 tx 4096
-          # 0xfffff = all 20 logical CPUs (6P+8E with HT on the P-cores).
-          ExecStart=/bin/sh -c 'echo fffff > /sys/class/net/eno1/queues/rx-0/rps_cpus'
+          {% if nic_rx_ring is defined %}
+          ExecStart=/sbin/ethtool -G {{ nic_device }} rx {{ nic_rx_ring }} tx {{ nic_tx_ring | default(nic_rx_ring) }}
+          {% endif %}
+          ExecStart=/bin/sh -c 'echo {{ nic_rps_cpus }} > /sys/class/net/{{ nic_device }}/queues/rx-0/rps_cpus'
 
           [Install]
           WantedBy=multi-user.target

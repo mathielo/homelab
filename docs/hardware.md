@@ -62,10 +62,10 @@ See [Longhorn Storage](storage-longhorn.md) for disk preparation and Longhorn se
 
 ## Storage
 
-| Device               | Hardware                           | Storage                                                                         | VLAN | IP         |
-| -------------------- | ---------------------------------- | ------------------------------------------------------------------------------- | ---- | ---------- |
-| UNAS-4               | UniFi NAS                          | 4 x 24TB 7200RPM HDD (RAID 5, ~72TB usable) + 2x 500GB M.2 SSD read-write cache | 50   | 10.10.50.4 |
-| Cenmate 802U3-5G DAS | USB-3 2-bay DAS (ASMT 2115 bridge) | 2 x 4TB HDD (software RAID 0 via mdadm, ~7.3 TiB) — attached to `k3s-node-02`   | -    | -          |
+| Device               | Hardware                           | Storage                                                                          | VLAN | IP         |
+| -------------------- | ---------------------------------- | -------------------------------------------------------------------------------- | ---- | ---------- |
+| UNAS-4               | UniFi NAS                          | 4 x 24TB 7200RPM HDD (RAID 5, ~72TB usable) + 2x 1TB Intel 660p M.2 SSD lvmcache | 50   | 10.10.50.4 |
+| Cenmate 802U3-5G DAS | USB-3 2-bay DAS (ASMT 2115 bridge) | 2 x 4TB HDD (software RAID 0 via mdadm, ~7.3 TiB) — attached to `k3s-node-02`    | -    | -          |
 
 ## Networking
 

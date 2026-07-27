@@ -114,7 +114,7 @@ app-template:
             DNS_UPSTREAM_RESOLVERS: "cloudflare,quad9"
           resources:
             requests:
-              cpu: 10m
+              cpu: 250m
               memory: 64Mi
             limits:
               cpu: 500m
@@ -131,7 +131,7 @@ app-template:
             TZ: Europe/Stockholm
           resources:
             requests:
-              cpu: 50m
+              cpu: 1500m
               memory: 256Mi
             # Sabnzbd can spike CPU and RAM usage in post-processing and verification/repair jobs.
             limits:

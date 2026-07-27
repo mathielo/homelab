@@ -1,0 +1,5 @@
+# Intel e1000e, 20 logical CPUs (6P+8E, HT on the P-cores).
+nic_device: eno1
+nic_rps_cpus: fffff
+nic_rx_ring: 4096
+nic_tx_ring: 4096

@@ -78,7 +78,7 @@ Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
 
 - **AirWire** (`UAPEA07`): powered on only for occasional ad-hoc use, otherwise
   intentionally offline. In any network health check, treat its offline state as
-  expected — do not flag or list it. **Any *other* offline UniFi device is not
+  expected — do not flag or list it. **Any _other_ offline UniFi device is not
   expected and should be flagged.**
 
 ## Current Services
@@ -92,7 +92,9 @@ Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
   - **Unbound** runs as recursive resolver on `127.0.0.1:5335` on each node; Pi-hole uses it as upstream instead of Quad9 directly
   - DNS chain: Device → Pi-hole VIP (`:53`) → Unbound (`127.0.0.1:5335`) → root nameservers
 - **UNAS-4** (UniFi NAS): Network-attached storage on VLAN 50 (`10.10.50.4`, shares the Servers VLAN with the k3s nodes so NFS stays intra-VLAN)
-  - 4×24 TB 7200RPM HDD in RAID 5 (~72 TB usable) + 2×500 GB M.2 SSD read-write cache
+  - 4×24 TB 7200RPM HDD in RAID 5 (~72 TB usable) + 2×1 TB Intel 660p M.2 SSD (`md4` RAID 0) as an lvmcache
+  - The lvmcache is in **`writethrough`** mode — reads are accelerated, writes are not. Every write lands on
+    the RAID 5 array with its read-modify-write penalty; this is the NAS write ceiling.
   - NFS share `Media` (52 TB quota) exported to k3s nodes at `/var/nfs/shared/Media`
   - NFS share `Backups` exported to k3s nodes at `/var/nfs/shared/Backups`
   - NFS share `k3s` exported to k3s nodes at `/var/nfs/shared/k3s` — dedicated Longhorn backup target
