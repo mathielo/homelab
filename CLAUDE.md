@@ -40,8 +40,10 @@ This repository is **public**. When making changes:
 
 ## Domain
 
-- **Domain:** `m6o.dev` (managed in Cloudflare) — dedicated to the homelab
-- **Homelab services:** accessible as `*.m6o.dev` via split-DNS (Pi-hole + k3s ingress, no public exposure)
+- **Domain:** `m6o.dev` (managed in Cloudflare) — shared between a public website and the homelab
+- **Homelab services:** `*.m6o.dev` via split-DNS wildcard (Pi-hole + k3s ingress, no public exposure) — new services need no DNS change
+- **Public names:** the apex `m6o.dev` (website) resolves via normal public DNS. The Pi-hole wildcard is written `address=/*.m6o.dev/...` — the leading `*.` is what keeps the apex out of it, and must never be dropped (`/m6o.dev/` and `/.m6o.dev/` both swallow the apex, with no way to hand it back). A public **subdomain** like `r2.m6o.dev` needs one `server=/<name>.m6o.dev/#` exclusion line. See [`docs/ingress-dns.md`](docs/ingress-dns.md).
+- **Homelab dashboard:** `hl.m6o.dev` (Homepage)
 
 ## Repository Structure
 
@@ -103,13 +105,13 @@ Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
   - Server: `k3s-server` (M75q-1) at `10.10.50.10`
   - Agent: `k3s-node-01` (M715Q) at `10.10.50.11`
   - Agent: `k3s-node-02` (M70q Gen 5) at `10.10.50.12`
-  - MetalLB VIP: `10.10.50.3` (ingress target, DNS wildcard destination)
-- **Cloudflare (DNS-01 only)**: Cloudflare manages the `m6o.dev` domain and provides DNS-01 challenge validation for Let's Encrypt certificates via cert-manager. No Cloudflare Tunnel — no services are publicly exposed.
+  - MetalLB VIP: `10.10.50.3` (ingress target, split-DNS destination)
+- **Cloudflare**: manages the `m6o.dev` domain, hosts the public website on the apex, and provides DNS-01 challenge validation for Let's Encrypt certificates via cert-manager. No Cloudflare Tunnel — no homelab services are publicly exposed.
 - **Tailscale**: Private overlay network for remote access to k3s services and Pi-hole
   - Tailnet: `qilin-goby.ts.net`
   - k3s server: `100.100.50.10` (mirrors local `10.10.50.10`)
   - Pi-hole: `100.100.53.53` (mirrors local `10.10.53.53`)
-  - Pi-hole wildcard record: `*.m6o.dev → 10.10.50.3` (MetalLB VIP, via `/etc/dnsmasq.d/20-k3s.conf`)
+  - Pi-hole split-DNS records: `<app>.m6o.dev → 10.10.50.3` (MetalLB VIP, via `/etc/dnsmasq.d/20-k3s.conf`)
   - k3s server advertises `10.10.50.0/24` as a Tailscale subnet route so remote tailnet devices can reach LAN IPs
 
 ## MCP Access Policy

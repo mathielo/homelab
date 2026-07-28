@@ -14,7 +14,7 @@ app-template:
             tag: v1.13.2
           env:
             TZ: Europe/Stockholm
-            HOMEPAGE_ALLOWED_HOSTS: m6o.dev
+            HOMEPAGE_ALLOWED_HOSTS: hl.m6o.dev
             HOMEPAGE_SKIP_TLS_VERIFY: "true"
             # * env vars injected via values.sops.yaml
           resources:
@@ -38,7 +38,7 @@ app-template:
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-prod
       hosts:
-        - host: m6o.dev
+        - host: hl.m6o.dev
           paths:
             - path: /
               service:
@@ -46,7 +46,7 @@ app-template:
                 port: http
       tls:
         - hosts:
-            - m6o.dev
+            - hl.m6o.dev
           secretName: homepage-tls
 
   persistence:
@@ -81,15 +81,15 @@ app-template:
         # the kiosk (Prometheus-driven) owns deep metrics + reversible actions.
         # Homepage is read-only by design.
         #
-        # Widget `url:` uses in-cluster service DNS (the pod can't resolve
-        # *.m6o.dev — that's Pi-hole split-DNS, browser-only). `href:`
-        # uses the public hl URL since the browser, not the pod, opens it.
+        # Widget `url:` uses in-cluster service DNS (the pod can't resolve the
+        # m6o.dev service names — that's Pi-hole split-DNS, browser-only).
+        # `href:` uses the ingress URL since the browser, not the pod, opens it.
         # Secrets are `{{HOMEPAGE_VAR_*}}` injected from values.sops.yaml; the
         # outer `{{ "…" }}` is Helm-escaping so the literal token reaches the
         # ConfigMap for Homepage to substitute at runtime.
         # ─────────────────────────────────────────────────────────────────────
         settings.yaml: |
-          base: https://m6o.dev
+          base: https://hl.m6o.dev
           title: Homelab
           favicon: /icons/homelab.ico
           theme: dark

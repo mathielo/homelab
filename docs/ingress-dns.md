@@ -21,14 +21,28 @@ Pi-hole has a wildcard dnsmasq record that resolves all `*.m6o.dev` hostnames to
 
 ```
 # /etc/dnsmasq.d/20-k3s.conf (on Pi-hole)
-address=/m6o.dev/10.10.50.3
+address=/*.m6o.dev/10.10.50.3
 ```
+
+The leading `*.` is load-bearing: it matches every subdomain at any depth but **not** the bare apex. `address=/m6o.dev/` (no `*.`) would also capture `m6o.dev` itself.
 
 The VIP `10.10.50.3` is managed by MetalLB (L2 mode). No physical node uses this IP — k3s nodes start at `.10`. MetalLB responds to ARP requests for `.3` and routes traffic to the nginx ingress controller pod.
 
 This record is loaded because Pi-hole v6 has `misc.etc_dnsmasq_d = true` (set by the Pi-hole Ansible playbook).
 
-There is **no public DNS record** for `*.m6o.dev` — it only resolves for devices using Pi-hole as their DNS server:
+Only A/AAAA are intercepted. TXT, MX, NS and friends are always forwarded upstream, which is what lets cert-manager's DNS-01 self-check resolve `_acme-challenge` records through Pi-hole (see below).
+
+#### Public names in the zone
+
+`m6o.dev` is shared: the apex serves a public website on Cloudflare, and `r2.m6o.dev` is public too. The wildcard would swallow both, so they are excluded explicitly.
+
+A public **subdomain** does need an explicit exclusion, since the wildcard matches it. One line each — dnsmasq picks the longest matching domain, and `#` means "use the normal upstream":
+
+```
+server=/r2.m6o.dev/#
+```
+
+There is **no public DNS record** for the homelab `*.m6o.dev` names — they only resolve for devices using Pi-hole as their DNS server:
 
 - **LAN devices**: UniFi DHCP assigns Pi-hole (`10.10.53.53`) as the DNS server for all VLANs
 - **Remote devices**: Tailscale global nameserver override points to Pi-hole (`100.100.53.53`)
@@ -91,3 +105,5 @@ Unbound behind Pi-hole resolves the public `_acme-challenge` TXT recursively, so
 ## Adding a New Service
 
 The wildcard DNS record covers all `*.m6o.dev` subdomains — no DNS changes needed. Just add an Ingress resource with the appropriate hostname and cert-manager annotation. See existing apps in `k3s/apps/` for examples.
+
+The exception is a subdomain you want to stay **public** — see [Public names in the zone](#public-names-in-the-zone) above.
