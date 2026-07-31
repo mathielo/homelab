@@ -44,11 +44,55 @@ kubectl -n <namespace> scale deploy/<app> --replicas=0
 kubectl -n <namespace> wait --for=delete pod -l app.kubernetes.io/name=<app> --timeout=60s
 ```
 
+### StatefulSets: check the PVC retention policy before scaling
+
+Scaling a StatefulSet to 0 can **delete its PVC**, and with a `Delete` reclaim
+policy that destroys the Longhorn volume and its data. Always check first:
+
+```bash
+kubectl -n <namespace> get sts <name> -o jsonpath='{.spec.persistentVolumeClaimRetentionPolicy}'
+```
+
+`whenScaled: Delete` means scaling to 0 is destructive. Known in this repo:
+
+| StatefulSet                          | `whenScaled` | Scaling to 0 is      |
+| ------------------------------------ | ------------ | -------------------- |
+| `monitoring/loki`                    | `Delete`     | **destroys the PVC** |
+| `monitoring/prometheus-alertmanager` | `Retain`     | safe                 |
+
+This bit on 2026-07-31: scaling `sts/loki` to 0 to free a node for a reboot
+deleted `storage-loki-0` and all retained logs.
+
+To take a `whenScaled: Delete` StatefulSet off a node without losing its volume,
+**cordon the node and delete the pod** instead of scaling — the replica count
+never changes, so the retention policy never fires and the pod reschedules
+elsewhere:
+
+```bash
+kubectl cordon <node>
+kubectl -n <namespace> delete pod <sts-pod>
+```
+
+This only works if nothing pins the workload to that node — check
+`nodeSelector`/`affinity` first. (`media/plex` is hard-pinned to `k3s-node-02`
+for Intel QSV, so it can only be scaled down.)
+
 ## Restoring pods / re-enabling auto-sync
+
+Add back only the `automated` block. Don't spell out `syncOptions` in the patch —
+a merge patch replaces that array wholesale, and apps don't all carry the same
+options (`loki` and `prometheus` have `ServerSideApply=true` on top of
+`CreateNamespace=true`, and dropping it silently changes how they sync):
 
 ```bash
 kubectl -n argocd patch application <app> --type=merge \
-  -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true},"syncOptions":["CreateNamespace=true"]}}}'
+  -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}'
+```
+
+Check what an app actually has before patching, if in doubt:
+
+```bash
+kubectl -n argocd get application <app> -o jsonpath='{.spec.syncPolicy}'
 ```
 
 Or in the ArgoCD UI: Application → "Enable Auto-Sync".
@@ -60,6 +104,7 @@ Use this when the current PVC is empty (fresh provision) and you want to swap in
 ### Per-volume inputs
 
 You need:
+
 - `NS` — namespace, e.g. `media`
 - `PVC` — PVC name, e.g. `autobrr-config-lh`
 - `OLD_PV` — original PV name (the `pvc-<uuid>` from before — see `kubectl -n longhorn-system get backupvolumes` → KubernetesStatus labels)

@@ -293,7 +293,7 @@ app-template:
       globalMounts:
         - path: /media
     # DAS-backed scratch on k3s-node-02 (RAID 0 over the Cenmate 802U3-5G,
-    # ~7.3 TiB at /mnt/r0).
+    # ~43.7 TiB at /mnt/r0).
     r0:
       type: hostPath
       hostPath: /mnt/r0

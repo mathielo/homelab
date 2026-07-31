@@ -25,7 +25,7 @@ Longhorn data lives on each node's NVMe at `/mnt/nvme/longhorn`. A separate loca
 | k3s-node-01 | `/mnt/ssd/local`     | SABnzbd incomplete (~931 GiB)     |
 | k3s-node-02 | `/mnt/nvme/longhorn` | Longhorn data (~195 GiB)          |
 | k3s-node-02 | `/mnt/nvme/local`    | qBt incomplete/staging (~1.6 TiB) |
-| k3s-node-02 | `/mnt/r0`            | 2×4 TB HDD RAID 0 (DAS)           |
+| k3s-node-02 | `/mnt/r0`            | 2×24 TB HDD RAID 0 (DAS)          |
 
 Partitions are set at OS install. See [Hardware](hardware.md) for the full table.
 

@@ -58,14 +58,14 @@ See [Longhorn Storage](storage-longhorn.md) for disk preparation and Longhorn se
 
 > **pihole-01 / pihole-02** run Pi-hole in active/standby; clients use the floating keepalived VIP `10.10.53.53` / `::53` (pihole-01 is the normal master). See [ansible/pihole.md](../ansible/pihole.md).
 
-**k3s-node-02 external storage:** a Cenmate 802U3-5G USB-3 2-bay DAS with 2×4 TB 3.5" HDDs in software RAID 0 (mdadm), ext4, mounted at `/mnt/r0` (~7.3 TiB). Provisioned by [`ansible/das-raid.yaml`](../ansible/das-raid.yaml); maintenance via `das-up` / `das-down` on the node (see playbook header). Both `qbt-*` instances mount the DAS root at `/r0`. The marker file `/mnt/r0/.r0-mounted` (placed on the DAS filesystem by the playbook) gates both startup (strict `File` hostPath) and runtime (liveness probe reading it every 30s) — disconnect → pod crashloops → recovers automatically on `das-up`.
+**k3s-node-02 external storage:** a Cenmate 802U3-5G USB-3 2-bay DAS with 2×24 TB 3.5" HDDs in software RAID 0 (mdadm), ext4, mounted at `/mnt/r0` (~43.7 TiB). Provisioned by [`ansible/das-raid.yaml`](../ansible/das-raid.yaml); maintenance via `das-up` / `das-down` on the node (see playbook header), drive swaps via [`docs/das-drive-swap.md`](das-drive-swap.md). The filesystem is built with `-m 0 -T largefile4` — at this size the ext4 defaults would sink ~2.2 TiB into the root reserve and ~190 GB into inode tables. All three `qbt-*` instances plus `qui` mount the DAS root at `/r0` read-write, and `autobrr` mounts it read-only. The marker file `/mnt/r0/.r0-mounted` (placed on the DAS filesystem by the playbook) gates both startup (strict `File` hostPath) and runtime (liveness probe reading it every 30s) — disconnect → pod crashloops → recovers automatically on `das-up`.
 
 ## Storage
 
 | Device               | Hardware                           | Storage                                                                          | VLAN | IP         |
 | -------------------- | ---------------------------------- | -------------------------------------------------------------------------------- | ---- | ---------- |
 | UNAS-4               | UniFi NAS                          | 4 x 24TB 7200RPM HDD (RAID 5, ~72TB usable) + 2x 1TB Intel 660p M.2 SSD lvmcache | 50   | 10.10.50.4 |
-| Cenmate 802U3-5G DAS | USB-3 2-bay DAS (ASMT 2115 bridge) | 2 x 4TB HDD (software RAID 0 via mdadm, ~7.3 TiB) — attached to `k3s-node-02`    | -    | -          |
+| Cenmate 802U3-5G DAS | USB-3 2-bay DAS (ASMT 2115 bridge) | 2 x 24TB HDD (software RAID 0 via mdadm, ~43.7 TiB) — attached to `k3s-node-02`  | -    | -          |
 
 ## Networking
 

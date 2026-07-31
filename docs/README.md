@@ -8,3 +8,4 @@
 - [Tools](tools.md) — Catch-all namespace for misc self-hosted apps (SearXNG, Sure, Miniflux)
 - [Longhorn Storage](storage-longhorn.md) — Distributed block storage: disk prep, install, PVC migration runbook, operational notes
 - [PVC Maintenance](pvc-maintenance.md) — Runbook for PVC operations (scaling apps down/up, stopping pods, restoring from Longhorn backup or host tarball)
+- [DAS Drive Swap](das-drive-swap.md) — Runbook for replacing the disks behind `/mnt/r0` on k3s-node-02 (quiesce, teardown, RAID 0 rebuild)

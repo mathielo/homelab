@@ -1,6 +1,8 @@
 ---
 # RAID 0 over the Cenmate 802U3-5G DAS on k3s-node-02.
-# 2×4 TB HDDs → ~7.3 TiB at /mnt/r0.
+# 2×24 TB HDDs → ~43.7 TiB at /mnt/r0.
+#
+# Drive swaps: see docs/das-drive-swap.md.
 #
 # Play 1 (destructive): creates the array. Idempotent — if /dev/md0 already
 # exists the play short-circuits. Asks for GOAHEAD after printing the
@@ -108,11 +110,15 @@
       args:
         creates: "{{ md_device }}"
 
+    # -m 0: no root reserve — nothing on this array is system-critical, and 5%
+    # of a multi-TiB scratch is a large amount of dead space.
+    # -T largefile4: 1 inode per 4 MiB. The default ratio sizes inode tables for
+    # hundreds of millions of files; this array holds large media files.
     - name: Create ext4 filesystem on the array
       filesystem:
         fstype: ext4
         dev: "{{ md_device }}"
-        opts: -L {{ fs_label }}
+        opts: -L {{ fs_label }} -m 0 -T largefile4
 
     - name: Capture mdadm scan output
       command: mdadm --detail --scan
@@ -200,6 +206,9 @@
           mdadm --assemble --scan
           mount {{ mount_point }}
 
+    # udevadm settle: umount triggers a udev change event whose blkid probe holds
+    # the device open briefly. Without the wait, mdadm --stop races it and fails
+    # with "Cannot get exclusive access".
     - name: Install das-down
       copy:
         dest: /usr/local/sbin/das-down
@@ -208,4 +217,5 @@
           #!/bin/sh
           set -e
           umount {{ mount_point }}
+          udevadm settle
           mdadm --stop {{ md_device }}
