@@ -8,6 +8,13 @@ app-template:
           env:
             SERVER_COUNTRIES: Sweden
 
+      containers:
+        main:
+          # Overrides the request in values-common.yaml
+          resources:
+            requests:
+              memory: 1536Mi
+
   ingress:
     main:
       hosts:
