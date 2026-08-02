@@ -1,0 +1,6 @@
+# UDB Homelab port 7 (2.5 GbE). The UNAS-4 is on port 8 of the same UDB, and
+# the k3s nodes on ports 1-3 — all of them on VLAN 50.
+workstation_nic: enp4s0
+workstation_vlan_id: 50
+# Must match the NFS access list on the UNAS shares.
+workstation_vlan_ip: 10.10.50.180/24

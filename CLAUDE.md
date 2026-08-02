@@ -64,7 +64,7 @@ Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
 | VLAN | Subnet         | Hosts | IPv6                     | Purpose               |
 | ---- | -------------- | ----- | ------------------------ | --------------------- |
 | 1    | 10.10.1.0/24   | 254   | 2001:2042:37b0:1c00::/64 | UniFi management      |
-| 10   | 10.10.10.0/24  | 254   | 2001:2042:37b0:1c02::/64 | Trusted (PCs, phones) |
+| 10   | 10.10.10.0/24  | 254   | 2001:2042:37b0:1c01::/64 | Trusted (PCs, phones) |
 | 20   | 10.10.20.0/24  | 254   | -                        | UniFi Protect         |
 | 40   | 10.10.40.0/24  | 254   | -                        | Guest                 |
 | 50   | 10.10.50.0/24  | 254   | -                        | Servers (k3s)         |
@@ -76,6 +76,9 @@ Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
 - All VLANs can reach Pi-hole (`10.10.53.53`) on port 53 for DNS
 - Guest, Protect, Servers, DNS, and IoT have no IPv6 (simpler, more secure)
 - DNS fallback: Quad9 (9.9.9.9, 149.112.112.112)
+- VLAN 10's IPv6 comes from the ISP prefix delegation (`ipv6_interface_type: pd`), so its
+  `/64` can change; VLAN 53's is statically configured. Never key config on a VLAN 10 IPv6
+  address: hosts use SLAAC privacy addresses that rotate every few days on top of that.
 
 ### Expected-offline devices
 
