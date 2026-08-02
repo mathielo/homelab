@@ -47,7 +47,7 @@
 
     - name: Install Glances via uv (with web server dependencies)
       become_user: "{{ ansible_user }}"
-      command: "/home/{{ ansible_user }}/.local/bin/uv tool install glances==4.5.5 --with fastapi --with uvicorn --with jinja2"
+      command: "/home/{{ ansible_user }}/.local/bin/uv tool install glances==4.5.6 --with fastapi --with uvicorn --with jinja2"
       register: glances_install
       changed_when: "'Installed' in glances_install.stdout"
       failed_when: glances_install.rc != 0 and 'already installed' not in glances_install.stderr
