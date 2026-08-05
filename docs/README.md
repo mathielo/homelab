@@ -2,6 +2,7 @@
 
 - [Hardware](hardware.md) — Full inventory of all physical devices (compute, storage, networking)
 - [Network & VLANs](network.md) — VLAN segmentation, WiFi SSIDs, DNS config, firewall rules
+- [WiFi & Mesh Backhaul](wifi-mesh.md) — RF layout, mesh/MLO topology, how to measure a mesh link (and the traps that fake a dead one)
 - [Tailscale](tailscale.md) — Private overlay network for remote access (IP convention, subnet routing, DNS)
 - [Ingress & DNS](ingress-dns.md) — How services are accessed (split-DNS, TLS, Cloudflare role)
 - [Media Stack](media-stack.md) — ARR + Usenet services setup and configuration

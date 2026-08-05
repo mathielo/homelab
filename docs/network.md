@@ -1,5 +1,9 @@
 # WiFi & Network setup
 
+> :bulb: This page covers VLAN segmentation, DNS and firewall policy. For the **RF and
+> mesh backhaul** layer — AP channels, which UDB meshes to which parent, and how to
+> diagnose a slow mesh link — see [`wifi-mesh.md`](wifi-mesh.md).
+
 For security and traffic optimization, the network is subdivided in separate Virtual LANs (VLANs), each with their own purpose and level of access.
 
 The access points provide different WiFi networks, and each of them connect directly to their respective VLAN:

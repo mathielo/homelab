@@ -54,6 +54,7 @@ This repository is **public**. When making changes:
 
 - **DAS drive swap** on k3s-node-02 (`/mnt/r0`) → read [`docs/das-drive-swap.md`](docs/das-drive-swap.md) first. RAID 0 with no backup; five workloads mount it and two use strict hostPaths that block scheduling when it's absent.
 - **PVC operations** (scaling apps down/up, stopping pods, restoring from Longhorn backup or host tarball) → read [`docs/pvc-maintenance.md`](docs/pvc-maintenance.md) first. PVCs and Deployments are owned by different Argo apps (`*-infra` vs per-service) and the root `media-apps` reconciles patches — naive `kubectl scale` or `selfHeal: false` will get reverted.
+- **WiFi / mesh backhaul** (any "X is slow" report involving the k3s nodes, NAS or workstation) → read [`docs/wifi-mesh.md`](docs/wifi-mesh.md) first. All three UDBs reach the network over wireless mesh, and the controller's per-station MLO data actively lies — measure with the parent AP's `vwireap*` counters, never `uplink` / `downlink_table` / `STATE`.
 
 ## Network Architecture
 
