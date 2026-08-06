@@ -38,13 +38,13 @@ sudo nmcli connection modify "netplan-eth0" \
   ipv4.method manual \
   ipv4.addresses 10.10.53.51/24 \
   ipv4.gateway 10.10.53.1 \
-  ipv4.dns "127.0.0.1"
+  ipv4.dns "127.0.0.1,10.10.53.53"
 
 # Apply changes (will briefly drop SSH connection)
 sudo nmcli connection up "netplan-eth0"
 ```
 
-> :bulb: DNS is set to `127.0.0.1` — the Pi resolves via its own Pi-hole → Unbound chain.
+> :bulb: DNS is `127.0.0.1` first — the Pi resolves via its own Pi-hole → Unbound chain — with the VIP as fallback, so a node whose FTL is down (or not installed yet, on a rebuild) still resolves via the other one. The playbook re-asserts both.
 
 > :bulb: After this the node is reachable at its `.51`/`.52` address — which is what the Ansible inventory uses.
 
@@ -100,7 +100,7 @@ This will, on **both** nodes:
 - Write `/etc/pihole/setupVars.conf` with the network and DNS configuration
 - Install Pi-hole (query logging enabled)
 - Set the admin password from the secrets file
-- Configure a static IPv6 address on `eth0` via NetworkManager (`::51` on pihole-01, `::52` on pihole-02); `::53` floats as the IPv6 VIP via keepalived
+- Configure a static IPv6 address on `eth0` via NetworkManager (`::51` on pihole-01, `::52` on pihole-02) plus the `127.0.0.1,10.10.53.53` resolver pair; `::53` floats as the IPv6 VIP via keepalived
 - Install and configure Unbound as a recursive resolver on `127.0.0.1:5335`
 - Configure Pi-hole to use Unbound as its upstream (`127.0.0.1#5335`)
 - Enable `/etc/dnsmasq.d/` loading for wildcard DNS records
@@ -108,9 +108,21 @@ This will, on **both** nodes:
 
 And on **pihole-01 only** (`nebula_sync_host: true`):
 
-- Install [nebula-sync](https://github.com/lovelaze/nebula-sync) (arm64 binary + systemd unit) to replicate Pi-hole config/gravity/lists from pihole-01 → pihole-02 on a cron. It authenticates with the admin web password (`pihole_password` from `pihole.sops.yaml`) — no app password needed.
+- Install [nebula-sync](https://github.com/lovelaze/nebula-sync) (arm64 binary + systemd unit) to replicate Pi-hole config and list definitions from pihole-01 → pihole-02 on a cron. It authenticates with the admin web password (`pihole_password` from `pihole.sops.yaml`) — no app password needed. `systemctl restart nebula-sync` triggers a sync immediately, rather than waiting for the next cron slot.
 
 The admin panel is available at `http://10.10.53.53/admin` (VIP) after installation, or directly per node at `.51`/`.52`.
+
+### Rebuilding a node
+
+After a reinstall, run gravity **once** on the rebuilt node:
+
+```bash
+ssh pihole-02 "sudo pihole -g"
+```
+
+nebula-sync runs with `RUN_GRAVITY=false`, and Teleporter replicates the `adlist` rows — including their per-list `number` counts — but not the `gravity` table those counts describe. A rebuilt node therefore reports the full blocklist in the UI while actually holding only the lists it fetched itself (the installer's default), so it would block a fraction of what the other node does if it took over. `pihole -g` is also needed on the replica whenever adlists change.
+
+> :bulb: Run it while the node is the standby: the rebuild is heavy SD I/O and can leave FTL unresponsive on the RPi3, which trips `chk_pihole` into FAULT. Harmless on a node holding no VIP — and its `10.10.53.53` resolver fallback keeps the list downloads working meanwhile.
 
 > :bulb: This playbook targets **Pi-hole v6**. Key v6 differences:
 >

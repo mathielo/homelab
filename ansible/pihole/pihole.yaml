@@ -6,6 +6,9 @@
     pihole_interface: eth0
     pihole_vip: 10.10.53.53
     pihole_vip6: "2001:2042:37b0:1c35::53"
+    # Comma-separated: that is the format `nmcli -g ipv4.dns` prints back, and
+    # the task below compares against it verbatim.
+    pihole_resolvers: "127.0.0.1,10.10.53.53"
     nebula_sync_version: "0.11.2"
     # Hourly — config/blocklists change rarely, and each sync restarts FTL on the
     # RPi3 standby via teleporter import, so keep the cadence gentle.
@@ -56,16 +59,25 @@
           DNSMASQ_LISTENING=all
         mode: "0644"
 
-    - name: Configure static IPv6 address on {{ pihole_interface }}
+    # The VIP fallback matters most on a fresh node: switching IPv6 to manual
+    # drops the RA-supplied nameservers, leaving 127.0.0.1 as the only resolver
+    # while Pi-hole does not exist yet — the installer below then resolves
+    # nothing. With the VIP second, the other node covers that window (and any
+    # local FTL outage); once FTL is up, 127.0.0.1 answers first as before.
+    - name: Configure static IPv6 and resolvers on {{ pihole_interface }}
       when: pihole_ipv6_address is defined
       shell: |
         CONN=$(nmcli -g NAME,DEVICE con show | grep ':{{ pihole_interface }}$' | cut -d: -f1 | head -1)
-        CURRENT=$(nmcli -g ipv6.addresses con show "$CONN")
-        if [ "$CURRENT" != "{{ pihole_ipv6_address }}" ]; then
+        # -e no: without it nmcli backslash-escapes every colon, so the compare
+        # never matches and the task bounces eth0 (and FTL) on every run.
+        CURRENT=$(nmcli -g ipv6.addresses -e no con show "$CONN")
+        CURRENT_DNS=$(nmcli -g ipv4.dns -e no con show "$CONN")
+        if [ "$CURRENT" != "{{ pihole_ipv6_address }}" ] || [ "$CURRENT_DNS" != "{{ pihole_resolvers }}" ]; then
           nmcli con mod "$CONN" \
             ipv6.method manual \
             ipv6.addresses "{{ pihole_ipv6_address }}" \
-            ipv6.gateway "{{ pihole_ipv6_gateway }}"
+            ipv6.gateway "{{ pihole_ipv6_gateway }}" \
+            ipv4.dns "{{ pihole_resolvers }}"
           nmcli con up "$CONN"
           echo changed
         fi
@@ -73,9 +85,13 @@
       changed_when: "'changed' in nmcli_ipv6.stdout"
       notify: Restart pihole-FTL
 
+    # pipefail + curl -f are load-bearing: without them a failed download feeds
+    # bash an empty script, which exits 0 and reports "changed" while installing
+    # nothing — the rest of the play then runs against a Pi-hole that is not there.
     - name: Install Pi-hole using official install script
       shell:
-        cmd: curl -sSL https://install.pi-hole.net | bash /dev/stdin --unattended
+        cmd: set -o pipefail && curl -fsSL https://install.pi-hole.net | bash /dev/stdin --unattended
+        executable: /bin/bash
         creates: /usr/local/bin/pihole
 
     - name: Set Pi-hole admin password
