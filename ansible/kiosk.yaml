@@ -1,7 +1,7 @@
 ---
 # Provisions the DeskPi 7.84" rack touchscreen as an OS-level kiosk on
-# k3s-node-01 (headless Ubuntu Server, no DE): cage (Wayland single-app
-# compositor) running Chromium pointed at the in-cluster kiosk dashboard.
+# k3s-node-02 (headless Ubuntu Server, no DE): cage (Wayland single-app
+# compositor) running Epiphany pointed at the Grafana rack dashboard.
 #
 # The browser is sandboxed so a leak/crash can't disturb k3s on this node.
 # Run from repo root:  ansible-playbook -i ansible/inventory.ini ansible/kiosk.yaml
@@ -9,15 +9,36 @@
   hosts: kiosk
   become: true
   vars:
-    kiosk_url: https://kiosk.m6o.dev
+    # The rack-kiosk dashboard is laid out for this panel's 1280x400; ?kiosk
+    # strips Grafana's chrome so all 400px go to the panels. Anonymous Viewer
+    # is enabled in the grafana chart so this loads without a login.
+    kiosk_url: https://grafana.m6o.dev/d/rack-kiosk/rack-kiosk?kiosk&refresh=1m
     kiosk_idle_seconds: 900 # blank panel after 15 min idle; touch wakes it
+
+    # Epiphany only accepts --application-mode (the chromeless window) for a
+    # profile whose directory name is exactly this app id and which contains a
+    # `.app` marker file — both are checked in ephy-web-app-utils.c. It then
+    # resolves the id to a desktop entry through the portal; without that entry
+    # it degrades to a normal browser window with an address bar.
+    kiosk_app_id: org.gnome.Epiphany.WebApp_rackkiosk
+    kiosk_profile_dir: "/var/lib/kiosk/{{ kiosk_app_id }}"
+    kiosk_portal_apps_dir: /var/lib/kiosk/.local/share/xdg-desktop-portal/applications
+
+    # Overnight blanking. The node's clock is UTC, so kiosk_timezone is what
+    # keeps these meaning local wall-clock time across DST.
+    kiosk_timezone: Europe/Stockholm
+    kiosk_wake_at: "06:00"
+    kiosk_blank_hours: "22..23,00..05" # every hour of the off window — see the @off timer
 
   tasks:
     - name: Install kiosk packages
       apt:
         name:
           - cage # Wayland single-app kiosk compositor
-          - chromium-browser # the dashboard browser
+          # A real .deb, deliberately not the chromium package — that one is a
+          # transitional shim for the snap, which lands outside systemd's PATH
+          # and can't keep a profile in this user's /var/lib home.
+          - epiphany-browser # the dashboard browser
           - seatd # seat management on a headless box
           - swayidle # idle → screen blank
           - wlopm # wlroots output power (DPMS) for cage
@@ -36,6 +57,60 @@
         # (`seat` is the Arch/Alpine group name and doesn't exist here.)
         groups: video,render,input
         append: true
+
+    # Epiphany will not create either of these itself, and refuses to start in
+    # application mode without them.
+    - name: Create browser profile directory
+      file:
+        path: "{{ kiosk_profile_dir }}"
+        state: directory
+        owner: kiosk
+        group: kiosk
+        mode: "0700"
+
+    - name: Mark profile directory as a web app
+      file:
+        path: "{{ kiosk_profile_dir }}/.app"
+        state: touch
+        owner: kiosk
+        group: kiosk
+        mode: "0600"
+        modification_time: preserve
+        access_time: preserve
+
+    - name: Create GTK config directory
+      file:
+        path: /var/lib/kiosk/.config/gtk-4.0
+        state: directory
+        owner: kiosk
+        group: kiosk
+        mode: "0755"
+
+    - name: Deploy GTK stylesheet
+      copy:
+        src: kiosk/files/gtk.css
+        dest: /var/lib/kiosk/.config/gtk-4.0/gtk.css
+        owner: kiosk
+        group: kiosk
+        mode: "0644"
+      notify: Restart kiosk
+
+    - name: Create portal applications directory
+      file:
+        path: "{{ kiosk_portal_apps_dir }}"
+        state: directory
+        owner: kiosk
+        group: kiosk
+        mode: "0755"
+
+    - name: Deploy web app desktop entry
+      template:
+        src: kiosk/files/kiosk-webapp.desktop.j2
+        dest: "{{ kiosk_portal_apps_dir }}/{{ kiosk_app_id }}.desktop"
+        owner: kiosk
+        group: kiosk
+        mode: "0644"
+      notify: Restart kiosk
 
     - name: Enable and start seatd
       systemd:
@@ -67,6 +142,36 @@
         enabled: true
         state: started
         daemon_reload: true
+
+    - name: Deploy panel power script
+      template:
+        src: kiosk/files/kiosk-display.sh.j2
+        dest: /usr/local/bin/kiosk-display
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Deploy panel power unit and schedule
+      template:
+        src: "kiosk/files/{{ item }}.j2"
+        dest: "/etc/systemd/system/{{ item }}"
+        owner: root
+        group: root
+        mode: "0644"
+      loop:
+        - kiosk-display@.service
+        - kiosk-display@off.timer
+        - kiosk-display@on.timer
+
+    - name: Enable and start panel schedule
+      systemd:
+        name: "{{ item }}"
+        enabled: true
+        state: started
+        daemon_reload: true
+      loop:
+        - kiosk-display@off.timer
+        - kiosk-display@on.timer
 
   handlers:
     - name: Restart kiosk

@@ -1,0 +1,15 @@
+# Managed by ansible/kiosk.yaml — do not edit on the node.
+# Instance name is the wlopm action: kiosk-display@on / kiosk-display@off.
+[Unit]
+Description=Rack kiosk panel power %i
+After=kiosk.service
+# Nothing to talk to if cage isn't up; fail fast instead of hanging on the socket.
+Requisite=kiosk.service
+
+[Service]
+Type=oneshot
+User=kiosk
+Group=kiosk
+SupplementaryGroups=video render input
+Environment=XDG_RUNTIME_DIR=/run/kiosk
+ExecStart=/usr/local/bin/kiosk-display %i

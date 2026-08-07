@@ -1,0 +1,30 @@
+/* Managed by ansible/kiosk.yaml — do not edit on the node.
+ *
+ * Epiphany's web-app window still draws a title bar carrying nothing but the
+ * page title. On a 1280x400 panel that is ~12% of the screen, and the Rack
+ * Kiosk dashboard is laid out assuming it gets the full height.
+ *
+ * GTK4 CSS has no `display: none` and the widget cannot be removed from
+ * outside the app, so instead every contributor to its height is driven to
+ * zero. Epiphany hides this bar by itself in fullscreen, but nothing here can
+ * request fullscreen: there is no `is-fullscreen` gsetting (only
+ * `is-maximized`), and injecting F11 would need a timing-dependent key send.
+ */
+
+headerbar {
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+}
+
+headerbar * {
+  min-height: 0;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  opacity: 0;
+  font-size: 0;
+}

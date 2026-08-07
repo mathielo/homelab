@@ -1,0 +1,20 @@
+{{/*
+The upstream grafana chart is pulled in as a .tgz dependency, so `.Files` can't
+reach dashboard JSON placed there. Ship them from this umbrella chart instead
+and point `grafana.dashboardsConfigMaps` at the ConfigMap below — that mounts
+the whole ConfigMap as one provider directory, so files can be added or removed
+here with no values.yaml change.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-homelab-dashboards
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/component: dashboards
+data:
+{{- range $path, $_ := .Files.Glob "dashboards/*.json" }}
+  {{ base $path }}: |
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}

@@ -1,0 +1,16 @@
+# Managed by ansible/kiosk.yaml — do not edit on the node.
+[Unit]
+Description=Blank the rack panel overnight
+
+[Timer]
+# The node's clock is UTC, so the timezone suffix is what makes this mean 22:00
+# *local* year-round instead of drifting an hour across DST.
+#
+# Re-asserted every hour through the window rather than fired once at 22:00:
+# kiosk.service has Restart=always, and a cage restart comes up with the output
+# powered on. Hourly means the panel self-corrects within the hour instead of
+# staying lit until morning. wlopm --off on an already-off output is a no-op.
+OnCalendar=*-*-* {{ kiosk_blank_hours }}:00:00 {{ kiosk_timezone }}
+
+[Install]
+WantedBy=timers.target

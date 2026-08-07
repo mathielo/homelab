@@ -65,14 +65,18 @@ prometheus:
 
     # The two Pi-holes are standalone RPis (not k8s nodes), so scrape their
     # node_exporter (host health + the pihole_* HA textfile metrics) statically.
+    # `node` mirrors the label k8s SD attaches to the cluster nodes' exporters,
+    # so one dashboard variable can span all five hosts.
     - job_name: pihole
       static_configs:
         - targets: ["10.10.53.51:9100"]
           labels:
             instance: pihole-01
+            node: pihole-01
         - targets: ["10.10.53.52:9100"]
           labels:
             instance: pihole-02
+            node: pihole-02
 
   serverFiles:
     alerting_rules.yml:

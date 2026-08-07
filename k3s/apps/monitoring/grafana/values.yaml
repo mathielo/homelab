@@ -6,6 +6,14 @@ grafana:
   grafana.ini:
     analytics:
       reporting_enabled: false
+    # The rack panel has no keyboard, so Chromium can't complete a login. An
+    # anonymous read-only role is what makes the unattended kiosk possible;
+    # Grafana is reachable only via split-DNS/Tailscale, never publicly.
+    # Set enabled:false to require a login again (the kiosk then goes blank).
+    auth.anonymous:
+      enabled: true
+      org_name: Main Org.
+      org_role: Viewer
 
   service:
     type: ClusterIP
@@ -21,6 +29,15 @@ grafana:
           editable: true
           options:
             path: /var/lib/grafana/dashboards/default
+        # Custom dashboards, kept as reviewable JSON files under dashboards/
+        # and mounted from the ConfigMap in templates/dashboards.yaml.
+        - name: homelab
+          orgId: 1
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/homelab
 
   dashboards:
     default:
@@ -31,118 +48,9 @@ grafana:
       loki-log-explorer:
         gnetId: 13639
         datasource: Loki
-      # Custom dashboard for the dual Pi-hole HA setup (metrics from the pihole
-      # scrape job: pihole_* HA textfile metrics + node_exporter host vitals).
-      pihole-ha:
-        datasource: Prometheus
-        json: |
-          {
-            "uid": "pihole-ha",
-            "title": "Pi-hole HA",
-            "tags": ["pihole", "dns"],
-            "schemaVersion": 39,
-            "editable": true,
-            "refresh": "30s",
-            "time": { "from": "now-6h", "to": "now" },
-            "templating": { "list": [] },
-            "annotations": { "list": [] },
-            "panels": [
-              {
-                "id": 1, "type": "state-timeline", "title": "IPv4 VIP holder (10.10.53.53)",
-                "datasource": "Prometheus",
-                "gridPos": { "h": 6, "w": 12, "x": 0, "y": 0 },
-                "targets": [ { "expr": "pihole_holds_vip{family=\"ipv4\"}", "legendFormat": "{{instance}}", "refId": "A" } ],
-                "options": { "showValue": "never", "mergeValues": true, "legend": { "displayMode": "list", "placement": "bottom" } },
-                "fieldConfig": {
-                  "defaults": {
-                    "color": { "mode": "thresholds" },
-                    "thresholds": { "mode": "absolute", "steps": [ { "color": "dark-red", "value": null }, { "color": "green", "value": 1 } ] },
-                    "mappings": [ { "type": "value", "options": { "0": { "text": "backup" }, "1": { "text": "MASTER" } } } ]
-                  }, "overrides": []
-                }
-              },
-              {
-                "id": 2, "type": "state-timeline", "title": "IPv6 VIP holder (::53)",
-                "datasource": "Prometheus",
-                "gridPos": { "h": 6, "w": 12, "x": 12, "y": 0 },
-                "targets": [ { "expr": "pihole_holds_vip{family=\"ipv6\"}", "legendFormat": "{{instance}}", "refId": "A" } ],
-                "options": { "showValue": "never", "mergeValues": true, "legend": { "displayMode": "list", "placement": "bottom" } },
-                "fieldConfig": {
-                  "defaults": {
-                    "color": { "mode": "thresholds" },
-                    "thresholds": { "mode": "absolute", "steps": [ { "color": "dark-red", "value": null }, { "color": "green", "value": 1 } ] },
-                    "mappings": [ { "type": "value", "options": { "0": { "text": "backup" }, "1": { "text": "MASTER" } } } ]
-                  }, "overrides": []
-                }
-              },
-              {
-                "id": 3, "type": "stat", "title": "DNS answering",
-                "datasource": "Prometheus",
-                "gridPos": { "h": 4, "w": 8, "x": 0, "y": 6 },
-                "targets": [ { "expr": "pihole_dns_up", "legendFormat": "{{instance}}", "refId": "A", "instant": true } ],
-                "options": { "colorMode": "background", "graphMode": "none", "textMode": "value_and_name", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
-                "fieldConfig": {
-                  "defaults": {
-                    "color": { "mode": "thresholds" },
-                    "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] },
-                    "mappings": [ { "type": "value", "options": { "0": { "text": "DOWN" }, "1": { "text": "UP" } } } ]
-                  }, "overrides": []
-                }
-              },
-              {
-                "id": 4, "type": "stat", "title": "Node reachable",
-                "datasource": "Prometheus",
-                "gridPos": { "h": 4, "w": 8, "x": 8, "y": 6 },
-                "targets": [ { "expr": "up{job=\"pihole\"}", "legendFormat": "{{instance}}", "refId": "A", "instant": true } ],
-                "options": { "colorMode": "background", "graphMode": "none", "textMode": "value_and_name", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
-                "fieldConfig": {
-                  "defaults": {
-                    "color": { "mode": "thresholds" },
-                    "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] },
-                    "mappings": [ { "type": "value", "options": { "0": { "text": "DOWN" }, "1": { "text": "UP" } } } ]
-                  }, "overrides": []
-                }
-              },
-              {
-                "id": 5, "type": "stat", "title": "keepalived",
-                "datasource": "Prometheus",
-                "gridPos": { "h": 4, "w": 8, "x": 16, "y": 6 },
-                "targets": [ { "expr": "pihole_keepalived_up", "legendFormat": "{{instance}}", "refId": "A", "instant": true } ],
-                "options": { "colorMode": "background", "graphMode": "none", "textMode": "value_and_name", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
-                "fieldConfig": {
-                  "defaults": {
-                    "color": { "mode": "thresholds" },
-                    "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] },
-                    "mappings": [ { "type": "value", "options": { "0": { "text": "DOWN" }, "1": { "text": "UP" } } } ]
-                  }, "overrides": []
-                }
-              },
-              {
-                "id": 6, "type": "timeseries", "title": "CPU busy %",
-                "datasource": "Prometheus",
-                "gridPos": { "h": 7, "w": 8, "x": 0, "y": 10 },
-                "targets": [ { "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{job=\"pihole\",mode=\"idle\"}[5m])) * 100)", "legendFormat": "{{instance}}", "refId": "A" } ],
-                "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
-                "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 }, "overrides": [] }
-              },
-              {
-                "id": 7, "type": "timeseries", "title": "Memory used %",
-                "datasource": "Prometheus",
-                "gridPos": { "h": 7, "w": 8, "x": 8, "y": 10 },
-                "targets": [ { "expr": "(1 - node_memory_MemAvailable_bytes{job=\"pihole\"} / node_memory_MemTotal_bytes{job=\"pihole\"}) * 100", "legendFormat": "{{instance}}", "refId": "A" } ],
-                "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
-                "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 }, "overrides": [] }
-              },
-              {
-                "id": 8, "type": "timeseries", "title": "Root disk used %",
-                "datasource": "Prometheus",
-                "gridPos": { "h": 7, "w": 8, "x": 16, "y": 10 },
-                "targets": [ { "expr": "(1 - node_filesystem_avail_bytes{job=\"pihole\",mountpoint=\"/\"} / node_filesystem_size_bytes{job=\"pihole\",mountpoint=\"/\"}) * 100", "legendFormat": "{{instance}}", "refId": "A" } ],
-                "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
-                "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 }, "overrides": [] }
-              }
-            ]
-          }
+
+  dashboardsConfigMaps:
+    homelab: grafana-homelab-dashboards
 
   datasources:
     datasources.yaml:
@@ -157,6 +65,23 @@ grafana:
           type: loki
           url: http://loki.monitoring.svc.cluster.local:3100
           access: proxy
+
+  # The config PVC is ReadWriteOnce, which Longhorn attaches to one node at a
+  # time. The chart's default rolling update rounds maxUnavailable down to 0 on a
+  # single replica, so the old pod is held until the new one is Ready — and the
+  # new one can never attach the volume while the old one holds it. That
+  # deadlocks whenever the replacement is scheduled onto a different node.
+  #
+  # maxSurge 0 caps the deployment at one pod, so the old one is torn down (and
+  # the volume detached) before the replacement is created. Same effect as
+  # type:Recreate, but Recreate can't be applied over an existing RollingUpdate
+  # deployment — the API server keeps the defaulted spec.strategy.rollingUpdate
+  # block and then rejects it as forbidden under Recreate.
+  deploymentStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
 
   resources:
     requests:

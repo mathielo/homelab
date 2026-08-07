@@ -8,15 +8,21 @@ swayidle -w \
   timeout {{ kiosk_idle_seconds }} 'wlopm --off "*"' \
   resume 'wlopm --on "*"' &
 
-exec chromium \
-  --kiosk \
-  --ozone-platform=wayland \
-  --enable-features=UseOzonePlatform \
-  --no-first-run \
-  --noerrdialogs \
-  --disable-translate \
-  --disable-infobars \
-  --disable-session-crashed-bubble \
-  --check-for-update-interval=31536000 \
-  --user-data-dir=/var/lib/kiosk/chromium \
+# Keep WebKit off the GPU: this node's i915 is also Plex's transcode device, so
+# a dashboard must not compete for render contexts there. Software compositing
+# is free at 1280x400.
+export WEBKIT_DISABLE_COMPOSITING_MODE=1
+export WEBKIT_DISABLE_DMABUF_RENDERER=1
+
+# Absolute path, not a bare name: systemd's default PATH has no /snap/bin, and
+# only login shells add it — which is why `chromium` resolves interactively but
+# not here. Epiphany is a plain .deb, so it needs neither.
+#
+# cage already fullscreens its single client; --application-mode is what drops
+# the toolbar and omnibar so the panel shows only the dashboard.
+# Epiphany depends on a session bus (default-dbus-session-bus) and there is no
+# logind session here to supply one, so carry our own.
+exec dbus-run-session -- /usr/bin/epiphany \
+  --application-mode \
+  --profile={{ kiosk_profile_dir }} \
   "{{ kiosk_url }}"

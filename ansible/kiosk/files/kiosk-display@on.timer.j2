@@ -1,0 +1,10 @@
+# Managed by ansible/kiosk.yaml — do not edit on the node.
+[Unit]
+Description=Wake the rack panel in the morning
+
+[Timer]
+# See the @off timer for why the timezone suffix is required.
+OnCalendar=*-*-* {{ kiosk_wake_at }}:00 {{ kiosk_timezone }}
+
+[Install]
+WantedBy=timers.target

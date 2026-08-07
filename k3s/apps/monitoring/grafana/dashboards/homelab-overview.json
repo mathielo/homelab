@@ -1,0 +1,862 @@
+{
+  "uid": "homelab-overview",
+  "title": "Homelab Overview",
+  "tags": ["homelab", "k3s", "overview"],
+  "schemaVersion": 39,
+  "editable": true,
+  "refresh": "1m",
+  "time": { "from": "now-6h", "to": "now" },
+  "annotations": { "list": [] },
+  "templating": {
+    "list": [
+      {
+        "name": "node",
+        "label": "Host",
+        "type": "query",
+        "datasource": "Prometheus",
+        "query": "label_values(node_uname_info, node)",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Fleet",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Hosts",
+      "description": "k3s nodes report via kube-state-metrics; the two Pi-holes are standalone, so their node_exporter `up` stands in for readiness.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 4, "w": 10, "x": 0, "y": 1 },
+      "targets": [
+        {
+          "expr": "kube_node_status_condition{condition=\"Ready\",status=\"true\"} or up{job=\"pihole\"}",
+          "legendFormat": "{{node}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }]
+          },
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN" }, "1": { "text": "UP" } } }
+          ]
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Pods",
+      "description": "All pods known to kube-state-metrics, any phase — pair with the tile to its right.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 4, "w": 3, "x": 10, "y": 1 },
+      "targets": [{ "expr": "count(kube_pod_info)", "refId": "A", "instant": true }],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "text" }, "unit": "none" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Pods not running",
+      "description": "Anything not Running or Succeeded — Pending, Failed, Unknown.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 4, "w": 3, "x": 13, "y": 1 },
+      "targets": [
+        {
+          "expr": "sum(kube_pod_status_phase{phase!~\"Running|Succeeded\"}) or vector(0)",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Alerts firing",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "targets": [
+        {
+          "expr": "sum(ALERTS{alertstate=\"firing\"}) or vector(0)",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Longhorn volumes unhealthy",
+      "description": "Every longhorn-manager reports every volume, so robustness is deduplicated with max by (volume): 1=healthy, 2=degraded, 3=faulted (0 = detached/unknown).",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "targets": [
+        {
+          "expr": "count(max by (volume) (longhorn_volume_robustness) > 1) or vector(0)",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }]
+          }
+        },
+        "overrides": []
+      }
+    },
+
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Scheduling headroom",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 11,
+      "type": "bargauge",
+      "title": "CPU requested vs allocatable",
+      "description": "What the scheduler has committed, not what is being used — this is the number that decides whether another workload fits. Only Running pods are counted.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 7, "w": 6, "x": 0, "y": 6 },
+      "targets": [
+        {
+          "expr": "sum by (node) (kube_pod_container_resource_requests{resource=\"cpu\"} * on(namespace, pod) group_left() (kube_pod_status_phase{phase=\"Running\"} == 1)) / sum by (node) (kube_node_status_allocatable{resource=\"cpu\"}) * 100",
+          "legendFormat": "{{node}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 75 },
+              { "color": "red", "value": 90 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 12,
+      "type": "bargauge",
+      "title": "Memory requested vs allocatable",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 7, "w": 6, "x": 6, "y": 6 },
+      "targets": [
+        {
+          "expr": "sum by (node) (kube_pod_container_resource_requests{resource=\"memory\"} * on(namespace, pod) group_left() (kube_pod_status_phase{phase=\"Running\"} == 1)) / sum by (node) (kube_node_status_allocatable{resource=\"memory\"}) * 100",
+          "legendFormat": "{{node}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 75 },
+              { "color": "red", "value": 90 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Pods per node",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 7, "w": 6, "x": 12, "y": 6 },
+      "targets": [
+        {
+          "expr": "count by (node) (kube_pod_info)",
+          "legendFormat": "{{node}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "none", "min": 0, "custom": { "fillOpacity": 10, "lineWidth": 2 } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 14,
+      "type": "bargauge",
+      "title": "Pod slots used",
+      "description": "kubelet caps each node at 110 pods by default; this is the other ceiling that can block scheduling even when CPU and memory are free.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 7, "w": 6, "x": 18, "y": 6 },
+      "targets": [
+        {
+          "expr": "count by (node) (kube_pod_info) / sum by (node) (kube_node_status_capacity{resource=\"pods\"}) * 100",
+          "legendFormat": "{{node}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 75 },
+              { "color": "red", "value": 90 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+
+    {
+      "id": 20,
+      "type": "row",
+      "title": "Host vitals",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "CPU busy %",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 14 },
+      "targets": [
+        {
+          "expr": "100 - (avg by (node) (rate(node_cpu_seconds_total{mode=\"idle\",node=~\"$node\"}[5m])) * 100)",
+          "legendFormat": "{{node}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": { "fillOpacity": 8, "lineWidth": 2 }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "Memory used %",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 14 },
+      "targets": [
+        {
+          "expr": "(1 - node_memory_MemAvailable_bytes{node=~\"$node\"} / node_memory_MemTotal_bytes{node=~\"$node\"}) * 100",
+          "legendFormat": "{{node}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": { "fillOpacity": 8, "lineWidth": 2 }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 23,
+      "type": "timeseries",
+      "title": "Pressure stall (PSI)",
+      "description": "Fraction of wall time tasks spent stalled waiting on CPU or I/O. Trust this over load average: k3s-server's load1 spikes to 10-20 from thread churn while PSI stays flat, so PSI is what actually indicates contention.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 14 },
+      "targets": [
+        {
+          "expr": "rate(node_pressure_cpu_waiting_seconds_total{node=~\"$node\"}[5m])",
+          "legendFormat": "{{node}} cpu",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(node_pressure_io_waiting_seconds_total{node=~\"$node\"}[5m])",
+          "legendFormat": "{{node}} io",
+          "refId": "B"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "custom": { "fillOpacity": 5, "lineWidth": 1 }
+        },
+        "overrides": []
+      }
+    },
+
+    {
+      "id": 30,
+      "type": "row",
+      "title": "Storage",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 21 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 31,
+      "type": "bargauge",
+      "title": "Filesystems",
+      "description": "/mnt/r0 is the qBittorrent store on k3s-node-02 and runs near-full by design.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 22 },
+      "targets": [
+        {
+          "expr": "(1 - node_filesystem_avail_bytes{node=~\"$node\",fstype!~\"tmpfs|overlay|squashfs|ramfs|nfs.*\",mountpoint!~\"/boot.*|/var/lib/kubelet/.*|/run/.*\"} / node_filesystem_size_bytes{node=~\"$node\",fstype!~\"tmpfs|overlay|squashfs|ramfs|nfs.*\",mountpoint!~\"/boot.*|/var/lib/kubelet/.*|/run/.*\"}) * 100",
+          "legendFormat": "{{node}} {{mountpoint}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 85 },
+              { "color": "red", "value": 90 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 32,
+      "type": "bargauge",
+      "title": "PVC usage (top 12)",
+      "description": "kubelet_volume_stats is scraped by both the kubernetes-nodes and kubernetes-api-servers jobs, which double-counts every PVC — pinned to kubernetes-nodes.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 22 },
+      "targets": [
+        {
+          "expr": "topk(12, kubelet_volume_stats_used_bytes{job=\"kubernetes-nodes\"} / kubelet_volume_stats_capacity_bytes{job=\"kubernetes-nodes\"} * 100)",
+          "legendFormat": "{{namespace}}/{{persistentvolumeclaim}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 80 },
+              { "color": "red", "value": 90 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 33,
+      "type": "stat",
+      "title": "NAS Media share",
+      "description": "The UNAS-4 Media export as the k3s nodes see it over NFS.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 22 },
+      "targets": [
+        {
+          "expr": "max(node_filesystem_size_bytes{fstype=~\"nfs.*\",mountpoint=~\".*media.*\"} - node_filesystem_avail_bytes{fstype=~\"nfs.*\",mountpoint=~\".*media.*\"})",
+          "legendFormat": "used",
+          "refId": "A",
+          "instant": true
+        },
+        {
+          "expr": "max(node_filesystem_size_bytes{fstype=~\"nfs.*\",mountpoint=~\".*media.*\"})",
+          "legendFormat": "total",
+          "refId": "B",
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "bytes", "color": { "mode": "fixed", "fixedColor": "text" } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 34,
+      "type": "timeseries",
+      "title": "NFS client RPC retransmissions",
+      "description": "Climbs before an NFS mount wedges — the early warning for NAS write-ceiling stalls. Flat zero is healthy.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 26 },
+      "targets": [
+        {
+          "expr": "rate(node_nfs_rpc_retransmissions_total{node=~\"$node\"}[5m])",
+          "legendFormat": "{{node}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["max"] },
+        "tooltip": { "mode": "multi" }
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "min": 0, "custom": { "fillOpacity": 10, "lineWidth": 1 } },
+        "overrides": []
+      }
+    },
+
+    {
+      "id": 40,
+      "type": "row",
+      "title": "Thermals & network",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 30 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 41,
+      "type": "timeseries",
+      "title": "Hottest sensor per host",
+      "description": "Three mini-PCs and two Pis in a closed rack — the hottest hwmon sensor on each.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 31 },
+      "targets": [
+        {
+          "expr": "max by (node) (node_hwmon_temp_celsius{node=~\"$node\"})",
+          "legendFormat": "{{node}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "min": 20,
+          "custom": { "fillOpacity": 0, "lineWidth": 2 },
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 75 },
+              { "color": "red", "value": 90 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 42,
+      "type": "timeseries",
+      "title": "NIC throughput",
+      "description": "Physical interfaces only — veth/cni/flannel/tailscale/wireguard are filtered out.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 31 },
+      "targets": [
+        {
+          "expr": "rate(node_network_receive_bytes_total{node=~\"$node\",device!~\"lo|veth.*|cni.*|flannel.*|cali.*|docker.*|br-.*|kube.*|tailscale.*|wg.*|tun.*\"}[5m]) * 8",
+          "legendFormat": "{{node}} {{device}} rx",
+          "refId": "A"
+        },
+        {
+          "expr": "-rate(node_network_transmit_bytes_total{node=~\"$node\",device!~\"lo|veth.*|cni.*|flannel.*|cali.*|docker.*|br-.*|kube.*|tailscale.*|wg.*|tun.*\"}[5m]) * 8",
+          "legendFormat": "{{node}} {{device}} tx",
+          "refId": "B"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "bps", "custom": { "fillOpacity": 5, "lineWidth": 1 } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 43,
+      "type": "timeseries",
+      "title": "Disk I/O utilisation",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 31 },
+      "targets": [
+        {
+          "expr": "rate(node_disk_io_time_seconds_total{node=~\"$node\",device!~\"dm-.*|loop.*\"}[5m]) * 100",
+          "legendFormat": "{{node}} {{device}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "custom": { "fillOpacity": 5, "lineWidth": 1 }
+        },
+        "overrides": []
+      }
+    },
+
+    {
+      "id": 50,
+      "type": "row",
+      "title": "Top talkers",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 38 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 51,
+      "type": "timeseries",
+      "title": "Top 10 pods by CPU",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 39 },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (namespace, pod) (rate(container_cpu_usage_seconds_total{container!=\"\"}[5m])))",
+          "legendFormat": "{{namespace}}/{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "custom": { "fillOpacity": 10, "lineWidth": 1, "stacking": { "mode": "normal" } }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 52,
+      "type": "timeseries",
+      "title": "Top 10 pods by memory",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 39 },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (namespace, pod) (container_memory_working_set_bytes{container!=\"\"}))",
+          "legendFormat": "{{namespace}}/{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "custom": { "fillOpacity": 10, "lineWidth": 1, "stacking": { "mode": "normal" } }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 53,
+      "type": "timeseries",
+      "title": "Container restarts (1h)",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 48 },
+      "targets": [
+        {
+          "expr": "topk(10, increase(kube_pod_container_status_restarts_total[1h])) > 0",
+          "legendFormat": "{{namespace}}/{{pod}} {{container}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right", "calcs": ["max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "custom": { "fillOpacity": 20, "lineWidth": 1, "drawStyle": "bars" }
+        },
+        "overrides": []
+      }
+    },
+
+    {
+      "id": 60,
+      "type": "row",
+      "title": "Pi-hole HA",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 55 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 61,
+      "type": "stat",
+      "title": "IPv4 VIP holder (10.10.53.53)",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 56 },
+      "targets": [
+        {
+          "expr": "pihole_holds_vip{family=\"ipv4\"}",
+          "legendFormat": "{{instance}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "dark-blue", "value": null }, { "color": "green", "value": 1 }]
+          },
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "backup" }, "1": { "text": "MASTER" } } }
+          ]
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 62,
+      "type": "stat",
+      "title": "DNS answering",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 56 },
+      "targets": [
+        {
+          "expr": "pihole_dns_up",
+          "legendFormat": "{{instance}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }]
+          },
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN" }, "1": { "text": "UP" } } }
+          ]
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 63,
+      "type": "stat",
+      "title": "keepalived",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 56 },
+      "targets": [
+        {
+          "expr": "pihole_keepalived_up",
+          "legendFormat": "{{instance}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }]
+          },
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN" }, "1": { "text": "UP" } } }
+          ]
+        },
+        "overrides": []
+      }
+    }
+  ]
+}
