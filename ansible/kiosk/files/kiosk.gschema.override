@@ -1,6 +1,13 @@
 # Managed by ansible/kiosk.yaml — do not edit on the node.
+[org.gnome.Epiphany]
 # Epiphany otherwise opens a "make this the default browser?" dialog over the
 # dashboard, which a panel with no keyboard cannot answer. Overriding the
 # shipped default rather than writing per-user dconf survives a wiped profile.
-[org.gnome.Epiphany]
 ask-for-default=false
+
+# The default 'always' restores every tab of the previous run and appends the
+# command-line URL, so each restart leaves one more duplicate dashboard tab.
+# Under 'crashed' only pinned tabs are written to session_state.xml, and there
+# are none — so each start opens exactly the URL it was given. ('never' is not
+# in the enum; the only values are 'always' and 'crashed'.)
+restore-session-policy='crashed'

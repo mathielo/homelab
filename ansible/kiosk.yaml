@@ -13,7 +13,6 @@
     # strips Grafana's chrome so all 400px go to the panels. Anonymous Viewer
     # is enabled in the grafana chart so this loads without a login.
     kiosk_url: https://grafana.m6o.dev/d/rack-kiosk/rack-kiosk?kiosk&refresh=1m
-    kiosk_idle_seconds: 900 # blank panel after 15 min idle; touch wakes it
 
     # Overnight blanking. kiosk_timezone is stamped on every OnCalendar so the
     # times are local wall-clock across DST regardless of the node's own zone.
@@ -32,7 +31,6 @@
           # outside systemd's PATH and can't keep a profile in /var/lib/kiosk.
           - epiphany-browser # the dashboard browser
           - seatd # seat management on a headless box
-          - swayidle # idle → screen blank
           - wlopm # wlroots output power (DPMS)
           - fonts-noto-color-emoji # tab/status icons in the UI
         state: present
@@ -51,9 +49,11 @@
         append: true
 
     # No autoremove: cage and sway share libwlroots-0.19 and libinput10.
-    - name: Remove cage
+    - name: Remove packages the kiosk no longer uses
       apt:
-        name: cage
+        name:
+          - cage
+          - swayidle
         state: absent
         purge: true
 

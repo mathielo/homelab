@@ -3,11 +3,6 @@
 # sway execs this from sway.conf; it inherits WAYLAND_DISPLAY and SWAYSOCK.
 set -euo pipefail
 
-# Blank the panel after idle; any touch/input wakes it (libinput resume).
-swayidle -w \
-  timeout {{ kiosk_idle_seconds }} 'wlopm --off "*"' \
-  resume 'wlopm --on "*"' &
-
 # Keep WebKit off the GPU: software compositing is free at 1280x400, and the
 # kiosk then holds no render contexts on a node running cluster workloads.
 export WEBKIT_DISABLE_COMPOSITING_MODE=1

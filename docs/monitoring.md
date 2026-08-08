@@ -64,14 +64,32 @@ Two panels are worth knowing about:
 
 ### Rack Kiosk
 
-Sized for the DeskPi 7.84" panel (1280×400) on k3s-node-01 — see below. Two rows of
-five grid units is the whole budget, so **new panels have to replace existing ones**
-rather than be appended, or they fall below the fold. No legends or axes: it is read
-from across the room, and the threshold colours carry the meaning.
+Sized for the DeskPi 7.84" panel (1280×400) on k3s-node-01 — see below. A `h3` strip
+of six stats over three `h7` bar gauges spends the whole ten-row budget, so **new
+panels have to replace existing ones** rather than be appended, or they fall below
+the fold. No legends or axes: it is read from across the room, and the threshold
+colours carry the meaning.
 
-`/mnt/r0` is excluded from the "fullest disk" tile because it runs near-full by
-design and would otherwise pin the tile red permanently (the same exclusion the
-`NodeDiskPressure` alert uses; `QbtStoreExhausted` covers it at 98%).
+The three gauges (CPU, memory, load per host) cover the same five hosts in the same
+row order, so a struggling host reads as a vertical streak. That alignment relies on
+Prometheus returning series in a consistent order rather than on anything enforcing
+it — `sort_by_label()` would, but it is an experimental function and this server
+runs without `--enable-feature=promql-experimental-functions`. If the rows ever
+disagree between gauges, that is why.
+
+`HOTTEST` uses `topk(1, node_hwmon_temp_celsius)` with `value_and_name`, so it names
+the host it read. `PODS` sets a fixed colour: with no thresholds declared Grafana
+falls back to its own base-green/red-at-80 default, which turns a healthy pod count
+red.
+
+**`LOAD per host` is raw `node_load1`, which is not comparable across these hosts.**
+Cores differ by 5× (node-02 has 20, node-01 has 4), so equal bars do not mean equal
+pressure. The scale is fixed at 0–8 with thresholds at 4 and 8 — about right for the
+4-core hosts, early for node-02, which would need ~14 to be genuinely saturated. Two
+further caveats: k3s-server's load average spikes to 10–20 from thread churn with CPU
+and PSI flat, so it will show red while idle, and PSI — the honest signal — is only
+reported on the three k3s nodes, not the Pis, so a PSI gauge would have two empty
+rows.
 
 ## Rack touchscreen kiosk
 
@@ -109,10 +127,14 @@ ansible-playbook -i ansible/inventory.ini ansible/kiosk.yaml
 - **`WEBKIT_DISABLE_COMPOSITING_MODE` / `WEBKIT_DISABLE_DMABUF_RENDERER`** keep
   WebKit off the GPU; software compositing is free at 1280×400 and holds no
   render contexts on a node running cluster workloads.
-- **`ask-for-default=false`** via a GSettings override in
-  `/usr/share/glib-2.0/schemas/`, compiled by the playbook. Otherwise Epiphany
-  opens a "make this your default browser?" dialog over the dashboard.
-  Overriding the shipped default rather than per-user dconf means it survives a
+- **`ask-for-default=false` and `restore-session-policy='crashed'`** via a
+  GSettings override in `/usr/share/glib-2.0/schemas/`, compiled by the playbook.
+  The first suppresses a "make this your default browser?" dialog a keyboard-less
+  panel cannot answer. The second stops Epiphany restoring the previous run's
+  tabs *and* appending the command-line URL, which otherwise leaves one more
+  duplicate dashboard tab per restart. `'crashed'` writes only pinned tabs to
+  `session_state.xml`, and there are none — `'never'` is not in the enum.
+  Overriding the shipped defaults rather than per-user dconf means both survive a
   wiped profile.
 
 ### `--kiosk-mode` must be the only mode flag
@@ -152,8 +174,9 @@ correctly rendered dashboard that ignores every tap:
   a directory is accepted then ignored, while still flipping `DevicePolicy=auto`
   into closed. Use the `/proc/devices` subsystem names.
 
-Touch feeds `swayidle`, which wakes the panel from the 15-minute idle blank —
-only inside the ON window; a scheduled overnight blank ignores touch.
+There is no idle blanking: the panel is a display, not something anyone walks up
+to, so it stays lit whenever it is inside the ON window below. Its rest comes from
+the overnight schedule instead.
 
 ```bash
 ssh k3s-node-01 'grep -A4 -i touch /proc/bus/input/devices'       # kernel
@@ -170,6 +193,17 @@ only over split-DNS and Tailscale. Setting `enabled: false` in
 
 To point the panel at something else, change `kiosk_url` in `ansible/kiosk.yaml`
 and re-run the play.
+
+### Picking up a dashboard change
+
+Grafana's `refresh=1m` re-runs the panel *queries*; it does not re-fetch the
+dashboard definition, so a layout or panel change never appears on a page that is
+already open. Once ArgoCD has synced the ConfigMap and Grafana's provisioner has
+re-read it, reload the browser by restarting the unit:
+
+```bash
+ssh k3s-node-01 sudo systemctl restart kiosk
+```
 
 ### Overnight blanking
 
@@ -188,8 +222,7 @@ Two things make this work that aren't obvious:
   output powered on, so hourly means the panel self-corrects within the hour
   instead of staying lit until morning.
 
-The panel only responds to touch-wake inside the ON window; a scheduled blank stays
-blanked. To override manually:
+To override the schedule manually:
 
 ```bash
 ssh k3s-node-01 sudo systemctl start kiosk-display@on    # or @off
