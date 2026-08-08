@@ -13,6 +13,11 @@
   vars:
     ssh_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBIY4u7RdDHfGYM/f+yjXbz4KUq3kfI4sAwC+f4JHLA8"
 
+    # Fleet-wide constants only. Anything a host overrides in host_vars must NOT
+    # be defaulted here — play vars outrank host_vars, so the default would win
+    # everywhere and the override would silently do nothing.
+    system_timezone: Europe/Stockholm
+
   tasks:
     - name: Ensure {{ ansible_user }} has passwordless sudo
       copy:
@@ -57,6 +62,13 @@
       loop: "{{ sshd_dropin_configs.files }}"
       notify: Restart sshd
 
+    # Ordered before the unattended-upgrades config: Automatic-Reboot-Time is
+    # wall-clock local, so the slot below only means what it says once the zone
+    # is right.
+    - name: Set system timezone
+      community.general.timezone:
+        name: "{{ system_timezone }}"
+
     - name: Install unattended-upgrades
       apt:
         name:
@@ -74,6 +86,12 @@
           APT::Periodic::AutocleanInterval "7";
         mode: "0644"
 
+    # Each host reboots for kernel updates in its own slot, pinned in host_vars;
+    # the inline default is a fallback for a not-yet-assigned host. Two hosts
+    # sharing a slot reboot in the same second: for the k3s nodes that drops two
+    # Longhorn replica holders at once, for the Pi-holes it takes DNS down
+    # network-wide. Kernel updates land on whatever hosts are due, so a collision
+    # only shows up on the nights it can hurt.
     - name: Configure unattended-upgrades (50unattended-upgrades)
       copy:
         dest: /etc/apt/apt.conf.d/50unattended-upgrades
@@ -86,7 +104,7 @@
           };
           Unattended-Upgrade::Remove-Unused-Dependencies "true";
           Unattended-Upgrade::Automatic-Reboot "true";
-          Unattended-Upgrade::Automatic-Reboot-Time "03:00";
+          Unattended-Upgrade::Automatic-Reboot-Time "{{ unattended_reboot_time | default('03:00') }}";
           Unattended-Upgrade::Automatic-Reboot-WithUsers "false";
 
     - name: Enable and start unattended-upgrades service

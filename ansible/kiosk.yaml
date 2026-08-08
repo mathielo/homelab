@@ -24,8 +24,9 @@
     kiosk_profile_dir: "/var/lib/kiosk/{{ kiosk_app_id }}"
     kiosk_portal_apps_dir: /var/lib/kiosk/.local/share/xdg-desktop-portal/applications
 
-    # Overnight blanking. The node's clock is UTC, so kiosk_timezone is what
-    # keeps these meaning local wall-clock time across DST.
+    # Overnight blanking. kiosk_timezone is stamped on every OnCalendar so these
+    # mean local wall-clock time across DST regardless of the node's own zone —
+    # they survived the switch from Etc/UTC to Europe/Stockholm untouched.
     kiosk_timezone: Europe/Stockholm
     kiosk_wake_at: "06:00"
     kiosk_blank_hours: "22..23,00..05" # every hour of the off window — see the @off timer

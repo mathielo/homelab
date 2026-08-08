@@ -3,8 +3,7 @@
 Description=Blank the rack panel overnight
 
 [Timer]
-# The node's clock is UTC, so the timezone suffix is what makes this mean 22:00
-# *local* year-round instead of drifting an hour across DST.
+# The timezone suffix pins this to 22:00 *local* year-round.
 #
 # Re-asserted every hour through the window rather than fired once at 22:00:
 # kiosk.service has Restart=always, and a cage restart comes up with the output

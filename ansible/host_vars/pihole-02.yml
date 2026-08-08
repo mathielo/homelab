@@ -6,3 +6,7 @@ pihole_ipv6_gateway: "2001:2042:37b0:1c35::1"
 
 keepalived_state: BACKUP
 keepalived_priority: 100
+
+# Reboot slot — 30 min behind the MASTER, so the VIP has failed over and back
+# before this one goes down. Slow box; the gap is sized for an RPi3 B+ boot.
+unattended_reboot_time: "03:30"

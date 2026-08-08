@@ -1,0 +1,3 @@
+# Reboot slot — control plane first, so the API server is back and Longhorn has
+# resettled before either agent starts cycling.
+unattended_reboot_time: "04:00"

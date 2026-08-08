@@ -148,9 +148,10 @@ from `kiosk_wake_at` / `kiosk_blank_hours` in the playbook.
 
 Two things make this work that aren't obvious:
 
-- **The nodes run UTC** (`Etc/UTC`), so every `OnCalendar` carries an explicit
-  `Europe/Stockholm` suffix. Without it, 22:00 would mean midnight local in summer
-  and 23:00 in winter. Verify a change with
+- **Every `OnCalendar` carries an explicit `Europe/Stockholm` suffix**, so the
+  times are pinned to local wall-clock regardless of the node's own timezone —
+  they kept working unchanged when the nodes moved off `Etc/UTC`. Keep the suffix
+  on any new timer rather than leaning on the node zone. Verify a change with
   `systemd-analyze calendar "*-*-* 22:00:00 Europe/Stockholm"`.
 - **The off timer re-fires hourly** through the window rather than once at 22:00.
   `kiosk.service` has `Restart=always`, and a fresh cage session comes up with the

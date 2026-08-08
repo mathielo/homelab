@@ -8,3 +8,7 @@ keepalived_state: MASTER
 keepalived_priority: 150
 
 nebula_sync_host: true
+
+# Reboot slot — first, and clear of the k3s nodes so DNS is serving again before
+# they start pulling images.
+unattended_reboot_time: "03:00"

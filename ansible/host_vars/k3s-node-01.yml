@@ -5,3 +5,8 @@
 # processing right back on the core already doing NAPI, for no gain.
 nic_device: enp1s0f0
 nic_rps_cpus: e
+
+# Reboot slot — 40 min behind k3s-server. A node reboot takes ~2.5 min; the rest
+# of the gap is Longhorn replica rebuild headroom, so this node is whole again
+# before node-02 leaves.
+unattended_reboot_time: "04:40"
