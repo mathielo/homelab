@@ -27,6 +27,11 @@ Environment=LIBSEAT_BACKEND=seatd
 
 # -c means /etc/sway/config is never read, so sway.conf is the entire config and
 # the kiosk has no default keybindings.
+# With session restore at its default, Epiphany reopens every tab of the previous
+# run and appends the command-line URL, so each restart adds one more copy of the
+# dashboard and its memory. Dropping the session file makes every start a single
+# tab. rm -f cannot fail the unit the way a lockdown gsetting can.
+ExecStartPre=/usr/bin/rm -f /var/lib/kiosk/.local/share/epiphany/session_state.xml /var/lib/kiosk/.local/share/epiphany/session_state.xml~
 ExecStart=/usr/bin/sway -c /etc/kiosk/sway.conf
 Restart=always
 RestartSec=5

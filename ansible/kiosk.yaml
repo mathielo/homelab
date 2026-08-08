@@ -74,6 +74,23 @@
         mode: "0644"
       notify: Restart kiosk
 
+    - name: Create GTK config directory
+      file:
+        path: /var/lib/kiosk/.config/gtk-4.0
+        state: directory
+        owner: kiosk
+        group: kiosk
+        mode: "0755"
+
+    - name: Deploy GTK stylesheet
+      copy:
+        src: kiosk/files/gtk.css
+        dest: /var/lib/kiosk/.config/gtk-4.0/gtk.css
+        owner: kiosk
+        group: kiosk
+        mode: "0644"
+      notify: Restart kiosk
+
     - name: Deploy Epiphany schema override
       copy:
         src: kiosk/files/kiosk.gschema.override

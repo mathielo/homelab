@@ -5,9 +5,9 @@
 # shipped default rather than writing per-user dconf survives a wiped profile.
 ask-for-default=false
 
-# The default 'always' restores every tab of the previous run and appends the
-# command-line URL, so each restart leaves one more duplicate dashboard tab.
-# Under 'crashed' only pinned tabs are written to session_state.xml, and there
-# are none — so each start opens exactly the URL it was given. ('never' is not
-# in the enum; the only values are 'always' and 'crashed'.)
-restore-session-policy='crashed'
+# Session restore is left at its default. 'crashed' looks like the right value —
+# it stops tabs accumulating — but it writes an empty session_state.xml and then
+# restores *that* after any abnormal exit, producing no window, which reads as
+# another crash. The loop is self-sustaining and survives reverting the setting;
+# only deleting the profile clears it. kiosk.service drops the session file at
+# start instead, which gets the same single tab with no way to wedge.

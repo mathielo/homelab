@@ -1,0 +1,26 @@
+/* Managed by ansible/kiosk.yaml — do not edit on the node.
+ *
+ * --kiosk-mode hides Epiphany's header bar but not its location entry, which
+ * still takes focus when the window opens. Empty and focused, the entry pops its
+ * completion list — a white card of built-in search engines — over the top-left
+ * of the dashboard, and nothing on the panel dismisses it.
+ *
+ * Suppressed here rather than by emptying `search-engine-providers`, because a
+ * stylesheet cannot stop the browser starting; two gsettings keys that looked
+ * equally reasonable each put this panel into a restart loop (see
+ * docs/monitoring.md). GTK4 CSS has no `display: none`, so the popover is driven
+ * transparent and to zero size instead.
+ */
+
+popover,
+popover > contents,
+popover > arrow {
+  opacity: 0;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+}

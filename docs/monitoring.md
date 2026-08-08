@@ -127,15 +127,45 @@ ansible-playbook -i ansible/inventory.ini ansible/kiosk.yaml
 - **`WEBKIT_DISABLE_COMPOSITING_MODE` / `WEBKIT_DISABLE_DMABUF_RENDERER`** keep
   WebKit off the GPU; software compositing is free at 1280×400 and holds no
   render contexts on a node running cluster workloads.
-- **`ask-for-default=false` and `restore-session-policy='crashed'`** via a
-  GSettings override in `/usr/share/glib-2.0/schemas/`, compiled by the playbook.
-  The first suppresses a "make this your default browser?" dialog a keyboard-less
-  panel cannot answer. The second stops Epiphany restoring the previous run's
-  tabs *and* appending the command-line URL, which otherwise leaves one more
-  duplicate dashboard tab per restart. `'crashed'` writes only pinned tabs to
-  `session_state.xml`, and there are none — `'never'` is not in the enum.
-  Overriding the shipped defaults rather than per-user dconf means both survive a
+- **`ask-for-default=false`** via a GSettings override in
+  `/usr/share/glib-2.0/schemas/`, compiled by the playbook. It suppresses a "make
+  this your default browser?" dialog a keyboard-less panel cannot answer.
+  Overriding the shipped default rather than per-user dconf means it survives a
   wiped profile.
+- **`ExecStartPre` deletes `session_state.xml`.** Epiphany otherwise reopens every
+  tab of the previous run *and* appends the command-line URL, so each restart adds
+  another copy of the dashboard and its memory. Doing it here rather than through
+  `restore-session-policy` is deliberate — see below.
+- **`gtk.css` hides GTK popovers.** The location entry survives `--kiosk-mode` —
+  only the header bar is hidden — and it takes focus when the window opens. Empty
+  and focused, it pops its completion list, a white card of built-in search
+  engines, over the top-left of the dashboard, and nothing on the panel dismisses
+  it. Emptying `search-engine-providers` would be tidier, but a stylesheet cannot
+  stop the browser starting and the settings below already have. GTK4 CSS has no
+  `display: none`, so popovers are driven transparent and to zero size instead.
+
+#### Settings that look right here and are not
+
+Each takes the panel down into a restart loop, because `swaymsg exit` correctly
+ends the session when the browser dies. All three were tried on this panel.
+
+| Setting | Failure |
+| --- | --- |
+| `lockdown disable-arbitrary-url` | gates *all* URL loading, including the address on the command line — `URL loading is locked down.`, then exit |
+| `homepage-url` + `lockdown disable-history` | Epiphany never creates its window — `gtk_window_fullscreen: assertion 'GTK_IS_WINDOW (window)' failed`, then a clean exit 0 |
+
+`restore-session-policy='crashed'` is the subtlest of the three and was the most
+expensive. It stops tabs accumulating, which is why it is tempting. It also writes
+an empty `session_state.xml`, and after any abnormal exit it *restores* that empty
+session instead of opening the command-line URL — producing no window, which reads
+as another crash. The loop is self-sustaining, and reverting the setting does not
+clear it because the empty session file persists. Recovery needs the profile
+deleted:
+
+```bash
+ssh k3s-node-01 'sudo rm -rf /var/lib/kiosk/.local/share/epiphany /var/lib/kiosk/.config/epiphany \
+  && sudo systemctl restart kiosk'
+```
 
 ### `--kiosk-mode` must be the only mode flag
 
