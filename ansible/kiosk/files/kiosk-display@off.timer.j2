@@ -6,7 +6,7 @@ Description=Blank the rack panel overnight
 # The timezone suffix pins this to 22:00 *local* year-round.
 #
 # Re-asserted every hour through the window rather than fired once at 22:00:
-# kiosk.service has Restart=always, and a cage restart comes up with the output
+# kiosk.service has Restart=always, and a sway restart comes up with the output
 # powered on. Hourly means the panel self-corrects within the hour instead of
 # staying lit until morning. wlopm --off on an already-off output is a no-op.
 OnCalendar=*-*-* {{ kiosk_blank_hours }}:00:00 {{ kiosk_timezone }}

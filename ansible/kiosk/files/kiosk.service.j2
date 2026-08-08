@@ -1,6 +1,6 @@
 # Managed by ansible/kiosk.yaml — do not edit on the node.
 [Unit]
-Description=DeskPi rack touchscreen kiosk (browser via cage)
+Description=DeskPi rack touchscreen kiosk (browser via sway)
 After=seatd.service systemd-user-sessions.service network-online.target
 Wants=seatd.service network-online.target
 
@@ -11,31 +11,28 @@ SupplementaryGroups=video render input
 StandardOutput=journal
 StandardError=journal
 
-# No TTYPath/StandardInput=tty/PAMName here on purpose. Claiming a VT is the
-# logind way of getting a seat; this box uses seatd instead, and as a non-root
-# user the VT grab fails outright ("Failed to set up standard input: Operation
-# not permitted", exit 208/STDIN). seatd hands cage the DRM master and input
-# devices without any controlling terminal — /run/seatd.sock is root:video and
-# the kiosk user is in video.
+# No TTYPath/StandardInput=tty/PAMName: claiming a VT is the logind route to a
+# seat and fails as a non-root user (exit 208/STDIN). seatd supplies DRM master
+# and input with no controlling terminal; /run/seatd.sock is root:video.
 RuntimeDirectory=kiosk
 StateDirectory=kiosk
 Environment=XDG_RUNTIME_DIR=/run/kiosk
 Environment=XDG_SEAT=seat0
-Environment=WLR_BACKENDS=drm
 # Skip libseat's logind probe — there is no logind session to find.
 Environment=LIBSEAT_BACKEND=seatd
 
-# -d asks clients to skip client-side decorations. GTK4 ignores it (it has never
-# supported server-side decorations on Wayland), so the gtk.css deployed to the
-# kiosk user's config is what actually collapses Epiphany's title bar — but the
-# flag costs nothing and is the correct thing to ask for.
-ExecStart=/usr/bin/cage -d -s -- /usr/local/bin/kiosk-session
+# No WLR_BACKENDS: naming any backend replaces wlroots' autodetection instead of
+# narrowing it, and `drm` alone yields a display with no input devices.
+# Autodetection picks DRM + libinput.
+
+# -c means /etc/sway/config is never read, so sway.conf is the entire config and
+# the kiosk has no default keybindings.
+ExecStart=/usr/bin/sway -c /etc/kiosk/sway.conf
 Restart=always
 RestartSec=5
 
-# --- cluster-safety sandbox: a leaking/crashing browser must not disturb the
-# k3s/containerd workloads sharing this node. They run in their own cgroups
-# and are unaffected by these limits. ---
+# Sandbox: a leaking/crashing browser must not disturb the k3s workloads sharing
+# this node. They run in their own cgroups, unaffected by these limits.
 MemoryAccounting=yes
 MemoryMax=768M
 CPUQuota=60%
@@ -45,9 +42,10 @@ ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
 ReadWritePaths=/var/lib/kiosk /run/kiosk
-DeviceAllow=/dev/dri rw
-DeviceAllow=/dev/input rw
+# Subsystem specs, not paths: a DeviceAllow naming a directory like /dev/input
+# is accepted then ignored, while still flipping DevicePolicy=auto into closed.
 DeviceAllow=char-drm rw
+DeviceAllow=char-input rw
 
 [Install]
 WantedBy=multi-user.target

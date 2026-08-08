@@ -1,7 +1,7 @@
 ---
-# Provisions the DeskPi 7.84" rack touchscreen as an OS-level kiosk on
-# k3s-node-02 (headless Ubuntu Server, no DE): cage (Wayland single-app
-# compositor) running Epiphany pointed at the Grafana rack dashboard.
+# Provisions the DeskPi 7.84" rack touchscreen as an OS-level kiosk on headless
+# Ubuntu Server (no DE): sway running Epiphany against the Grafana rack
+# dashboard. Target host is the [kiosk] group in inventory.ini.
 #
 # The browser is sandboxed so a leak/crash can't disturb k3s on this node.
 # Run from repo root:  ansible-playbook -i ansible/inventory.ini ansible/kiosk.yaml
@@ -15,18 +15,8 @@
     kiosk_url: https://grafana.m6o.dev/d/rack-kiosk/rack-kiosk?kiosk&refresh=1m
     kiosk_idle_seconds: 900 # blank panel after 15 min idle; touch wakes it
 
-    # Epiphany only accepts --application-mode (the chromeless window) for a
-    # profile whose directory name is exactly this app id and which contains a
-    # `.app` marker file — both are checked in ephy-web-app-utils.c. It then
-    # resolves the id to a desktop entry through the portal; without that entry
-    # it degrades to a normal browser window with an address bar.
-    kiosk_app_id: org.gnome.Epiphany.WebApp_rackkiosk
-    kiosk_profile_dir: "/var/lib/kiosk/{{ kiosk_app_id }}"
-    kiosk_portal_apps_dir: /var/lib/kiosk/.local/share/xdg-desktop-portal/applications
-
-    # Overnight blanking. kiosk_timezone is stamped on every OnCalendar so these
-    # mean local wall-clock time across DST regardless of the node's own zone —
-    # they survived the switch from Etc/UTC to Europe/Stockholm untouched.
+    # Overnight blanking. kiosk_timezone is stamped on every OnCalendar so the
+    # times are local wall-clock across DST regardless of the node's own zone.
     kiosk_timezone: Europe/Stockholm
     kiosk_wake_at: "06:00"
     kiosk_blank_hours: "22..23,00..05" # every hour of the off window — see the @off timer
@@ -35,14 +25,15 @@
     - name: Install kiosk packages
       apt:
         name:
-          - cage # Wayland single-app kiosk compositor
-          # A real .deb, deliberately not the chromium package — that one is a
-          # transitional shim for the snap, which lands outside systemd's PATH
-          # and can't keep a profile in this user's /var/lib home.
+          # Not cage: it aborts whenever an input device is present. See
+          # docs/monitoring.md.
+          - sway # Wayland compositor; sway.conf reduces it to a kiosk
+          # A .deb, not the chromium package: that is a snap shim, which lands
+          # outside systemd's PATH and can't keep a profile in /var/lib/kiosk.
           - epiphany-browser # the dashboard browser
           - seatd # seat management on a headless box
           - swayidle # idle → screen blank
-          - wlopm # wlroots output power (DPMS) for cage
+          - wlopm # wlroots output power (DPMS)
           - fonts-noto-color-emoji # tab/status icons in the UI
         state: present
         update_cache: true
@@ -59,59 +50,40 @@
         groups: video,render,input
         append: true
 
-    # Epiphany will not create either of these itself, and refuses to start in
-    # application mode without them.
-    - name: Create browser profile directory
-      file:
-        path: "{{ kiosk_profile_dir }}"
-        state: directory
-        owner: kiosk
-        group: kiosk
-        mode: "0700"
+    # No autoremove: cage and sway share libwlroots-0.19 and libinput10.
+    - name: Remove cage
+      apt:
+        name: cage
+        state: absent
+        purge: true
 
-    - name: Mark profile directory as a web app
+    - name: Create sway config directory
       file:
-        path: "{{ kiosk_profile_dir }}/.app"
-        state: touch
-        owner: kiosk
-        group: kiosk
-        mode: "0600"
-        modification_time: preserve
-        access_time: preserve
-
-    - name: Create GTK config directory
-      file:
-        path: /var/lib/kiosk/.config/gtk-4.0
+        path: /etc/kiosk
         state: directory
-        owner: kiosk
-        group: kiosk
+        owner: root
+        group: root
         mode: "0755"
 
-    - name: Deploy GTK stylesheet
+    - name: Deploy sway config
       copy:
-        src: kiosk/files/gtk.css
-        dest: /var/lib/kiosk/.config/gtk-4.0/gtk.css
-        owner: kiosk
-        group: kiosk
+        src: kiosk/files/sway.conf
+        dest: /etc/kiosk/sway.conf
+        owner: root
+        group: root
         mode: "0644"
       notify: Restart kiosk
 
-    - name: Create portal applications directory
-      file:
-        path: "{{ kiosk_portal_apps_dir }}"
-        state: directory
-        owner: kiosk
-        group: kiosk
-        mode: "0755"
-
-    - name: Deploy web app desktop entry
-      template:
-        src: kiosk/files/kiosk-webapp.desktop.j2
-        dest: "{{ kiosk_portal_apps_dir }}/{{ kiosk_app_id }}.desktop"
-        owner: kiosk
-        group: kiosk
+    - name: Deploy Epiphany schema override
+      copy:
+        src: kiosk/files/kiosk.gschema.override
+        dest: /usr/share/glib-2.0/schemas/99-kiosk.gschema.override
+        owner: root
+        group: root
         mode: "0644"
-      notify: Restart kiosk
+      notify:
+        - Recompile GSettings schemas
+        - Restart kiosk
 
     - name: Enable and start seatd
       systemd:
@@ -175,6 +147,10 @@
         - kiosk-display@on.timer
 
   handlers:
+    # The override is inert until compiled into gschemas.compiled.
+    - name: Recompile GSettings schemas
+      command: glib-compile-schemas /usr/share/glib-2.0/schemas/
+
     - name: Restart kiosk
       systemd:
         name: kiosk

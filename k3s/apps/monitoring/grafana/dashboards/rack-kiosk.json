@@ -10,7 +10,7 @@
   "timepicker": { "hidden": true },
   "annotations": { "list": [] },
   "templating": { "list": [] },
-  "description": "Sized for the DeskPi 7.84\" rack panel (1280x400) driven by k3s-node-02. Two rows of five grid units each is the entire budget — nothing else fits above the fold, so keep additions swaps rather than appends. Read at arm's length: no legends, no axes, thresholds do the talking.",
+  "description": "Sized for the DeskPi 7.84\" rack panel (1280x400) driven by k3s-node-01. Two rows of five grid units each is the entire budget — nothing else fits above the fold, so keep additions swaps rather than appends. Read at arm's length: no legends, no axes, thresholds do the talking.",
   "panels": [
     {
       "id": 1,

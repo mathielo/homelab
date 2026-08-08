@@ -1,0 +1,6 @@
+# Managed by ansible/kiosk.yaml — do not edit on the node.
+# Epiphany otherwise opens a "make this the default browser?" dialog over the
+# dashboard, which a panel with no keyboard cannot answer. Overriding the
+# shipped default rather than writing per-user dconf survives a wiped profile.
+[org.gnome.Epiphany]
+ask-for-default=false

@@ -15,6 +15,7 @@ This is a homelab repository for documenting, configuring, and automating a home
 - **Scripts stay simple**: Flat, sequential commands. No logging helpers, no idempotency/exists guards inside scripts — readability over cleverness (idempotency belongs in the Ansible/GitOps layer, not shell scripts).
 - **Planning docs live in the repo**: Commit planning/runbook docs under the repo (e.g. `docs/` or `plans/`), never in a workstation-only local path.
 - **Keep docs in sync**: The repo is the source of truth, so it must stay accurate. Whenever you spot an outdated/stale doc while doing any task (removed service still listed, renamed path, changed port, etc.), fix it as part of that task. If the fix is genuinely out of scope, flag it explicitly rather than ignore it. Never trust a doc over the live config/manifests — verify, then correct the doc.
+- **Comments and docs state what _is_, not how it got there**: Comment only what isn't inferrable from the code, and phrase it as a present-tense reason — "X is here because Y". No change narration ("this used to be Z", "moved from node-02", "replaced the old approach"), no debugging history, no storytelling about what was tried. Same for docs: a reader wants why it's built this way, not the journey. Prefer no comment over a comment restating the code.
 
 ## Infrastructure Changes (IaC Only)
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Managed by ansible/kiosk.yaml — do not edit on the node.
-# Powers the panel on or off inside the running cage session: kiosk-display on|off
+# Powers the panel on or off inside the running sway session: kiosk-display on|off
 set -euo pipefail
 
-# cage picks the socket name at startup, so discover it rather than assume
+# The socket name is picked at startup, so discover it rather than assume
 # wayland-0 (the matching .lock file is excluded by the single-digit glob).
 export XDG_RUNTIME_DIR=/run/kiosk
 export WAYLAND_DISPLAY="$(cd "$XDG_RUNTIME_DIR" && ls wayland-[0-9] | head -1)"

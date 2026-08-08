@@ -3,7 +3,7 @@
 [Unit]
 Description=Rack kiosk panel power %i
 After=kiosk.service
-# Nothing to talk to if cage isn't up; fail fast instead of hanging on the socket.
+# Nothing to talk to if sway isn't up; fail fast instead of hanging on the socket.
 Requisite=kiosk.service
 
 [Service]
