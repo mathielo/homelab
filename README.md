@@ -30,6 +30,29 @@ op read "op://Private/GitHub 1P SSH/public key" > ~/.ssh/gh1p.pub
 ln -sf ~/src/homelab/.config/ssh.config ~/.ssh/config
 ```
 
+# Workstation mounts
+
+The UNAS shares are plain NFS entries in [`.config/etc.fstab`](.config/etc.fstab).
+
+k3s-node-02's DAS array (`/mnt/r0`) is **not** exported, so it is reached over SSHFS
+by [`.config/systemd/user/sshfs-node02-r0.service`](.config/systemd/user/sshfs-node02-r0.service),
+which mounts it at `~/mnt/node02-r0` — the workstation has its own local `/mnt/r0`
+and that path must stay free. It is a _user_ unit, not fstab: mount units run as
+UID 0, and root can't authenticate against the 1Password agent socket that lives in
+`$HOME`.
+
+```bash
+mkdir -p ~/.config/systemd/user
+ln -sf ~/src/homelab/.config/systemd/user/sshfs-node02-r0.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now sshfs-node02-r0.service
+```
+
+UIDs match on both ends (`1000:1000`, `m8hl` owns the array), so the mount is
+read/write with correct ownership. Throughput measured at ~35 MB/s — that is the
+cross-VLAN wireless hairpin at the UDB Homelab, not SSHFS, so an NFS export would
+not go any faster.
+
 # Prerequisites
 
 Some tools need to be installed locally to be able to manage the homelab setup, namely:
