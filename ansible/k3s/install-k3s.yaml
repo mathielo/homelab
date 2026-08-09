@@ -90,7 +90,37 @@
         dest: /etc/k3s/resolv.conf
         mode: "0644"
 
-# Play 2 — Install k3s server (control plane)
+# Play 2 — Remove swap (nodes in [no_swap])
+# The swapfile competes with the containerd image store for the same 40 GB root
+# partition. Swapless is also kubelet's own default expectation (`failSwapOn: true`).
+- name: Remove swap
+  hosts: no_swap
+  become: true
+  tags: swap
+
+  tasks:
+    - name: Check for swapfile
+      stat:
+        path: /swap.img
+      register: swapfile
+
+    - name: Disable swap
+      command: swapoff --all
+      when: swapfile.stat.exists
+      changed_when: swapfile.stat.exists
+
+    - name: Drop swapfile from fstab
+      lineinfile:
+        path: /etc/fstab
+        regexp: '^\s*/swap\.img\s'
+        state: absent
+
+    - name: Remove swapfile
+      file:
+        path: /swap.img
+        state: absent
+
+# Play 3 — Install k3s server (control plane)
 - name: Install k3s server
   hosts: k3s_server
   become: true
@@ -220,7 +250,7 @@
           Kubeconfig written to ~/.kube/config-k3s.
           Export it with: export KUBECONFIG=~/.kube/config-k3s
 
-# Play 3 — Install k3s agents
+# Play 4 — Install k3s agents
 - name: Install k3s agents
   hosts: k3s_agents
   become: true
@@ -258,7 +288,7 @@
       until: agent_ready.rc == 0
       changed_when: false
 
-# Play 4 — Configure kubelet (graceful node shutdown)
+# Play 5 — Configure kubelet (graceful node shutdown)
 # Runs on every node after k3s is installed. The KubeletConfiguration drop-in
 # replaces the deprecated --kubelet-arg=shutdown-grace-period* CLI flags
 # (removed from kubelet in k8s 1.35). k3s reads any *.conf in this directory
@@ -298,7 +328,7 @@
           imageGCLowThresholdPercent: 80
       notify: Restart k3s
 
-# Play 5 — Label all k3s nodes
+# Play 6 — Label all k3s nodes
 - name: Label k3s nodes
   hosts: k3s_server
   become: true

@@ -48,11 +48,13 @@ SATA SSD layout (node-specific purpose):
 | ---------------- | -------- | ---- | -------------------- | --------------------------------------- |
 | `/dev/nvme0n1p1` | 1 GiB    | vfat | `/boot/efi`          | Ubuntu boot                             |
 | `/dev/nvme0n1p2` | 2 GiB    | ext4 | `/boot`              | Kernel/initramfs                        |
-| `/dev/nvme0n1p3` | 40 GiB   | ext4 | `/`                  | Ubuntu + k3s + container image cache    |
+| `/dev/nvme0n1p3` | 80 GiB   | ext4 | `/`                  | Ubuntu + k3s + container image cache    |
 | `/dev/nvme0n1p4` | ~195 GiB | ext4 | `/mnt/nvme/longhorn` | Longhorn distributed block data         |
 | `/dev/nvme0n1p5` | ~1.6 TiB | ext4 | `/mnt/nvme/local`    | qBittorrent clients' incomplete/staging |
 
 Longhorn is sized to match the other two nodes once they migrate — replicas stay symmetric. Remaining NVMe space backs the qBt incomplete dirs.
+
+**Swap:** k3s-server and k3s-node-01 run swapless — Ubuntu's default 8 GiB `/swap.img` is removed by the `[no_swap]` inventory group in [`ansible/k3s/install-k3s.yaml`](../ansible/k3s/install-k3s.yaml).
 
 See [Longhorn Storage](storage-longhorn.md) for disk preparation and Longhorn setup details.
 
