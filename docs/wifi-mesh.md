@@ -106,8 +106,9 @@ All three of these made a working 6 GHz link look completely dead during the
 
 2. **All MLO traffic is accounted to the _primary_ link's station entry.** The
    controller's `downlink_table` per-station `tx_bytes`/`rx_bytes` read ≈0 on the
-   secondary link even while it moves hundreds of Mbit/s. **`netopt` reads this same
-   API**, so its per-band series tracks which link is *primary*, not which is loaded.
+   secondary link even while it moves hundreds of Mbit/s. Anything built on that same
+   API inherits the distortion: a per-band series tracks which link is *primary*, not
+   which is loaded.
 
 3. **The secondary link legitimately reports `STATE 3` with blank `HTCAPS` and
    `IEs: 00`** (the primary shows `1000000b`). This is not a fault — association and
@@ -183,5 +184,5 @@ demand is expected and is not a fault.
   traffic suggested. Moving it to ch104 both freed XG airtime and improved its own
   link (−78 → −70 dBm).
 - **AP log buffers are small** and do not survive long — capture them while the fault
-  is live. `netopt` (`netopt.m6o.dev`, InfluxDB in the `monitoring` namespace) keeps
-  history, but see trap 2 for what its per-band figures actually mean.
+  is live. Nothing retains AP-side history, so a fault that is not captured live is
+  gone.
