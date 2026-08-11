@@ -7,11 +7,15 @@
 # Play 1 (destructive): creates the array. Idempotent — if /dev/md0 already
 # exists the play short-circuits. Asks for GOAHEAD after printing the
 # target disks.
-# Play 2: chown + place the strict-mount marker + install das-up/das-down.
-# Safe to re-run on its own.
+# Play 2: chown + place the strict-mount marker + install das-up/das-down +
+# export the array to the workstation over NFS. Safe to re-run on its own.
 #
 # Invoke:
 #   ansible-playbook -i ansible/inventory.ini ansible/das-raid.yaml
+#
+# The NFS export tasks carry the "nfs" tag, so they can be applied on their own
+# without entering the create play at all:
+#   ansible-playbook -i ansible/inventory.ini ansible/das-raid.yaml --tags nfs
 
 - name: Create RAID 0 on the DAS attached to k3s-node-02
   hosts: k3s-node-02
@@ -165,6 +169,10 @@
   vars:
     md_device: /dev/md0
     mount_point: /mnt/r0
+    # Workstation's tagged VLAN 50 address (ansible/host_vars/spacedora.yml).
+    # NFS authorises by source IP, so the export is scoped to that single host —
+    # VLAN 50 also carries the other k3s nodes and the NAS.
+    nfs_export_client: 10.10.50.180
 
   tasks:
     # Guard: skip on-DAS writes if the DAS is unmounted — otherwise the
@@ -219,3 +227,28 @@
           umount {{ mount_point }}
           udevadm settle
           mdadm --stop {{ md_device }}
+
+    - name: Install nfs-kernel-server
+      apt:
+        name: nfs-kernel-server
+        state: present
+      tags: nfs
+
+    # mp: export only while {{ mount_point }} is a live mountpoint. The fstab
+    # entry is nofail and das-down takes the array away deliberately, so without
+    # this the empty mount point on the rootfs would be exported in its place.
+    - name: Export the array to the workstation
+      lineinfile:
+        path: /etc/exports
+        regexp: ^{{ mount_point }}\s
+        line: "{{ mount_point }} {{ nfs_export_client }}(rw,sync,mp,no_subtree_check)"
+        create: true
+        mode: "0644"
+      notify: Reload NFS exports
+      tags: nfs
+
+  handlers:
+    # Tagged to match: handlers are filtered by --tags like any other task.
+    - name: Reload NFS exports
+      command: exportfs -ra
+      tags: nfs

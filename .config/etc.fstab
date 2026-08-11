@@ -4,3 +4,11 @@
 # sudo mkdir -p /mnt/nas/{backups,media}
 10.10.50.4:/var/nfs/shared/Backups /mnt/nas/backups nfs defaults,_netdev 0 0
 10.10.50.4:/var/nfs/shared/Media /mnt/nas/media nfs defaults,_netdev 0 0
+
+# k3s-node-02 DAS (RAID 0). Exported by ansible/das-raid.yaml, and only while the
+# array is actually mounted on the node — the export disappears with it.
+# "nofail,x-systemd.automount" keeps boot independent of the node: the mount is
+# attempted on first access to the path, not at startup.
+
+# sudo mkdir -p /mnt/n02r0
+10.10.50.12:/mnt/r0 /mnt/n02r0 nfs defaults,_netdev,nofail,x-systemd.automount 0 0

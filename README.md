@@ -32,26 +32,19 @@ ln -sf ~/src/homelab/.config/ssh.config ~/.ssh/config
 
 # Workstation mounts
 
-The UNAS shares are plain NFS entries in [`.config/etc.fstab`](.config/etc.fstab).
-
-k3s-node-02's DAS array (`/mnt/r0`) is **not** exported, so it is reached over SSHFS
-by [`.config/systemd/user/sshfs-node02-r0.service`](.config/systemd/user/sshfs-node02-r0.service),
-which mounts it at `~/mnt/node02-r0` — the workstation has its own local `/mnt/r0`
-and that path must stay free. It is a _user_ unit, not fstab: mount units run as
-UID 0, and root can't authenticate against the 1Password agent socket that lives in
-`$HOME`.
+All of them are NFS entries in [`.config/etc.fstab`](.config/etc.fstab) — the UNAS
+shares, plus k3s-node-02's DAS array at `/mnt/n02r0`. The workstation has its own
+local `/mnt/r0`, so the node's array cannot use that path.
 
 ```bash
-mkdir -p ~/.config/systemd/user
-ln -sf ~/src/homelab/.config/systemd/user/sshfs-node02-r0.service ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now sshfs-node02-r0.service
+sudo mkdir -p /mnt/nas/{backups,media} /mnt/n02r0
+# copy the entries into /etc/fstab, then
+sudo systemctl daemon-reload
 ```
 
-UIDs match on both ends (`1000:1000`, `m8hl` owns the array), so the mount is
-read/write with correct ownership. Throughput measured at ~35 MB/s — that is the
-cross-VLAN wireless hairpin at the UDB Homelab, not SSHFS, so an NFS export would
-not go any faster.
+The DAS export is created by [`ansible/das-raid.yaml`](ansible/das-raid.yaml)
+(`--tags nfs`) and carries the `mp` option, so it exists only while the array is
+actually mounted on the node.
 
 # Prerequisites
 
