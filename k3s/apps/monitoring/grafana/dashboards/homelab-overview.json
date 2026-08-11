@@ -576,7 +576,7 @@
       "title": "Hottest sensor per host",
       "description": "Three mini-PCs and two Pis in a closed rack — the hottest hwmon sensor on each.",
       "datasource": "Prometheus",
-      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 31 },
+      "gridPos": { "h": 7, "w": 6, "x": 0, "y": 31 },
       "targets": [
         {
           "expr": "max by (node) (node_hwmon_temp_celsius{node=~\"$node\"})",
@@ -607,12 +607,48 @@
       }
     },
     {
+      "id": 44,
+      "type": "timeseries",
+      "title": "DAS disk temperatures",
+      "description": "The Toshiba MG11ACA24TE pair behind /mnt/r0. Spec is 60 °C max operating (red) and 40 °C recommended; past 60 °C a drive throttles and, being RAID 0, takes the whole array down with it. Thresholds match the DiskTemperature alerts.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 7, "w": 6, "x": 6, "y": 31 },
+      "targets": [
+        {
+          "expr": "smartctl_device_temperature{node=~\"$node\",device=~\"sd.+\",temperature_type=\"current\"}",
+          "legendFormat": "{{device}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "min": 20,
+          "custom": { "fillOpacity": 0, "lineWidth": 2 },
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "red", "value": 60 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
       "id": 42,
       "type": "timeseries",
       "title": "NIC throughput",
       "description": "Physical interfaces only — veth/cni/flannel/tailscale/wireguard are filtered out.",
       "datasource": "Prometheus",
-      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 31 },
+      "gridPos": { "h": 7, "w": 6, "x": 12, "y": 31 },
       "targets": [
         {
           "expr": "rate(node_network_receive_bytes_total{node=~\"$node\",device!~\"lo|veth.*|cni.*|flannel.*|cali.*|docker.*|br-.*|kube.*|tailscale.*|wg.*|tun.*\"}[5m]) * 8",
@@ -639,7 +675,7 @@
       "type": "timeseries",
       "title": "Disk I/O utilisation",
       "datasource": "Prometheus",
-      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 31 },
+      "gridPos": { "h": 7, "w": 6, "x": 18, "y": 31 },
       "targets": [
         {
           "expr": "rate(node_disk_io_time_seconds_total{node=~\"$node\",device!~\"dm-.*|loop.*\"}[5m]) * 100",

@@ -278,6 +278,7 @@
       ],
       matchPackageNames: [
         'prometheus',
+        'prometheus-smartctl-exporter',
         'loki',
         'promtail',
         'grafana',

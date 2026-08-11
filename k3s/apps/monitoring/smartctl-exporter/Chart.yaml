@@ -1,0 +1,8 @@
+apiVersion: v2
+name: smartctl-exporter
+description: SMART disk health exporter (DaemonSet)
+version: 1.0.0
+dependencies:
+  - name: prometheus-smartctl-exporter
+    repository: https://prometheus-community.github.io/helm-charts
+    version: "0.17.1"

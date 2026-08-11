@@ -40,6 +40,13 @@ prometheus:
             matchers:
               - alertname=~"NodeDiskPressure|NodeDiskCritical"
             repeat_interval: 6h
+          # SMART/DAS alerts describe a physical condition that stays true until
+          # hardware is changed, so they'd re-notify hourly on the critical route
+          # below for as long as it takes. Matched first to keep them at 4h.
+          - receiver: telegram
+            matchers:
+              - alertname=~"Disk.*|Nvme.*|Das.*"
+            repeat_interval: 4h
           - receiver: telegram
             matchers:
               - severity=critical
@@ -268,6 +275,131 @@ prometheus:
                 severity: warning
               annotations:
                 summary: "Longhorn backup/snapshot job {{ $labels.job_name }} failed"
+
+        # SMART health from smartctl-exporter (k3s-node-02: the DAS pair behind
+        # /mnt/r0, plus the NVMe carrying Longhorn and /local).
+        - name: disk-health
+          rules:
+            # Current HDDs: 60 °C max operating, 10-40 °C recommended.
+            # Sustained operation above ~50 °C measurably shortens drive life,
+            # so this fires with room to fix airflow before the hardware limit.
+            - alert: DiskTemperatureHigh
+              expr: smartctl_device_temperature{device=~"sd.+",temperature_type="current"} > 50
+              for: 15m
+              labels:
+                severity: warning
+              annotations:
+                summary: "Disk {{ $labels.device }} at {{ $value }}°C — above the 50°C long-term-wear threshold (check DAS airflow)"
+
+            - alert: DiskTemperatureCritical
+              expr: smartctl_device_temperature{device=~"sd.+",temperature_type="current"} > 60
+              for: 10m
+              labels:
+                severity: critical
+              annotations:
+                summary: "Disk {{ $labels.device }} at {{ $value }}°C — over its 60°C maximum operating temperature"
+
+            # NVMe runs hotter by design, it throttles around
+            # 80 °C, so it needs its own threshold rather than the HDD one.
+            - alert: NvmeTemperatureHigh
+              expr: smartctl_device_temperature{device=~"nvme.+",temperature_type="current"} > 70
+              for: 15m
+              labels:
+                severity: warning
+              annotations:
+                summary: "NVMe {{ $labels.device }} at {{ $value }}°C — approaching its thermal throttle point"
+
+            - alert: DiskSmartFailed
+              expr: smartctl_device_smart_status == 0
+              for: 5m
+              labels:
+                severity: critical
+              annotations:
+                summary: "Disk {{ $labels.device }} reports SMART overall-health FAILED"
+
+            # `smartctl_device_attribute` is ATA-only, so these three match the
+            # DAS drives and never the NVMe.
+            - alert: DiskReallocatedSectors
+              expr: smartctl_device_attribute{attribute_name="Reallocated_Sector_Ct",attribute_value_type="raw"} > 0
+              for: 5m
+              labels:
+                severity: critical
+              annotations:
+                summary: "Disk {{ $labels.device }} has {{ $value }} reallocated sector(s) — plan a replacement"
+
+            - alert: DiskPendingSectors
+              expr: smartctl_device_attribute{attribute_name="Current_Pending_Sector",attribute_value_type="raw"} > 0
+              for: 5m
+              labels:
+                severity: critical
+              annotations:
+                summary: "Disk {{ $labels.device }} has {{ $value }} pending sector(s) — unreadable data"
+
+            # The DAS hangs off a USB bridge, where a failing cable or bridge
+            # shows up as CRC errors before it starts dropping the array.
+            - alert: DiskCrcErrors
+              expr: increase(smartctl_device_attribute{attribute_name="UDMA_CRC_Error_Count",attribute_value_type="raw"}[1h]) > 0
+              for: 5m
+              labels:
+                severity: warning
+              annotations:
+                summary: "Disk {{ $labels.device }} logged new UDMA CRC errors — suspect the USB cable or bridge"
+
+            # NVMe equivalents of the wear signals above.
+            - alert: NvmeMediaErrors
+              expr: smartctl_device_media_errors > 0
+              for: 5m
+              labels:
+                severity: critical
+              annotations:
+                summary: "NVMe {{ $labels.device }} reports {{ $value }} media/data integrity error(s)"
+
+            - alert: NvmeCriticalWarning
+              expr: smartctl_device_critical_warning > 0
+              for: 5m
+              labels:
+                severity: critical
+              annotations:
+                summary: "NVMe {{ $labels.device }} raised a critical controller warning"
+
+            # RAID 0 runs at its slowest member: when one drive throttles or
+            # degrades, /mnt/r0 collapses in speed while the other sits idle
+            # visible only per-drive, never in the md0 aggregate.
+            #
+            # Compares the pair against each other rather than against a fixed
+            # latency: a heavy sequential burst puts BOTH drives near 60 ms and
+            # 100% util while the array is healthy and fast, so any absolute
+            # threshold cries wolf on it. A throttling drive instead runs
+            # several times slower than its twin under the same command stream.
+            # The 20 ms floor keeps an idle-time ratio (1 ms vs 4 ms) quiet, and
+            # the 10 reads/s floor keeps a write-dominated window quiet: a drive
+            # serving ~1 read/s averages whatever those few reads cost, which is
+            # noise, not throttling.
+            # k3s-server also has sda/sdb, hence the node selector.
+            - alert: DasDiskLatencyImbalance
+              expr: |
+                (
+                  rate(node_disk_read_time_seconds_total{node="k3s-node-02",device=~"sda|sdb"}[15m])
+                  / rate(node_disk_reads_completed_total{node="k3s-node-02",device=~"sda|sdb"}[15m])
+                )
+                / on(node) group_left()
+                min by(node) (
+                  rate(node_disk_read_time_seconds_total{node="k3s-node-02",device=~"sda|sdb"}[15m])
+                  / rate(node_disk_reads_completed_total{node="k3s-node-02",device=~"sda|sdb"}[15m])
+                )
+                > 3
+                and
+                (
+                  rate(node_disk_read_time_seconds_total{node="k3s-node-02",device=~"sda|sdb"}[15m])
+                  / rate(node_disk_reads_completed_total{node="k3s-node-02",device=~"sda|sdb"}[15m])
+                ) > 0.02
+                and
+                rate(node_disk_reads_completed_total{node="k3s-node-02",device=~"sda|sdb"}[15m]) > 10
+              for: 30m
+              labels:
+                severity: warning
+              annotations:
+                summary: "DAS drive {{ $labels.device }} is {{ $value | printf \"%.1f\" }}x slower per read than its RAID 0 twin — throttling or degrading; /mnt/r0 runs at its slowest drive"
 
         - name: cluster-health
           rules:

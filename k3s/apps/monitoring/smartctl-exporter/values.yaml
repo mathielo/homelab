@@ -1,0 +1,43 @@
+# Upstream prometheus-community/prometheus-smartctl-exporter chart values are
+# nested under the dependency key (umbrella-chart convention — see media apps).
+prometheus-smartctl-exporter:
+  # Devices are pinned rather than auto-scanned: `smartctl --scan` on k3s-node-02
+  # also returns the ten Longhorn iSCSI virtual disks (/dev/sdc../dev/sdo), which
+  # expose no SMART data and change identity as volumes attach and detach.
+  # sda/sdb are the DAS pair behind /mnt/r0; nvme0 backs Longhorn and /local.
+  config:
+    devices:
+      - /dev/sda
+      - /dev/sdb
+      - /dev/nvme0
+
+  # The DAS is physically attached to k3s-node-02, so the DaemonSet is pinned
+  # there — the device list above is specific to that node.
+  nodeSelector:
+    kubernetes.io/hostname: k3s-node-02
+
+  # Prometheus discovers this pod through the `kubernetes-pods` job's
+  # annotation-based scraping.
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9633"
+
+  common:
+    config:
+      # SMART reads spin up the ATA command queue and are slow through the USB
+      # bridge; one poll per two minutes is well inside the alert windows.
+      collect_not_more_than_period: 120s
+
+  # `prometheusRules` renders a PrometheusRule CRD, which only exists with
+  # prometheus-operator. This cluster runs the plain Prometheus chart, so the
+  # alerts live in its `serverFiles.alerting_rules.yml` instead.
+  prometheusRules:
+    enabled: false
+
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
