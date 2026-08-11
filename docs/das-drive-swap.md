@@ -7,6 +7,10 @@ drive replacement is a destructive rebuild.
 **The array holds no redundancy and no backup.** Everything on `/mnt/r0` is gone
 the moment the old disks come out. Handle the data before starting.
 
+> :bulb: Powering the enclosure down **without** losing the array — relocating it,
+> reseating a cable, improving airflow — is [`das-power-cycle.md`](das-power-cycle.md).
+> Steps 1 and 2 below are shared; the bring-up is not.
+
 ## What consumes `/mnt/r0`
 
 | Workload  | Namespace | Mount    | ArgoCD app |
