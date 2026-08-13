@@ -126,15 +126,6 @@ data:
       "url": "http://searxng.tools.svc.cluster.local:8080",
       "parent_name": "tools"
     }
-  # Sure enforces SSL, so pinging the in-cluster HTTP URL returns a 302
-  # redirect. This service must be watched from the ingress URL instead.
-  sure.json: |
-    {
-      "type": "http",
-      "name": "Sure",
-      "url": "https://sure.m6o.dev",
-      "parent_name": "tools"
-    }
   miniflux.json: |
     {
       "type": "http",

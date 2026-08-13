@@ -286,15 +286,13 @@
       groupName: 'monitoring-infra',
     },
     {
-      description: 'tools namespace images (SearXNG, Sure, Miniflux + their datastores)',
+      description: 'tools namespace images (SearXNG, Miniflux + their datastores)',
       matchDatasources: [
         'docker',
       ],
       matchPackageNames: [
         'searxng/searxng',
-        'ghcr.io/we-promise/sure',
         'miniflux/miniflux',
-        'valkey/valkey',
         'postgres',
       ],
       groupName: 'tools',
@@ -306,17 +304,6 @@
         'searxng/searxng',
       ],
       versioning: 'regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-[0-9a-f]+$',
-    },
-    {
-      // Sure is pre-1.0 but ships stable tags (0.7.3) alongside
-      // alpha/beta/rc ones. Semver + ignoreUnstable keeps upgrades on the
-      // stable line.
-      description: 'Sure — stable releases only',
-      matchPackageNames: [
-        'ghcr.io/we-promise/sure',
-      ],
-      versioning: 'semver',
-      ignoreUnstable: true,
     },
     {
       matchUpdateTypes: [
