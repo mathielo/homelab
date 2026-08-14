@@ -83,6 +83,15 @@ grafana:
       maxSurge: 0
       maxUnavailable: 1
 
+  # /api/health reads the config SQLite DB on a Longhorn RWO volume, so the k8s
+  # default 1s probe timeout trips on ordinary storage latency spikes.
+  readinessProbe:
+    httpGet:
+      path: /api/health
+      port: grafana
+    timeoutSeconds: 5
+    failureThreshold: 3
+
   resources:
     requests:
       cpu: 50m
