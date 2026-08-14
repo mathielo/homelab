@@ -42,7 +42,7 @@ app-template:
             - -c
             - |
               if [ ! -f /config/sabnzbd.ini ]; then
-                printf '[misc]\nhost_whitelist = sabnzbd.m6o.dev,\n' > /config/sabnzbd.ini
+                printf '[misc]\nhost_whitelist = sabnzbd.m6o.dev\n' > /config/sabnzbd.ini
               fi
 
         # Gluetun VPN kill-switch as a native k8s sidecar (k8s >= 1.29).
@@ -127,6 +127,14 @@ app-template:
             # This keeps in-cluster calls (SABnzbd → Sonarr, DNS, etc.) working.
             FIREWALL_OUTBOUND_SUBNETS: "10.42.0.0/16,10.43.0.0/16"
             DNS_UPSTREAM_RESOLVERS: "cloudflare,quad9"
+            # DoT off makes gluetun skip its local DNS proxy and point
+            # /etc/resolv.conf straight at the upstream resolver. With the proxy
+            # running, its own forwarder resolves via the system resolver, which
+            # the pod's dnsConfig sets to 127.0.0.1 — the proxy itself. Any name
+            # it cannot answer then recurses until a 2s timeout; a repeated
+            # "[::]" lookup at ~130/s held ~8k sockets open and pinned CPU at the
+            # limit. Queries still leave through the tunnel, so they stay private.
+            DOT: "off"
           resources:
             requests:
               cpu: 250m
