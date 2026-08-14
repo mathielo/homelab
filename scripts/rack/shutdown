@@ -45,20 +45,28 @@ sts_selector() {
         | sed 's/,$//'
 }
 
+# A host counts as off only once it stops answering ICMP. sshd dies early in the
+# shutdown sequence, so a refused SSH connection means "not accepting logins",
+# not "powered off" — the machine is still unmounting filesystems for a while
+# after that. Two consecutive lost pings are required so a single dropped packet
+# does not read as a poweroff. Returns non-zero if the host never goes quiet.
 wait_for_shutdown() {
     local host="$1"
-    local max_wait=60
+    local addr
+    addr=$(ssh -G "$host" 2>/dev/null | awk '/^hostname /{print $2; exit}')
+    local max_wait=180
     local elapsed=0
-    log "Waiting for $host to go offline..."
+    log "Waiting for $host ($addr) to stop responding to ping..."
     while [ $elapsed -lt $max_wait ]; do
-        if ! ssh $SSH_OPTS -o ConnectTimeout=2 "$host" "true" 2>/dev/null; then
+        if ! ping -c2 -W1 "$addr" >/dev/null 2>&1; then
             log "$host is offline."
             return 0
         fi
         sleep 3
         elapsed=$((elapsed + 3))
     done
-    warn "$host still reachable after ${max_wait}s — continuing anyway."
+    warn "$host still answering ping after ${max_wait}s — NOT confirmed powered off."
+    return 1
 }
 
 # --- Step 1: Home Assistant Pi (fire and forget) ---
@@ -123,16 +131,27 @@ fi
 # See docs/das-power-cycle.md. Never run ansible/das-raid.yaml to bring it back.
 
 log "=== Step 3: Stopping the DAS array on k3s-node-02 ==="
-run_ssh k3s-node-02 "sudo das-down" || warn "das-down failed — see docs/das-power-cycle.md before pulling power"
-run_ssh k3s-node-02 "cat /proc/mdstat; mountpoint /mnt/r0 || echo 'unmounted OK'" || true
+if run_ssh k3s-node-02 "sudo das-down"; then
+    run_ssh k3s-node-02 "cat /proc/mdstat; mountpoint /mnt/r0 || echo 'unmounted OK'" || true
+else
+    warn "das-down FAILED — the array is likely still assembled and mounted:"
+    run_ssh k3s-node-02 "cat /proc/mdstat; mountpoint /mnt/r0" >&2 || true
+    warn "This is RAID 0 with no backup. Work through the mount-namespace holder"
+    warn "checks in docs/das-power-cycle.md before continuing."
+    read -r -p "Type 'yes' to power off anyway, anything else aborts: " reply
+    [ "$reply" = "yes" ] || { warn "Aborted — nothing was powered off."; exit 1; }
+fi
 
 # --- Step 4: Shut down k3s nodes ---
+# Hosts that never stopped answering ping are collected so the final message can
+# distinguish "all down" from "we asked them to go down".
+not_confirmed=()
 
 log "=== Step 4: Shutting down k3s nodes ==="
 for node in "${K3S_NODES[@]}"; do
     log "Shutting down $node..."
     run_ssh "$node" "sudo shutdown -h now" || warn "Failed to send shutdown to $node"
-    wait_for_shutdown "$node"
+    wait_for_shutdown "$node" || not_confirmed+=("$node")
 done
 
 # --- Step 5: pihole-01 (last — DNS for the whole network) ---
@@ -141,7 +160,7 @@ done
 
 log "=== Step 5: Shutting down pihole-01 ==="
 run_ssh pihole-01 "sudo shutdown -h now" || warn "Failed to send shutdown to pihole-01"
-wait_for_shutdown pihole-01
+wait_for_shutdown pihole-01 || not_confirmed+=("pihole-01")
 
 log "Checking pihole-02 took over the VIP..."
 if run_ssh pihole-02 "ip -4 addr show eth0 | grep -q 10.10.53.53"; then
@@ -151,4 +170,10 @@ else
 fi
 
 log "=== Rack shutdown complete ==="
+if [ ${#not_confirmed[@]} -gt 0 ]; then
+    warn "NOT confirmed powered off: ${not_confirmed[*]}"
+    warn "Do not disconnect power until these stop answering ping."
+    exit 1
+fi
+log "All hosts confirmed powered off."
 log "Safe to disconnect power. Power the DAS enclosure off at its own switch first."
