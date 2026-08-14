@@ -5,10 +5,14 @@ app-template:
     # Run as the same uid/gid as the qbt-* instances (hotio PUID/PGID 1000) so
     # cross-seed hardlinks/dirs qui creates under /r0/cross-seed are owned by
     # the same PUID
+    # OnRootMismatch skips the recursive chown when /config's root already has the
+    # right ownership — without it kubelet walks every file on each start, which
+    # holds the pod in ContainerCreating for minutes.
     securityContext:
       runAsUser: 1000
       runAsGroup: 1000
       fsGroup: 1000
+      fsGroupChangePolicy: OnRootMismatch
 
   controllers:
     qui:
