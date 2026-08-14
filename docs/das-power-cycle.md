@@ -14,8 +14,15 @@ procedure is destructive and rebuilds the array from scratch.
 **k3s-node-02 itself stays up.** The DAS is USB-attached and holds nothing the OS or
 Longhorn needs — Longhorn replicas and the qBt staging dirs live on `nvme0n1`. Leaving
 the node running avoids the Longhorn iSCSI-teardown corruption that a node reboot has to
-guard against (see [`../scripts/rack/shutdown`](../scripts/rack/shutdown)). If the node
-does need to go down as well, use that script rather than a plain `reboot`.
+guard against (see [`../scripts/rack/shutdown`](../scripts/rack/shutdown)).
+
+> If the node is going down too — a full-rack shutdown — run
+> [`../scripts/rack/shutdown`](../scripts/rack/shutdown) instead of this runbook's
+> steps 1–2. It drains the consumers and runs `das-down` itself. Rejoin this runbook
+> at [step 3](#3-power-off-and-move-it) for the enclosure, and at
+> [step 4](#4-power-on-and-verify-the-enclosure) on the way back — with
+> [`../scripts/rack/startup`](../scripts/rack/startup) in place of step 6, since Argo
+> restores the workloads once the nodes are uncordoned.
 
 ## What consumes `/mnt/r0`
 

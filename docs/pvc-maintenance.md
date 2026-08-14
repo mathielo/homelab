@@ -63,6 +63,10 @@ kubectl -n <namespace> get sts <name> -o jsonpath='{.spec.persistentVolumeClaimR
 This bit on 2026-07-31: scaling `sts/loki` to 0 to free a node for a reboot
 deleted `storage-loki-0` and all retained logs.
 
+[`../scripts/rack/shutdown`](../scripts/rack/shutdown) reads `whenScaled` per
+StatefulSet and takes the delete-pod path automatically, so a full-rack shutdown
+does not need this table consulted by hand.
+
 To take a `whenScaled: Delete` StatefulSet off a node without losing its volume,
 **cordon the node and delete the pod** instead of scaling — the replica count
 never changes, so the retention policy never fires and the pod reschedules

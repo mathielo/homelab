@@ -6,8 +6,9 @@
 # Shutdown order:
 #   1. Home Assistant Pi (fire and forget)
 #   2. Detach Longhorn volumes (cordon + scale workloads to 0 + wait)
-#   3. Shut down k3s nodes (agents first, then server)
-#   4. Pi-hole (last — it's DNS for everything)
+#   3. Stop the DAS array on k3s-node-02
+#   4. Shut down k3s nodes (agents first, then server)
+#   5. pihole-01 (last — it's DNS for everything)
 #
 # Step 2 is critical: powering off a node while a Longhorn volume is still
 # attached tears the iSCSI session away mid-write and corrupts the ext4/DB on
@@ -19,15 +20,30 @@
 # We scale workloads to 0 rather than `kubectl drain` because a full-rack drain
 # deadlocks on the last replica (Node Drain Policy: Block If Contains Last Replica).
 #
+# Cordoning before scaling is also what makes this safe against ArgoCD selfHeal:
+# a deployment Argo scales back to 1 lands on a cordoned node and stays Pending,
+# so the volume it wanted stays detached.
+#
 # Usage: ./scripts/rack/shutdown
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 # Namespaces whose Longhorn-backed workloads must be drained before poweroff.
-LONGHORN_NS=("media" "dashboard")
+# Every namespace holding a Longhorn PVC belongs here — one that is missing gets
+# its volume torn down with the node still attached. Cross-check with:
+#   kubectl -n longhorn-system get volumes.longhorn.io \
+#     -o jsonpath='{range .items[*]}{.status.kubernetesStatus.namespace}{"\n"}{end}' | sort -u
+LONGHORN_NS=("media" "dashboard" "monitoring" "tools")
 
 # k3s nodes in shutdown order: agents first, then server.
 K3S_NODES=("${K3S_AGENTS[@]}" "$K3S_SERVER")
+
+# Label selector for a StatefulSet's pods.
+sts_selector() {
+    kubectl -n "$1" get "$2" \
+        -o go-template='{{range $k, $v := .spec.selector.matchLabels}}{{$k}}={{$v}},{{end}}' \
+        | sed 's/,$//'
+}
 
 wait_for_shutdown() {
     local host="$1"
@@ -61,7 +77,22 @@ for node in "${K3S_NODES[@]}"; do
 done
 
 for ns in "${LONGHORN_NS[@]}"; do
-    kubectl -n "$ns" scale deployment --all --replicas=0 || warn "Failed to scale down $ns"
+    log "Draining $ns..."
+    kubectl -n "$ns" scale deployment --all --replicas=0 || warn "Failed to scale down deployments in $ns"
+
+    # StatefulSets with `whenScaled: Delete` destroy their PVC when scaled to 0
+    # (docs/pvc-maintenance.md) — monitoring/loki lost storage-loki-0 that way.
+    # Deleting the pod releases the volume just as well, and the cordon above
+    # keeps the replacement Pending.
+    for sts in $(kubectl -n "$ns" get sts -o name); do
+        if [ "$(kubectl -n "$ns" get "$sts" -o jsonpath='{.spec.persistentVolumeClaimRetentionPolicy.whenScaled}')" = "Delete" ]; then
+            log "$ns/$sts is whenScaled=Delete — deleting its pods instead of scaling."
+            kubectl -n "$ns" delete pod -l "$(sts_selector "$ns" "$sts")" \
+                || warn "Failed to delete pods for $ns/$sts"
+        else
+            kubectl -n "$ns" scale "$sts" --replicas=0 || warn "Failed to scale down $ns/$sts"
+        fi
+    done
 done
 
 log "Waiting for all Longhorn volumes to detach..."
@@ -81,22 +112,43 @@ done
 if [ -n "$attached" ]; then
     warn "Volumes still attached after ${max_wait}s — NOT safe to power off:"
     echo "$attached" >&2
-    warn "Investigate before continuing (Ctrl-C to abort)."
+    warn "Powering off now risks corrupting them."
+    read -r -p "Type 'yes' to power off anyway, anything else aborts: " reply
+    [ "$reply" = "yes" ] || { warn "Aborted — nothing was powered off."; exit 1; }
 fi
 
-# --- Step 3: Shut down k3s nodes ---
+# --- Step 3: Stop the DAS array on k3s-node-02 ---
+# The enclosure loses power with the rack. Its RAID 0 has no backup, so the array
+# is stopped explicitly rather than left to systemd's unmount on the way down.
+# See docs/das-power-cycle.md. Never run ansible/das-raid.yaml to bring it back.
 
-log "=== Step 3: Shutting down k3s nodes ==="
+log "=== Step 3: Stopping the DAS array on k3s-node-02 ==="
+run_ssh k3s-node-02 "sudo das-down" || warn "das-down failed — see docs/das-power-cycle.md before pulling power"
+run_ssh k3s-node-02 "cat /proc/mdstat; mountpoint /mnt/r0 || echo 'unmounted OK'" || true
+
+# --- Step 4: Shut down k3s nodes ---
+
+log "=== Step 4: Shutting down k3s nodes ==="
 for node in "${K3S_NODES[@]}"; do
     log "Shutting down $node..."
     run_ssh "$node" "sudo shutdown -h now" || warn "Failed to send shutdown to $node"
     wait_for_shutdown "$node"
 done
 
-# --- Step 4: Pi-hole (last — DNS for the whole network) ---
+# --- Step 5: pihole-01 (last — DNS for the whole network) ---
+# Only pihole-01 is rack-mounted. pihole-02 stays up and keepalived hands it the
+# VIP, so the network keeps resolving DNS while the rack is down.
 
-log "=== Step 4: Shutting down Pi-hole ==="
-run_ssh pihole "sudo shutdown -h now" || warn "Failed to send shutdown to pihole"
+log "=== Step 5: Shutting down pihole-01 ==="
+run_ssh pihole-01 "sudo shutdown -h now" || warn "Failed to send shutdown to pihole-01"
+wait_for_shutdown pihole-01
+
+log "Checking pihole-02 took over the VIP..."
+if run_ssh pihole-02 "ip -4 addr show eth0 | grep -q 10.10.53.53"; then
+    log "pihole-02 holds 10.10.53.53 — DNS is up."
+else
+    warn "pihole-02 does NOT hold 10.10.53.53 — the network has no DNS. Investigate before walking away."
+fi
 
 log "=== Rack shutdown complete ==="
-log "Safe to disconnect power."
+log "Safe to disconnect power. Power the DAS enclosure off at its own switch first."
