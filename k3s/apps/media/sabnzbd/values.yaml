@@ -47,11 +47,11 @@ app-template:
 
         # Gluetun VPN kill-switch as a native k8s sidecar (k8s >= 1.29).
         # restartPolicy: Always promotes this initContainer to a sidecar:
-        #   - Starts before main containers (SABnzbd waits for it to be Ready)
+        #   - Starts before main containers (SABnzbd waits on its startup probe)
         #   - Restarts independently on liveness failure
         #   - Terminates AFTER main containers on pod shutdown
         #
-        # The readiness probe ensures SABnzbd doesn't start until gluetun's
+        # The startup probe ensures SABnzbd doesn't start until gluetun's
         # VPN tunnel and DNS forwarder are both confirmed healthy. Without this
         # ordering guarantee, SABnzbd fires DNS queries while gluetun's DoT
         # resolver is still initialising — causing the forwarder to fall back to
@@ -71,6 +71,21 @@ app-template:
               add:
                 - NET_ADMIN
           probes:
+            # The startup probe is what holds SABnzbd back — for a native
+            # sidecar, kubelet gates the next container on startupProbe, not
+            # readinessProbe. Readiness alone only affects pod-level Ready, so
+            # without this both start in the same second.
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - /gluetun-entrypoint
+                    - healthcheck
+                initialDelaySeconds: 5
+                periodSeconds: 5
+                failureThreshold: 12
             readiness:
               enabled: true
               custom: true
