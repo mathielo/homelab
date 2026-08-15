@@ -153,8 +153,10 @@ app-template:
             PGID: "1000"
             TZ: Europe/Stockholm
           resources:
+            # k3s-node-01 has 4 cores, so the CPU request is kept modest to leave
+            # schedulable capacity; the unset CPU limit is what covers the spikes.
             requests:
-              cpu: 1500m
+              cpu: 500m
               memory: 256Mi
             # Sabnzbd can spike CPU and RAM usage in post-processing and verification/repair jobs.
             limits:
