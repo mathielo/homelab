@@ -79,24 +79,30 @@ All services share the `media-data` PVC (NFS-backed from UNAS-4, mounted at `/me
 ```
 /media/                          ← NFS mount from UNAS-4 (52 TB)
 ├── dl/                          ← download clients write here
-│   ├── movies/                  ← qBittorrent "movies" category → Radarr imports from here
-│   ├── shows/                   ← qBittorrent "shows" category → Sonarr imports from here
+│   ├── movies/                  ← qBittorrent "nas/movies" category → Radarr imports from here
+│   ├── shows/                   ← qBittorrent "nas/shows" category → Sonarr imports from here
+│   ├── books/                   ← qBittorrent "nas/books" category
+│   ├── parked/                  ← qBittorrent "nas/parked" category
+│   ├── seeding/                 ← qBittorrent "nas/seeding" category
 │   └── usenet/                  ← SABnzbd download root
 └── lib/                         ← ARR apps hardlink here; media servers read here
     ├── movies/                  ← Radarr root folder, Plex movies library
-    └── shows/                   ← Sonarr root folder, Plex shows library
+    ├── shows/                   ← Sonarr root folder, Plex shows library
+    └── books/ cartoons/ concerts/ music/ musicvids/ yt/
 ```
 
 ### qBittorrent Categories → ARR Correlation
 
-qBittorrent categories define the per-category save path (`dl/<category>`). ARR download clients must be configured with the **matching category name** so Sonarr/Radarr can track and import only their own downloads.
+qBittorrent categories define the per-category save path. ARR download clients must be configured with the **matching category name** so Sonarr/Radarr can track and import only their own downloads.
 
 | qBittorrent category | Save path          | ARR service | Download client category in ARR |
 | -------------------- | ------------------ | ----------- | ------------------------------- |
-| `movies`             | `/media/dl/movies` | Radarr      | `movies`                        |
-| `shows`              | `/media/dl/shows`  | Sonarr      | `shows`                         |
+| `nas/movies`         | `/media/dl/movies` | Radarr      | `nas/movies`                    |
+| `nas/shows`          | `/media/dl/shows`  | Sonarr      | `nas/shows`                     |
 
-Categories and per-instance preferences are managed declaratively via scripts in [scripts/qbt/](../scripts/qbt/): `apply-categories.sh <instance>` pushes [`categories.yaml`](../scripts/qbt/categories.yaml) (category → save path) and `apply-prefs.sh <instance>` pushes [`prefs.yaml`](../scripts/qbt/prefs.yaml), both through the WebUI API.
+Categories and per-instance preferences are managed declaratively via scripts in [scripts/qbt/](../scripts/qbt/): `apply-categories.sh <instance>` pushes that instance's block of [`categories.yaml`](../scripts/qbt/categories.yaml) (category → save path; each instance has its own set) and `apply-prefs.sh <instance>` pushes [`prefs.yaml`](../scripts/qbt/prefs.yaml), both through the WebUI API.
+
+Categories prefixed `nas/` save to the NFS share, `r0/` to the DAS RAID0 on k3s-node-02.
 
 > :bulb: qBittorrent persists categories to `/config/config/categories.json` on the Longhorn config PVC, so they survive pod restarts; the scripts are the source of truth and re-apply them to a fresh instance.
 

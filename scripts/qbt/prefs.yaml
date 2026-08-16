@@ -35,7 +35,7 @@ scheduler_enabled: false # Time-of-day alt-speed scheduler
 
 # === BitTorrent / Queueing ===
 queueing_enabled: true # Torrent queueing
-max_active_downloads: 5 # Max simultaneously downloading torrents
+max_active_downloads: 12 # Max simultaneously downloading torrents
 max_active_uploads: -1 # Max simultaneously uploading (seeding) torrents (-1 = unlimited)
 max_active_torrents: -1 # Max active torrents overall (-1 = unlimited, downloads still capped by max_active_downloads)
 max_connec: 200 # Global maximum connections

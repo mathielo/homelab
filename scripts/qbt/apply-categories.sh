@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Create categories from scripts/qbt/categories.yaml on a qBittorrent instance.
+# Categories are keyed by instance in the YAML — each instance gets only its own set.
 # Idempotent: createCategory 409s if the category exists, so we fall back to
 # editCategory to update its save path (categories.yaml is the source of truth).
+# Only creates/updates — categories dropped from the YAML are left in place.
 # Requires: yq (mikefarah, Go) — installed via scripts/install.sh
 #
 # Usage: scripts/qbt/apply-categories.sh <instance>
@@ -19,7 +21,7 @@ case "${1:-}" in
 esac
 
 for inst in "${INSTANCES[@]}"; do
-    yq -o=json '.' "$CATS_FILE" | jq -r 'to_entries[] | "\(.key)\t\(.value.save_path)"' \
+    yq -o=json '.' "$CATS_FILE" | jq -r --arg inst "$inst" '.[$inst] | to_entries[] | "\(.key)\t\(.value.save_path)"' \
     | while IFS=$'\t' read -r cat save_path; do
         if kubectl -n media exec "deploy/${inst}" -c main -- \
             wget -qO- --post-data="category=${cat}&savePath=${save_path}" \

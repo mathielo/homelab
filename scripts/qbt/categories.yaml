@@ -1,17 +1,35 @@
-# qBittorrent categories pushed via /api/v2/torrents/createCategory.
-# Save paths are inside the container — /local is the per-instance NVMe
-# hostPath on k3s-node-02; /media/dl/* is the shared UNAS-4 NFS share.
+# qBittorrent categories pushed via /api/v2/torrents/createCategory, keyed by instance
+# (each instance has its own set — the trackers and workflows behind them differ).
+# Save paths are inside the container — /local is the per-instance NVMe hostPath on
+# k3s-node-02, /r0 the DAS RAID0 hostPath, /media the UNAS-4 NFS share.
 # Apply with: scripts/qbt/apply-categories.sh <instance>
 
-### Local
-# NVMe
-free: { save_path: /local/free } # Local (transient, often deleted)
-# DAS
-r0: { save_path: /r0 } # DAS-backed scratch on k3s-node-02
-uploader: { save_path: /r0/uploader } # For own uploads to trackers
+qbt-br:
+  nas: { save_path: /media/dl }
+  nas/books: { save_path: /media/dl/books }
+  nas/movies: { save_path: /media/dl/movies } # *Arr download client target
+  nas/shows: { save_path: /media/dl/shows } # *Arr download client target
+  nas/parked: { save_path: /media/dl/parked }
+  nas/seeding: { save_path: /media/dl/seeding }
+  r0: { save_path: /r0 }
+  r0/autobrr: { save_path: /r0/autobrr }
+  r0/manual: { save_path: /r0/manual }
+  r0/upper: { save_path: /r0/upper } # Own uploads (Upload-Assistant)
 
-### Remote
-# NAS
-movies: { save_path: /media/dl/movies } # NAS (Radarr/Sonarr fetches from here)
-shows: { save_path: /media/dl/shows } # NAS (Radarr/Sonarr fetches from here)
-parrked: { save_path: /media/dl/parrked } # NAS parked for eventual use in *Arr stack
+qbt-se:
+  nas: { save_path: /media/dl }
+  nas/books: { save_path: /media/dl/books }
+  nas/movies: { save_path: /media/dl/movies } # *Arr download client target
+  nas/shows: { save_path: /media/dl/shows } # *Arr download client target
+  nas/parked: { save_path: /media/dl/parked }
+  nas/seeding: { save_path: /media/dl/seeding }
+  r0: { save_path: /r0 }
+  r0/autobrr: { save_path: /r0/autobrr }
+  r0/manual: { save_path: /r0/manual }
+  r0/upper: { save_path: /r0/upper } # Own uploads (Upload-Assistant)
+
+qbt-mam:
+  nas: { save_path: /media/dl }
+  nas/books: { save_path: /media/lib/books }
+  r0: { save_path: /r0 }
+  r0/books: { save_path: /r0/books }
