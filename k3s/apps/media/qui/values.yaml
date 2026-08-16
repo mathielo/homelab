@@ -44,6 +44,8 @@ app-template:
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-prod
         nginx.ingress.kubernetes.io/proxy-body-size: 8m
+        # Increase nginx timeout to allow for bulky operations
+        nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
       hosts:
         - host: qui.m6o.dev
           paths:
