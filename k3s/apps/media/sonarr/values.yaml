@@ -15,8 +15,7 @@ app-template:
               cpu: 50m
               memory: 384Mi
             limits:
-              cpu: 1000m
-              memory: 640Mi
+              memory: 2Gi
 
   service:
     sonarr:
