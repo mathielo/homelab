@@ -276,6 +276,22 @@ prometheus:
               annotations:
                 summary: "Longhorn backup/snapshot job {{ $labels.job_name }} failed"
 
+            # The job above reports success as long as it ran, even when an
+            # individual volume inside it failed to back up, so volume age is
+            # the only signal that a volume is actually falling behind.
+            # Dailies run 00:15, so 30h flags a single missed run without
+            # firing during the window itself.
+            #
+            # `> 0` drops the volumes on longhorn-no-bkp, which never back up by
+            # design and report a zero timestamp.
+            - alert: LonghornVolumeBackupStale
+              expr: (time() - longhorn_volume_last_backup_at > 30 * 3600) and longhorn_volume_last_backup_at > 0
+              for: 1h
+              labels:
+                severity: warning
+              annotations:
+                summary: "Longhorn volume {{ $labels.pvc_namespace }}/{{ $labels.pvc }} has no backup for {{ $value | humanizeDuration }} — the recurring job is skipping it"
+
         # SMART health from smartctl-exporter (k3s-node-02: the DAS pair behind
         # /mnt/r0, plus the NVMe carrying Longhorn and /local).
         - name: disk-health

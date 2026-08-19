@@ -1,13 +1,20 @@
 ---
-description: Read-only health sweep of the k3s cluster (firing alerts, node metrics, pods, resource balance, ArgoCD, Longhorn, per-app logs, warnings)
+description: Health sweep of the k3s cluster (firing alerts, node metrics, pods, resource balance, ArgoCD, Longhorn, per-app logs, warnings) — read-only against infra; may apply resource sizing to values.yaml when the repo is clean
 argument-hint: "[log window, e.g. 1h, 6h — default 1h]"
-allowed-tools: Bash(kubectl get:*), Bash(kubectl top:*), Bash(kubectl logs:*), Bash(kubectl describe:*), Bash(kubectl exec:*), Bash(ssh:*), Bash(jq:*), Bash(grep:*), Bash(sed:*), Bash(awk:*), Bash(echo:*), Bash(printf:*), Bash(tail:*), Bash(head:*), Bash(cut:*), Bash(sort:*), Bash(uniq:*), Bash(for:*)
+allowed-tools: Bash(kubectl get:*), Bash(kubectl top:*), Bash(kubectl logs:*), Bash(kubectl describe:*), Bash(kubectl exec:*), Bash(ssh:*), Bash(git status:*), Bash(git diff:*), Bash(jq:*), Bash(grep:*), Bash(sed:*), Bash(awk:*), Bash(echo:*), Bash(printf:*), Bash(date:*), Bash(tail:*), Bash(head:*), Bash(cut:*), Bash(sort:*), Bash(uniq:*), Bash(for:*), Read, Edit
 ---
 
-Run an on-demand, **read-only** health check of the homelab k3s cluster and give
-me a structured report. Never mutate anything — `kubectl get`/`top`/`logs`/
-`describe` and read-only `ssh` OS inspection only. Log scan window: `$1`
-(default `1h` if empty).
+Run an on-demand health check of the homelab k3s cluster and give me a structured
+report. Log scan window: `$1` (default `1h` if empty).
+
+**The infrastructure is strictly read-only**: `kubectl get`/`top`/`logs`/`describe`/
+`exec` of read commands, and read-only `ssh` OS inspection. No `apply`/`edit`/`patch`/
+`scale`, no writes through any app's API, nothing changed on a node.
+
+The one thing this check may write is the **repo working tree**, and only under §3's
+sizing gate — resource requests and limits in `values.yaml`, when the tree is clean.
+That is proposing a change as code, which is how every change here is made; it is not
+touching the running cluster. Never `git add`/`commit`/`push`.
 
 Run the checks below (batch independent commands in parallel), then **interpret**
 the results — don't just dump raw output. Apply judgment: separate real problems
@@ -128,11 +135,22 @@ modes here present as a perfectly green pod, so check for them explicitly:
   log lines give it away. Any *arr sitting at high steady CPU with a repeating startup
   line in §6 is this. Fix: `kubectl rollout restart` (never the UI Restart button).
 - **gluetun port-forward drop** (`qbt-*`) — ProtonVPN forwarded ports **never
-  auto-recover** once dropped, and the container reports healthy throughout. Verify
-  the port is actually live per instance rather than assuming:
-  `kubectl exec -n media deploy/qbt-se -c main -- wget -qO- localhost:8080/api/v2/app/preferences | jq .listen_port`
-  and compare with gluetun's current forwarded port. A mismatch is 🟡 fixable
+  auto-recover** once dropped, and the container reports healthy throughout. Compare
+  gluetun's forwarded port against what qBittorrent is actually listening on:
+
+  ```
+  for q in qbt-se qbt-br qbt-mam; do echo -n "$q "; \
+    kubectl exec -n media deploy/$q -c gluetun -- cat /tmp/gluetun/forwarded_port; \
+    kubectl exec -n media deploy/$q -c main -- wget -qO- localhost:8080/api/v2/app/preferences | jq .listen_port; done
+  ```
+
+  Read the **file**, not the control API: gluetun ≥3.40 requires auth on `:8000`, so
+  `wget localhost:8000/v1/...` exits 6 rather than answering. A mismatch is 🟡 fixable
   (`vpn-port-healer` handles rotation, but confirm it acted).
+
+  `gluetun`, `vpn-port-healer` and `cleanup-stale-lock` are **native sidecars**
+  (initContainers with `restartPolicy: Always`). `kubectl exec -c <name>` reaches them,
+  but anything reading `.spec.containers[]` does not — see §3.
 - **Wedged NFS mount** — surfaces as slow pods on one node, not as a pod condition.
   Caught in §1, not here.
 
@@ -161,15 +179,19 @@ touch). Two data sources, joined per `namespace/pod/container`:
 
 - **Live usage** (metrics-server snapshot — millicores + MiB):
   `kubectl top pods -A --containers --no-headers`
-- **Configured requests/limits**:
-  `kubectl get pods -A -o json | jq -r '.items[]|.metadata.namespace as $ns|.metadata.name as $p|.spec.containers[]|[$ns+"/"+$p+"/"+.name,(.resources.requests.cpu//"-"),(.resources.limits.cpu//"-"),(.resources.requests.memory//"-"),(.resources.limits.memory//"-")]|@tsv'`
+- **Configured requests/limits** — `(.spec.containers[], .spec.initContainers[]?)`,
+  because `.spec.containers[]` alone drops every native sidecar (`gluetun`,
+  `vpn-port-healer`, `cleanup-stale-lock`), and `kubectl top --containers` omits them
+  too. Their usage is only visible through the Prometheus queries below, so check
+  sidecar throttling there rather than trusting the join to list them:
+  `kubectl get pods -A -o json | jq -r '.items[]|.metadata.namespace as $ns|.metadata.name as $p|(.spec.containers[], .spec.initContainers[]?)|[$ns+"/"+$p+"/"+.name,(.resources.requests.cpu//"-"),(.resources.limits.cpu//"-"),(.resources.requests.memory//"-"),(.resources.limits.memory//"-")]|@tsv'`
 
 Join them (awk on the `ns/pod/container` key, no temp files) and, per container,
 reason about `mem %R = use/request`, `mem %L = use/limit`, and `cpu %R = use/request`:
 
 ```
 awk -F'\t' 'NR==FNR{r[$1]=$2" "$3" "$4" "$5; next} ($1 in r){print $1"\t"$2"\t"$3"\t"r[$1]}' \
-  <(kubectl get pods -A -o json 2>/dev/null | jq -r '.items[]|.metadata.namespace as $ns|.metadata.name as $p|.spec.containers[]|[$ns+"/"+$p+"/"+.name,(.resources.requests.cpu//"-"),(.resources.limits.cpu//"-"),(.resources.requests.memory//"-"),(.resources.limits.memory//"-")]|@tsv' | sort) \
+  <(kubectl get pods -A -o json 2>/dev/null | jq -r '.items[]|.metadata.namespace as $ns|.metadata.name as $p|(.spec.containers[], .spec.initContainers[]?)|[$ns+"/"+$p+"/"+.name,(.resources.requests.cpu//"-"),(.resources.limits.cpu//"-"),(.resources.requests.memory//"-"),(.resources.limits.memory//"-")]|@tsv' | sort) \
   <(kubectl top pods -A --containers --no-headers 2>/dev/null | awk '{print $1"/"$2"/"$3"\t"$4"\t"$5}' | sort)
 ```
 (columns: `key  cpu_use  mem_use  cpu_req cpu_lim mem_req mem_lim`)
@@ -222,6 +244,34 @@ container idling at 200 Mi that peaked at 8 Gi is not over-provisioned). Propose
 number. Carry 🔴 near-limit and 🟡 under-request rows into the §8 sweep as 🔧
 fixable; keep over-provisioning as a separate optimization note.
 
+### Applying the sizing changes
+
+**Gate first — a clean working tree is the precondition:**
+
+```
+git -C <repo> status --porcelain
+```
+
+**Empty output → edit the `values.yaml` files directly** with the numbers from the
+table. Non-empty → **change nothing**; report the proposal as a diff to apply by hand
+and say which paths are dirty. The gate exists so the sizing edits land as a
+reviewable standalone diff instead of tangling with work already in progress.
+
+What may be applied this way is deliberately narrow:
+
+- **Only `resources:` requests and limits.** Never images, replicas, probes, args, or
+  anything else surfaced by the run.
+- **Only numbers corroborated by the 7d peak**, never by the `kubectl top` snapshot
+  alone. No history, no edit.
+- **Never on a node already deep in limit overcommit** without saying so — raise the
+  **request** there, and flag the limit increase for the user to decide.
+
+After editing, run `git -C <repo> diff` and put it in the report: the run must show
+exactly what it changed. Then stop. **Do not `git add`, commit, push, or apply
+anything to the cluster** — Argo syncs from the repo, the user reviews and commits,
+per the repo's GitOps and git-ownership policies. An applied edit is still a
+*proposal*, one that happens to already be written down.
+
 ## 4. ArgoCD
 
 `kubectl get applications -n argocd` with sync + health columns; flag anything
@@ -234,10 +284,31 @@ recurring `backup`/`snapshot` **job** pods reached `Completed`. Match the
 timestamped job pods only (`grep -E 'daily-backup-|snapshot-[0-9]'`) — NOT the
 always-`Running` `csi-snapshotter` controller pods.
 
-A `Completed` job pod only proves the job ran. Check **backup freshness** too — the
-newest backup per volume against the schedule (`daily-backup` 00:15, `weekly-backup`
-Sun 00:30, `monthly-backup` 1st 00:45, `snapshot-6h`): a job that completes while
-silently backing nothing up looks identical here otherwise.
+A `Completed` job pod only proves the job ran. An individual volume can fail inside a
+job that still reports success, so check the **volumes**, two ways:
+
+```
+kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- wget -qO- \
+  'localhost:9090/api/v1/query?query=(time()-longhorn_volume_last_backup_at)/3600' \
+  | jq -r '.data.result[]|"\(.metric.pvc_namespace)/\(.metric.pvc)\t\((.value[1]|tonumber)|floor)h"' | sort -k2 -rn
+```
+
+- **Age** — against the schedule (`daily-backup` 00:15, `weekly-backup` Sun 00:30,
+  `monthly-backup` 1st 00:45, `snapshot-6h`). `LonghornVolumeBackupStale` alerts on
+  this at 30h, so §0 normally catches it first.
+- **Gaps** — count *distinct volumes backed up per day* over the last week. A day
+  whose count dips below its neighbours means specific volumes were skipped while the
+  job still reported Completed, and the newest-backup timestamp stays green:
+
+  ```
+  kubectl get backups.longhorn.io -n longhorn-system -o json \
+    | jq -r '.items[]|"\(.status.snapshotCreatedAt[0:10])\t\(.status.volumeName)"' \
+    | sort -u | awk '{c[$1]++} END{for(d in c) print d, c[d]}' | sort | tail -8
+  ```
+
+Also watch longhorn-manager for `Failed to get backupInfo from remote backup target`
+(§6): a backup record on the NFS target that cannot be read is retried every ~10 min
+forever, and it names the volume it belongs to.
 
 **Volumes on the `longhorn-no-bkp` StorageClass have no backups _by design_** — the
 four monitoring volumes (prometheus, alertmanager, loki, influxdb) hold disposable
@@ -320,10 +391,25 @@ pihole-02 is correct):
 ## 8. Warnings sweep & assessment (the headline section)
 
 Aim: warning-free. Aggregate **every** warning from all sources — the firing
-Prometheus alerts from §0, `kubectl get events -A --field-selector type=Warning`, the
+Prometheus alerts from §0, the k8s warning events **bounded to the window**, the
 WARN/ERROR log lines from §6 **with their counts**, the metric-threshold breaches
 from §1, the silent failures from §2, the near-limit / under-request rows from §3,
-and the Pi-hole HA breaches from §7 — then assess each one. Present a table:
+and the Pi-hole HA breaches from §7 — then assess each one.
+
+Events must be time-filtered explicitly. `kubectl get events` returns the full
+retained history, and events from the `events.k8s.io` API carry `lastTimestamp: null`
+(the timestamp lives in `eventTime`), so sorting or filtering on `lastTimestamp`
+silently keeps them. Unfiltered, an 11-day-old `ImageGCFailed` and a cordon-storm of
+`FailedScheduling` from the last rack maintenance both read as current problems:
+
+```
+kubectl get events -A --field-selector type=Warning -o json | jq -r --arg t "$(date -u -d '12 hours ago' +%Y-%m-%dT%H:%M:%SZ)" '
+  .items[] | (.eventTime // .lastTimestamp // .firstTimestamp) as $ts
+  | select($ts != null and $ts > $t)
+  | "\($ts)\t\(.reason)\t\(.involvedObject.namespace)/\(.involvedObject.name)\t\(.count // .series.count // 1)x\t\(.message[0:100])"' | sort
+```
+
+(substitute the run's window for `12 hours ago`.) Present a table:
 
 `Source | Warning | Frequency | Assessment`
 
@@ -417,6 +503,8 @@ by-design rows that are deliberately exempt from their threshold (e.g.
    under-request rows first (with snapshot, 7d peak, the exact `values.yaml` and the
    suggested number), then any over-provisioned trims as optimizations. Skip the
    section only if nothing is off in either direction (say so in one line).
+   State the working-tree gate either way: the `git diff` of what was applied, or
+   which paths were dirty and therefore left untouched.
 7. The **Warnings & assessment** table from §8 — the focus. For 🔧 fixable ones,
    propose the change as code/commands; **don't apply** — per repo policy all
    changes are GitOps/IaC and the user runs them.
