@@ -1,7 +1,7 @@
 ---
-description: Read-only health sweep of the k3s cluster (node metrics, pods, resource balance, ArgoCD, Longhorn, warnings)
+description: Read-only health sweep of the k3s cluster (firing alerts, node metrics, pods, resource balance, ArgoCD, Longhorn, per-app logs, warnings)
 argument-hint: "[log window, e.g. 1h, 6h — default 1h]"
-allowed-tools: Bash(kubectl get:*), Bash(kubectl top:*), Bash(kubectl logs:*), Bash(kubectl describe:*), Bash(ssh:*), Bash(jq:*), Bash(grep:*), Bash(sed:*), Bash(awk:*), Bash(echo:*), Bash(tail:*), Bash(cut:*), Bash(sort:*), Bash(for:*)
+allowed-tools: Bash(kubectl get:*), Bash(kubectl top:*), Bash(kubectl logs:*), Bash(kubectl describe:*), Bash(kubectl exec:*), Bash(ssh:*), Bash(jq:*), Bash(grep:*), Bash(sed:*), Bash(awk:*), Bash(echo:*), Bash(printf:*), Bash(tail:*), Bash(head:*), Bash(cut:*), Bash(sort:*), Bash(uniq:*), Bash(for:*)
 ---
 
 Run an on-demand, **read-only** health check of the homelab k3s cluster and give
@@ -14,6 +14,41 @@ the results — don't just dump raw output. Apply judgment: separate real proble
 from known-benign noise. The standing goal is a **warning-free environment**, so
 actively hunt warnings and, for each, decide whether it's fixable or must be
 accepted (see §8).
+
+## 0. Firing alerts (start here)
+
+The cluster's Prometheus alert rules (defined in
+`k3s/apps/monitoring/prometheus/values.yaml` — node/disk/PVC, Longhorn, SMART
+temperature & health, ingress, cert expiry, Pi-hole HA) are the authoritative
+statement of what "unhealthy" means here, so read it before hand-rolling any
+threshold below:
+
+```
+kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- \
+  wget -qO- 'localhost:9090/api/v1/query?query=ALERTS' \
+  | jq -r '.data.result[]|"\(.metric.alertstate)\t\(.metric.severity)\t\(.metric.alertname)\t\(.metric.node // .metric.pod // .metric.device // "-")"' | sort -u
+```
+
+Every **firing** alert goes into the §8 table — a report that says 🟢 while an
+*unassessed* alert is firing is wrong. `pending` ones are leads worth naming.
+
+An alert listed in §8's **standing accepted conditions** is the exception: it is
+already assessed, so it does not force the verdict down. Report it on one line
+(`🟢 healthy — 1 standing: DAS disk temps`) and move on. Re-litigating the same
+accepted alert every run is the noise this check exists to remove — but do check its
+**re-open trigger**, which is the whole point of writing one down.
+
+This section also keeps the skill honest, in both directions:
+
+- **A firing alert that no §1–§7 check would have caught** = a blind spot in this
+  file. Name it and propose the check.
+- **A threshold in this file with no matching alert rule** = a gap in monitoring;
+  this check only runs when the user runs it, an alert rule runs always. Propose the
+  rule for `prometheus/values.yaml`.
+
+Prometheus also answers questions this sweep otherwise guesses at — SMART drive
+temperatures (`smartctl_device_temperature`), CPU throttling, memory peaks. Retention
+is **15d**, so any "is this normal or new?" question is answerable, not speculative.
 
 ## 1. Node metrics (structured, glanceable, comparable between runs)
 
@@ -45,8 +80,29 @@ scannable at a glance (a row's status = its worst breached metric):
   is intentionally kept near full — that's its designed usage. Always render it
   ⚪ regardless of Use%; never 🟡/🔴 and never carry it to the §8 warnings sweep.**
 
+Then a second read-only pass for the things `df` and `load` cannot show — stalled
+mounts and real saturation:
+
+```
+for h in k3s-server k3s-node-01 k3s-node-02; do echo "### $h"; ssh -o ConnectTimeout=5 "$h" \
+  'echo "psi_cpu=$(awk "/some/{print \$3}" /proc/pressure/cpu) psi_io=$(awk "/some/{print \$3}" /proc/pressure/io) psi_mem=$(awk "/some/{print \$3}" /proc/pressure/memory)";
+   echo "dstate_procs=$(ps -eo stat= | grep -c "^D")";
+   grep " nfs " /proc/mounts | awk "{print \$2}" | grep -v kubelet'; done
+```
+
+- **PSI over load** — `/proc/pressure/*` `avg60` is the honest saturation signal.
+  **k3s-server's load average lies**: it spikes to 10–20 with CPU idle, zero iowait
+  and flat PSI (thread-churn artifact). On that node, judge by PSI and `CPU busy`,
+  and never open a §8 warning on `Load÷core` alone. On node-02 the load is real.
+- **`dstate_procs` > 0 with `/mnt/nas/media` present** — the wedged-`hard`-NFS-mount
+  failure mode. Uninterruptible processes survive `kill -9`; symptoms are node-wide
+  slowness and high iowait, not one sick pod. 🔴 — the fix is at the NAS/mount end,
+  not in k8s. **Do not `ls`, `df` or `stat` the wedged mount to confirm** — that
+  hangs the check too. `/proc/mounts` and PSI are enough.
+
 Flag with thresholds (these are warnings — carry to §8):
-`Load÷core` 🟡 >1.0 / 🔴 >2.0 sustained · `CPU busy` 🟡 >85% · `iowait` 🟡 >20% ·
+`Load÷core` 🟡 >1.0 / 🔴 >2.0 sustained (⚪ on k3s-server, see above) ·
+`PSI io avg60` 🟡 >20 · `dstate_procs` 🔴 >0 · `CPU busy` 🟡 >85% · `iowait` 🟡 >20% ·
 `Mem` 🟡 >90% · `Disk` 🟡 ≥85% / 🔴 ≥90% (except `/mnt/r0` — always ⚪, see
 above). The 40 GiB `/` partitions trend high (containerd image cache in
 `/var/lib/k3s/agent`); note ≥85% but know kubelet image-GC self-prunes at the
@@ -63,9 +119,43 @@ high threshold (85%, set in `ansible/k3s/install-k3s.yaml`).
   so rather than alarming. Only recent/repeating restarts matter. Note the
   `reason` — an **OOMKilled** terminated-state feeds §3 (real mem-limit pressure).
 
+**Silent failures** — `Running` and `0 restarts` is not proof of health. Three known
+modes here present as a perfectly green pod, so check for them explicitly:
+
+- ***arr s6 self-restart bind loop*** — the in-app Restart button orphans the process
+  and s6 respawns a doomed instance every ~4.5 s **forever**. Pod stays `1/1 Running`,
+  restarts `0`, `/ping` returns 200; only ~0.7 cores of CPU and a flood of identical
+  log lines give it away. Any *arr sitting at high steady CPU with a repeating startup
+  line in §6 is this. Fix: `kubectl rollout restart` (never the UI Restart button).
+- **gluetun port-forward drop** (`qbt-*`) — ProtonVPN forwarded ports **never
+  auto-recover** once dropped, and the container reports healthy throughout. Verify
+  the port is actually live per instance rather than assuming:
+  `kubectl exec -n media deploy/qbt-se -c main -- wget -qO- localhost:8080/api/v2/app/preferences | jq .listen_port`
+  and compare with gluetun's current forwarded port. A mismatch is 🟡 fixable
+  (`vpn-port-healer` handles rotation, but confirm it acted).
+- **Wedged NFS mount** — surfaces as slow pods on one node, not as a pod condition.
+  Caught in §1, not here.
+
 ## 3. Resource right-sizing (requests/limits balance)
 
-Right-size the workloads: catch containers that are **starved** (near their limit,
+**First, the node view.** Per-container ratios say nothing about whether a node can
+survive its own pods all peaking at once — the question that actually matters when
+raising a limit:
+
+```
+for n in k3s-server k3s-node-01 k3s-node-02; do echo -n "$n: "; \
+  kubectl describe node "$n" | awk '/Allocated resources/,/Events/' | grep -E "^  (cpu|memory)" | tr '\n' ' '; echo; done
+```
+
+Report a **per-node allocation table** (`Status | Node | RAM | Requests | Limits % |
+Verdict`). Requests are the scheduler's contract and must stay under 100%. Limits
+routinely exceed 100% — that is normal overcommit — but the *ratio* is the blast
+radius: node-02 currently sits at **208 % of RAM in limits**, so a handful of
+containers peaking together will OOM something. State the number before proposing any
+limit increase, and prefer raising a **request** (scheduling truth) over a **limit**
+(ceiling) on a node already deep in overcommit.
+
+Then the per-container view: catch containers that are **starved** (near their limit,
 or using more than they request) or **bloated** (reserving far more than they ever
 touch). Two data sources, joined per `namespace/pod/container`:
 
@@ -109,11 +199,26 @@ table `Status | ns/pod/container | CPU use/req | Mem use/req/lim | mem %R | mem 
 values.yaml comment marks the size as intentional. Over-provisioning flags target
 steady low-usage services (arr apps, small web UIs) with fat requests.
 
-**Snapshot caveat:** `kubectl top` is a single point in time — right-sizing needs a
-*trend*. Treat %R/%L here as a **lead**, not proof. Before proposing a manifest
-change, corroborate with the Prometheus/Grafana history (the cluster runs
-Prometheus) or with OOMKilled / CPU-throttle events. Never churn limits off one
-reading. For each actionable row, name the exact `values.yaml` and the suggested
+**Never size off the snapshot.** `kubectl top` is one instant; a limit set from it is
+a guess. Prometheus holds 15d — use the **7d peak**, which is the number the limit
+actually has to clear:
+
+```
+kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- wget -qO- \
+  'localhost:9090/api/v1/query?query=topk(20,max_over_time(container_memory_working_set_bytes{container!=""}[7d])/1024/1024)' \
+  | jq -r '.data.result[]|"\(.metric.namespace)/\(.metric.pod)/\(.metric.container)\t\(.value[1]|tonumber|floor)Mi"'
+```
+
+CPU pressure has an equivalent, and it beats `cpu %R` as evidence — throttling is the
+symptom a CPU limit actually causes:
+
+```
+  'localhost:9090/api/v1/query?query=topk(10,rate(container_cpu_cfs_throttled_periods_total{container!=""}[6h]))'
+```
+
+Quote **snapshot _and_ 7d peak** in the table so the gap between them is visible (a
+container idling at 200 Mi that peaked at 8 Gi is not over-provisioned). Propose
+`request ≈ steady`, `limit ≈ peak + headroom`, and name the exact `values.yaml` and
 number. Carry 🔴 near-limit and 🟡 under-request rows into the §8 sweep as 🔧
 fixable; keep over-provisioning as a separate optimization note.
 
@@ -129,21 +234,57 @@ recurring `backup`/`snapshot` **job** pods reached `Completed`. Match the
 timestamped job pods only (`grep -E 'daily-backup-|snapshot-[0-9]'`) — NOT the
 always-`Running` `csi-snapshotter` controller pods.
 
-## 6. Log scan (window `$1`)
+A `Completed` job pod only proves the job ran. Check **backup freshness** too — the
+newest backup per volume against the schedule (`daily-backup` 00:15, `weekly-backup`
+Sun 00:30, `monthly-backup` 1st 00:45, `snapshot-6h`): a job that completes while
+silently backing nothing up looks identical here otherwise.
 
-Across `media`, `monitoring`, `longhorn-system`, `kube-extra`, `cert-manager`,
-`argocd`. Match
-on **log-severity markers**, not bare substrings (`fail` matches the `failed_only`
-query param in nginx access logs; `error` matches `"error":null`). Strip ANSI
-first, then grep severity:
+**Volumes on the `longhorn-no-bkp` StorageClass have no backups _by design_** — the
+four monitoring volumes (prometheus, alertmanager, loki, influxdb) hold disposable
+data and were deliberately excluded. Render them ⚪; flagging them as
+missing-backup is a **false positive**, not a finding.
+
+## 6. Log scan (window `$1`) — every app, with frequency
+
+**Pass 1 — the sweep.** One Loki query covers *every* namespace, so a new or renamed
+app cannot fall off the list, and it returns a **count per app**, which is what §8's
+Frequency column needs. Coverage is every namespace — `dashboard`, `tools`,
+`metallb-system` and `kube-system` included, not just the app-heavy ones.
+
+```
+W=${1:-1h}
+Q='sum by (namespace, app) (count_over_time({namespace=~".+"} |~ "(?i)(error|fatal|panic|warn)" ['"$W"']))'
+kubectl exec -n monitoring deploy/grafana -c grafana -- wget -qO- http://loki:3100/loki/api/v1/query \
+  --post-data="query=$(printf %s "$Q" | jq -sRr @uri)" \
+  | jq -r '.data.result[]|"\(.value[1])\t\(.metric.namespace)/\(.metric.app)"' | sort -rn
+```
+
+**Every app with a non-zero count gets triaged — including the ones whose count looks
+"normal".** A steady 60/h of the same benign line is still noise worth fixing at the
+source (log level, probe interval, a stale config the app is complaining about). The
+goal is a **quiet** log, not merely a fault-free one: noise is what hides the one line
+that matters. Work down the list by count.
+
+**Pass 2 — the drill-down.** For each app that surfaced, read the actual lines,
+ranked by repetition:
 
 ```
 kubectl logs -n "$ns" "$pod" --all-containers --prefix --since="$1" 2>/dev/null \
   | sed 's/\x1b\[[0-9;]*m//g' \
   | grep -iE '\b(error|fatal|panic|warn(ing)?)\b|level=(error|warn)|"level":"(error|warn|fatal)"|[[:space:]]E[0-9]{4}[[:space:]]|\[(error|crit)\]' \
   | grep -ivE '"error":null|error=null|level=info|caller=metrics\.go|warnings\.go|is deprecated|"GET |"POST |HTTP/[12]' \
-  | tail -5
+  | sed 's/[0-9]\{4\}-[0-9-]*T[0-9:.]*Z\?//g' | sort | uniq -c | sort -rn | head -10
 ```
+
+`uniq -c` ranks distinct messages by how often they repeat (the `sed` strips
+timestamps so identical events collapse). A message seen once and a message seen
+4 000 times need different responses, so the count must survive into §8.
+
+Match on **log-severity markers**, not bare substrings (`fail` matches the
+`failed_only` query param in nginx access logs; `error` matches `"error":null`).
+
+If Loki is down, fall back to Pass 2 across every namespace from `kubectl get ns`
+(not a hardcoded list) and say in the report that the sweep ran degraded.
 
 ## 7. Pi-hole HA (dual resolver + VIP)
 
@@ -178,16 +319,25 @@ pihole-02 is correct):
 
 ## 8. Warnings sweep & assessment (the headline section)
 
-Aim: warning-free. Aggregate **every** warning from all sources — `kubectl get
-events -A --field-selector type=Warning`, the WARN/ERROR log lines from §6, the
-metric-threshold breaches from §1, the near-limit / under-request rows from §3,
+Aim: warning-free. Aggregate **every** warning from all sources — the firing
+Prometheus alerts from §0, `kubectl get events -A --field-selector type=Warning`, the
+WARN/ERROR log lines from §6 **with their counts**, the metric-threshold breaches
+from §1, the silent failures from §2, the near-limit / under-request rows from §3,
 and the Pi-hole HA breaches from §7 — then assess each one. Present a table:
 
 `Source | Warning | Frequency | Assessment`
 
-where Assessment is one of: **🔧 fixable** (give the concrete GitOps fix to
-propose) or **✅ accept** (known-benign; say why). Drop the known-benign lines
-below before reporting — they're already assessed as accept:
+where Assessment is one of: **🔧 fixable** (give the concrete GitOps fix to propose),
+**✅ accept** (known-benign; say why), or **⚪ standing** (a real condition already
+accepted with an exit trigger — see below; it gets one summary line, not a row).
+
+Fill **Frequency** from the §6 counts, not impressions — "60/h" and "1 in the window"
+get different verdicts. **High-volume benign noise is itself a 🔧 finding**: propose
+the log-level or config change that quiets it, rather than growing the accept-list
+forever. A line only earns ✅ accept when it is both benign *and* unfixable upstream.
+
+Drop the known-benign lines below before reporting — they're already assessed as
+accept:
 
 - nginx `upstream timed out` on `/api/events?stream=` / IRC SSE — an open
   autobrr/UI browser tab hitting the 60s read-timeout, not a fault.
@@ -205,6 +355,13 @@ below before reporting — they're already assessed as accept:
 - `csi-snapshotter` `could not find the requested resource (...VolumeSnapshot*)`
   — k8s external-snapshotter CRDs aren't installed; Longhorn backups use their
   own path and are unaffected.
+- **qui** orphan-scan runs showing `failed` on `qbt-br` — cosmetic: qui has no
+  `/local` mount and br always has active downloads, and qui marks any run with walk
+  errors and zero orphans as failed. Not fixable via Ignore Paths; never mount
+  `/local` into qui.
+- **coredns** `[INFO]`/`[WARNING]` query-log lines (tens of thousands per hour) —
+  query logging is deliberately on. It dominates every Loki count; rank it, then set
+  it aside.
 - **pulsarr** `ERROR: [WATCHLIST_WORKFLOW] Failed to fetch RSS feed` (≈0.7% of
   polls) — Pulsarr polls the Plex watchlist RSS (`rss.plex.tv`, S3-backed) every
   ~10 s with a hardcoded 30 s timeout; occasional Plex-side latency trips it.
@@ -212,6 +369,28 @@ below before reporting — they're already assessed as accept:
   separate path) always succeeds, so nothing is missed. Timeout + ERROR severity
   are hardcoded upstream — not config-fixable; **accept**. Only escalate if full
   reconciliation also starts failing.
+
+### Standing accepted conditions
+
+Separate from the benign log lines above: **real** conditions, knowingly accepted for
+now, each with an explicit trigger that ends the acceptance. Report them as a
+one-line summary, not as fresh findings — but evaluate every re-open trigger on every
+run, and if one fires, it leaves this table and becomes a 🔴 finding.
+
+| Since      | Condition                                              | Why accepted                                                                                     | Re-open when                                                                                                                                      |
+| ---------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-19 | `DiskTemperatureHigh` firing on DAS drives `sda`/`sdb` | Enclosure airflow is at its practical limit; a lower steady temperature needs a physical rebuild | `DiskTemperatureCritical` (>60 °C) fires · `DasDiskLatencyImbalance` fires · any reallocated/pending sector appears · steady state exceeds ~58 °C |
+
+Baseline for that row (so drift is detectable rather than a fresh surprise): steady
+**52–54 °C**, 7d max **58–60 °C**, SMART otherwise clean. Quote the current numbers
+against that baseline in the one-liner — an accepted condition still gets measured.
+
+Adding a row here is a deliberate act: it needs the re-open trigger and the baseline,
+otherwise it is not an acceptance, it is a blind spot.
+
+Permanent by-design exemptions — `/mnt/r0` running near full, k3s-server's phantom
+load — belong inline as ⚪ in their own section, not here. This table is only for
+conditions that are meant to end.
 
 Surface anything that survives this filter (e.g. repeated `x509`/auth failures,
 OOMKills, real `panic`, a *new* app erroring, a disk crossing 90%).
@@ -223,17 +402,44 @@ table rows, per-area lines) so status is scannable at a glance — plus ⚪ for
 by-design rows that are deliberately exempt from their threshold (e.g.
 `/mnt/r0`). Use ⚠️ inline when calling out a specific warning in prose.
 
-1. One-line **verdict** (🟢 healthy / 🟡 N warnings / 🔴 issues).
-2. The two **node-metrics tables** from §1 (the glanceable part), each row led by
-   its 🟢/🟡/🔴 Status column.
-3. Short **per-area** lines (pods / ArgoCD / Longhorn) each prefixed with a
+1. One-line **verdict** (🟢 healthy / 🟡 N warnings / 🔴 issues) — it can never be
+   🟢 while an unassessed Prometheus alert from §0 is firing. Standing accepted
+   conditions ride along in the same line: `🟢 healthy — 1 standing (DAS temps 52/54 °C)`.
+2. **Firing alerts** from §0, if any: alert name, target, severity — with the
+   standing ones grouped and labelled ⚪, so what's *new* stands out from what's known.
+3. The two **node-metrics tables** from §1 (the glanceable part), each row led by
+   its 🟢/🟡/🔴 Status column, plus the **per-node allocation table** from §3.
+4. Short **per-area** lines (pods / ArgoCD / Longhorn) each prefixed with a
    🟢/🟡/🔴 marker.
-4. The **resource right-sizing table** from §3 — 🔴 near-limit and 🟡
-   under-request rows first (with the exact `values.yaml` + suggested number),
-   then any over-provisioned trims as optimizations. Skip the section only if
-   nothing is off in either direction (say so in one line).
-5. The **Warnings & assessment** table from §8 — the focus. For 🔧 fixable ones,
+5. The **per-app log table** from §6 — every app with a non-zero count, its count,
+   and the top repeated message. This is the section that catches slow rot.
+6. The **resource right-sizing table** from §3 — 🔴 near-limit and 🟡
+   under-request rows first (with snapshot, 7d peak, the exact `values.yaml` and the
+   suggested number), then any over-provisioned trims as optimizations. Skip the
+   section only if nothing is off in either direction (say so in one line).
+7. The **Warnings & assessment** table from §8 — the focus. For 🔧 fixable ones,
    propose the change as code/commands; **don't apply** — per repo policy all
    changes are GitOps/IaC and the user runs them.
+8. **Skill feedback** — close every run with what this run taught the check itself:
+   a false positive to accept-list, a manual command the sweep should have run, a
+   miss a section should have caught, or a threshold that deserves a Prometheus rule.
+   Propose it as a concrete edit to this file. "Nothing to change" is a valid answer;
+   an empty section every run is not.
+
+   **Repetition is itself a finding.** This file is the check's only memory, so
+   anything worth knowing next run has to be written into it:
+
+   - A warning assessed **✅ accept for the same reason more than twice** → promote it
+     to a standing accepted condition (with a re-open trigger) or to the benign-lines
+     list, so later runs stop re-deriving it.
+   - A **🔧 fixable that keeps reappearing unfixed** → say how many runs it has
+     survived and treat that as escalation, not as a fresh finding each time. Either
+     it is harder than it looked (write down why) or it deserves an alert rule so it
+     stops depending on someone running this check.
+   - A standing condition whose **numbers drifted** past its baseline → re-open it,
+     even if its alert is one already being accepted.
+   - Something that fires **every single run and is always fine** → the threshold is
+     wrong, not the cluster. Propose the corrected threshold, here or in
+     `prometheus/values.yaml`.
 
 If everything is green, say so plainly — don't invent work.

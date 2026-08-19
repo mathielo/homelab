@@ -17,6 +17,37 @@ This is a homelab repository for documenting, configuring, and automating a home
 - **Keep docs in sync**: The repo is the source of truth, so it must stay accurate. Whenever you spot an outdated/stale doc while doing any task (removed service still listed, renamed path, changed port, etc.), fix it as part of that task. If the fix is genuinely out of scope, flag it explicitly rather than ignore it. Never trust a doc over the live config/manifests — verify, then correct the doc.
 - **Comments and docs state what _is_, not how it got there**: Comment only what isn't inferrable from the code, and phrase it as a present-tense reason — "X is here because Y". No change narration ("this used to be Z", "moved from node-02", "replaced the old approach"), no debugging history, no storytelling about what was tried. Same for docs: a reader wants why it's built this way, not the journey. Prefer no comment over a comment restating the code.
 
+## Skills Are Living Documents
+
+Slash commands under `.claude/commands/` (`/cluster-health`, …) are checked-in code,
+not fixed scripts. Every run is also a chance to improve the command, so treat these
+as findings of the run itself:
+
+- **A false positive is a bug in the command** — if a check flags something known to
+  be by design, add it to that command's accept-list *with the reason*, rather than
+  re-explaining it in the report every time.
+- **A manual command you had to reach for is a missing check** — if answering the
+  user's follow-up needed something the file doesn't list, it belongs in the file.
+- **Something the run missed is a coverage gap** — name the section that should have
+  caught it and extend that section.
+- **A hardcoded list is a future gap** — namespaces, hosts, apps enumerated by hand
+  go stale silently. Prefer a query that discovers them.
+- **Accept known problems with an exit trigger, not indefinitely** — a real issue
+  we're living with for now gets written down *with the condition that re-opens it*
+  and the numbers it looked like when accepted. Without both, it stops being an
+  accepted risk and becomes a blind spot.
+- **Repetition is a finding** — the same thing assessed benign run after run should
+  be promoted to that command's accept-list; the same fix proposed run after run and
+  never applied should escalate, not repeat verbatim.
+
+End such a run with the proposed edit as a concrete diff. "Nothing to change" is a
+valid conclusion; not looking is not. The user applies and commits it, per the git
+policy above.
+
+Durable facts a run uncovers (a real threshold, a failure mode, a fix) belong in
+`docs/` — the repo is the source of truth, and a finding that lives only in a chat
+transcript is a finding you will re-derive from scratch next month.
+
 ## Infrastructure Changes (IaC Only)
 
 Everything is GitOps: tracked in code, idempotent, replayable. **Never mutate live infrastructure directly** — this generalizes the MCP read-only policy below to _all_ infrastructure.
