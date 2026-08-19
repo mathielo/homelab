@@ -328,6 +328,7 @@
       "id": 4,
       "type": "stat",
       "title": "ALERTS",
+      "description": "Split by severity: red is reserved for critical alerts, so a warning-only state (the DAS pair above its 50 °C wear threshold) reads amber.",
       "datasource": "Prometheus",
       "gridPos": {
         "h": 3,
@@ -337,18 +338,25 @@
       },
       "targets": [
         {
-          "expr": "sum(ALERTS{alertstate=\"firing\"}) or vector(0)",
+          "expr": "sum(ALERTS{alertstate=\"firing\",severity=\"critical\"}) or vector(0)",
+          "legendFormat": "CRIT",
           "refId": "A",
+          "instant": true
+        },
+        {
+          "expr": "sum(ALERTS{alertstate=\"firing\",severity!=\"critical\"}) or vector(0)",
+          "legendFormat": "WARN",
+          "refId": "B",
           "instant": true
         }
       ],
       "options": {
         "colorMode": "background",
         "graphMode": "none",
-        "textMode": "value",
+        "textMode": "value_and_name",
         "text": {
-          "titleSize": 12,
-          "valueSize": 40
+          "titleSize": 11,
+          "valueSize": 28
         },
         "reduceOptions": {
           "calcs": [
@@ -372,13 +380,38 @@
                 "value": null
               },
               {
-                "color": "red",
+                "color": "orange",
                 "value": 1
               }
             ]
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CRIT"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
       }
     },
     {

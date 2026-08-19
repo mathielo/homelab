@@ -120,19 +120,27 @@
       "id": 5,
       "type": "stat",
       "title": "Alerts firing",
+      "description": "Split by severity: red is reserved for critical alerts, so a warning-only state (the DAS pair above its 50 °C wear threshold) reads amber.",
       "datasource": "Prometheus",
       "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
       "targets": [
         {
-          "expr": "sum(ALERTS{alertstate=\"firing\"}) or vector(0)",
+          "expr": "sum(ALERTS{alertstate=\"firing\",severity=\"critical\"}) or vector(0)",
+          "legendFormat": "crit",
           "refId": "A",
+          "instant": true
+        },
+        {
+          "expr": "sum(ALERTS{alertstate=\"firing\",severity!=\"critical\"}) or vector(0)",
+          "legendFormat": "warn",
+          "refId": "B",
           "instant": true
         }
       ],
       "options": {
         "colorMode": "background",
         "graphMode": "none",
-        "textMode": "value",
+        "textMode": "value_and_name",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
       },
       "fieldConfig": {
@@ -140,10 +148,23 @@
           "color": { "mode": "thresholds" },
           "thresholds": {
             "mode": "absolute",
-            "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }]
+            "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }]
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "crit" },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }]
+                }
+              }
+            ]
+          }
+        ]
       }
     },
     {
