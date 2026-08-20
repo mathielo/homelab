@@ -30,6 +30,53 @@ plus two explicit jobs in `prometheus/values.yaml`:
   job names (`node-exporter`, `kubelet`, `cadvisor`) and will render "No data" here.
   Prefer extending the custom dashboards below.
 
+## Alerting
+
+Rules and Alertmanager routing both live in
+`k3s/apps/monitoring/prometheus/values.yaml`. Telegram is the only receiver.
+
+### Notification cadence
+
+Routes are evaluated top-down and the **first** match wins, so a specific route
+placed above `severity=critical` overrides the critical cadence.
+
+| Route                                               | `repeat_interval` |
+| --------------------------------------------------- | ----------------- |
+| `NodeDiskPressure` / `NodeDiskCritical`             | 6h                |
+| `Disk.*` / `Nvme.*` / `Das.*` at `severity=warning` | 720h (once)       |
+| `severity=critical`                                 | 1h                |
+| everything else (root)                              | 4h                |
+
+Warning-severity disk alerts get a 30-day interval because they report a physical
+condition that stays true until the hardware changes — the DAS pair runs above its
+50 °C wear threshold permanently, so a repeat is pure noise. Their criticals still
+fall through to the hourly route, which is where a >60 °C reading belongs.
+
+### `repeat_interval` does not bound how often you are paged
+
+Alertmanager flushes a group whenever its **membership** changes, at the next
+`group_interval` tick (5m here) — `repeat_interval` only spaces out repeats of an
+*unchanged* group. An alert that resolves and re-fires therefore notifies on a 5m
+floor no matter how large `repeat_interval` is.
+
+Two consequences:
+
+- **A metric idling near its threshold must have hysteresis in the rule**, not just
+  a longer `for:`. A single sample below the threshold resolves the alert outright,
+  and `for:` then only delays the re-fire. `DiskTemperatureHigh` wraps its query in
+  `max_over_time(...[2h])` for this reason: the alert clears only after a full 2 h
+  below 50 °C.
+- **Group by the label that distinguishes the instances.** With the default
+  `group_by: [alertname, namespace]`, two disks share one group and either one
+  flapping re-notifies for both. The warning disk route groups by `device`.
+
+### Alert templates
+
+`{{ range .Alerts }}` iterates firing *and* resolved alerts, so a firing
+notification will list alerts that already cleared, and a resolved one repeats
+their stale firing text. Iterate `.Alerts.Firing` and `.Alerts.Resolved`
+separately instead.
+
 ## Dashboards
 
 Custom dashboards are plain JSON under `k3s/apps/monitoring/grafana/dashboards/`.

@@ -19,9 +19,12 @@ prometheus:
       telegram.tmpl: |
         {{ define "telegram.message" }}
         {{ if eq .Status "firing" }}🚨{{ else }}🕊{{ end }} <b>{{ .Status | toUpper }}</b>
-        {{ range .Alerts }}
+        {{ range .Alerts.Firing }}
         <b>{{ .Labels.alertname }}</b> ({{ .Labels.severity }})
         {{ .Annotations.summary }}
+        {{ end }}
+        {{ range .Alerts.Resolved }}
+        <b>{{ .Labels.alertname }}</b> ({{ .Labels.severity }}) — cleared
         {{ end }}
         {{ end }}
     config:
@@ -40,13 +43,17 @@ prometheus:
             matchers:
               - alertname=~"NodeDiskPressure|NodeDiskCritical"
             repeat_interval: 6h
-          # SMART/DAS alerts describe a physical condition that stays true until
-          # hardware is changed, so they'd re-notify hourly on the critical route
-          # below for as long as it takes. Matched first to keep them at 4h.
+          # Warning-severity SMART/DAS alerts describe a physical condition that
+          # stays true until the hardware is changed — re-notifying is noise, so
+          # they announce once and stay quiet until they clear. Grouped per
+          # device because one drive crossing its threshold must not re-notify
+          # for the other drives sharing the group.
           - receiver: telegram
             matchers:
               - alertname=~"Disk.*|Nvme.*|Das.*"
-            repeat_interval: 4h
+              - severity=warning
+            group_by: ["alertname", "device"]
+            repeat_interval: 720h
           - receiver: telegram
             matchers:
               - severity=critical
@@ -299,8 +306,12 @@ prometheus:
             # Current HDDs: 60 °C max operating, 10-40 °C recommended.
             # Sustained operation above ~50 °C measurably shortens drive life,
             # so this fires with room to fix airflow before the hardware limit.
+            # `max_over_time` is hysteresis, not smoothing: the DAS pair idles
+            # within 1 °C of this threshold, and a bare `> 50` resolves and
+            # re-fires on every crossing, which re-notifies regardless of
+            # repeat_interval. The alert clears only after a full 2 h below 50.
             - alert: DiskTemperatureHigh
-              expr: smartctl_device_temperature{device=~"sd.+",temperature_type="current"} > 50
+              expr: max_over_time(smartctl_device_temperature{device=~"sd.+",temperature_type="current"}[2h]) > 50
               for: 15m
               labels:
                 severity: warning
