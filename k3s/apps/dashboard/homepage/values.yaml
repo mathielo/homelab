@@ -209,6 +209,11 @@ app-template:
                     type: sabnzbd
                     url: http://sabnzbd.media.svc.cluster.local:8080
                     key: "{{ "{{HOMEPAGE_VAR_SABNZBD_KEY}}" }}"
+              - Yata:
+                  href: https://yata.m6o.dev
+                  description: Tracker stats & ratio
+                  icon: mdi-chart-box
+                  siteMonitor: http://yata.dashboard.svc.cluster.local:8420
 
           - Media:
               - Prowlarr:

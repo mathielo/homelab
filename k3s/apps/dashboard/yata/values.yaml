@@ -1,0 +1,56 @@
+app-template:
+  controllers:
+    yata:
+      containers:
+        yata:
+          image:
+            repository: ghcr.io/yata-dash/yata-dash
+            # Upstream publishes no release tags — only `main`, `dev` and
+            # per-commit SHAs. The digest is what pins this; Renovate bumps it.
+            tag: main@sha256:366affde883ce17efa7a698dfd2c80ab56122d182d368bb7935461edd4f2db87
+          env:
+            TZ: Europe/Stockholm
+            # Yata rejects Host headers it wasn't told about (DNS-rebinding
+            # guard); IP literals pass, hostnames must be listed. The cluster
+            # DNS name is here for Homepage's siteMonitor, which reaches the
+            # Service directly rather than through the ingress.
+            YATA_ALLOWED_HOSTS: yata.m6o.dev,yata.dashboard.svc.cluster.local
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+
+  service:
+    yata:
+      controller: yata
+      ports:
+        http:
+          port: 8420
+
+  ingress:
+    yata:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      hosts:
+        - host: yata.m6o.dev
+          paths:
+            - path: /
+              service:
+                identifier: yata
+                port: http
+      tls:
+        - hosts:
+            - yata.m6o.dev
+          secretName: yata-tls
+
+  persistence:
+    data:
+      existingClaim: yata-data-lh
+      advancedMounts:
+        yata:
+          yata:
+            - path: /data
