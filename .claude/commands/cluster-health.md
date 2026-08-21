@@ -308,12 +308,23 @@ so a volume whose ext4 was destroyed by an unclean detach still shows
 as a pod that never starts:
 
 ```
-kubectl get events -A --field-selector reason=FailedMount \
-  -o custom-columns=NS:.involvedObject.namespace,POD:.involvedObject.name,MSG:.message | grep -i fsck
+LIVE=$(kubectl get pods -A -o json | jq -c '[.items[]|.metadata.namespace+"/"+.metadata.name]')
+kubectl get events -A --field-selector reason=FailedMount -o json \
+| jq -r --arg t "$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ)" --argjson live "$LIVE" '
+  .items[] | select((.eventTime // .lastTimestamp // .firstTimestamp) > $t)
+  | (.involvedObject.namespace + "/" + .involvedObject.name) as $p
+  | select($live | index($p))
+  | "\($p)\t\(.message)"' | grep -i fsck
 ```
 
-Any `UNEXPECTED INCONSISTENCY; RUN fsck MANUALLY` here is 🔴 regardless of what the
-volume list says, and it is not self-healing — replica rebuild copies the damage.
+Both filters are load-bearing, and **the time bound alone is not enough**: an event
+stays retained after its pod is gone and keeps its recent timestamp, so a volume
+repaired ten minutes ago still reports a `FailedMount` inside any sane window. The
+`$live` join is what distinguishes a resolved incident from a current one — a hit
+naming a pod that no longer exists is history, not a finding.
+
+Any `UNEXPECTED INCONSISTENCY; RUN fsck MANUALLY` for a **current** pod is 🔴 regardless
+of what the volume list says, and it is not self-healing — replica rebuild copies the damage.
 Recovery is `e2fsck` on the attached-but-unmounted device
 (`docs/storage-longhorn.md` → "Corrupted volume"). Because it takes a mount to notice,
 this can stay latent for days: a `FailedMount` naming files whose mtimes predate the
@@ -346,10 +357,14 @@ Also watch longhorn-manager for `Failed to get backupInfo from remote backup tar
 (§6): a backup record on the NFS target that cannot be read is retried every ~10 min
 forever, and it names the volume it belongs to.
 
-**Volumes on the `longhorn-no-bkp` StorageClass have no backups _by design_** — the
-four monitoring volumes (prometheus, alertmanager, loki, influxdb) hold disposable
-data and were deliberately excluded. Render them ⚪; flagging them as
-missing-backup is a **false positive**, not a finding.
+**Volumes on the `longhorn-no-bkp` StorageClass have no backups _by design_** — they
+hold disposable monitoring data and were deliberately excluded. Render them ⚪;
+flagging them as missing-backup is a **false positive**, not a finding. Enumerate
+them rather than trusting a written list, which goes stale as volumes come and go:
+
+```
+kubectl get pv -o json | jq -r '.items[]|select(.spec.storageClassName=="longhorn-no-bkp")|"\(.spec.claimRef.namespace)/\(.spec.claimRef.name)"'
+```
 
 ## 6. Log scan (window `$1`) — every app, with frequency
 
@@ -465,7 +480,11 @@ accept:
   autobrr/UI browser tab hitting the 60s read-timeout, not a fault.
 - autobrr `debug` filter "rejected"/rate-limit lines — working as intended.
 - nginx access-log lines (HTTP requests with 2xx/3xx status) — not errors; they
-  also contain apikeys, so never echo them into the report.
+  also contain apikeys, so never echo them into the report. **This generalizes: never
+  echo secret material into the report.** Container env (`*_VAR_*`, `*_KEY`, `*_TOKEN`,
+  `*_PASSWORD`) holds live credentials in plaintext, so when a config check needs one,
+  grep for that single variable instead of dumping the block:
+  `kubectl -n <ns> get deploy <d> -o jsonpath='{...}' | grep ALLOWED_HOSTS`.
 - loki query-stats (`caller=metrics.go`, `level=info`) and coredns `[INFO]`
   query logs — verbose telemetry, not faults.
 - `loki-canary` `tail max duration limit exceeded` — canary recycling its tail.

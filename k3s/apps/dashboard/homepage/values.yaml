@@ -14,7 +14,12 @@ app-template:
             tag: v2.0.0
           env:
             TZ: Europe/Stockholm
-            HOMEPAGE_ALLOWED_HOSTS: hl.m6o.dev
+            # Homepage rejects Host headers it wasn't told about (DNS-rebinding
+            # guard), matching on host *and* port. The cluster entry carries the
+            # :3000 the Service sends because Uptime Kuma's monitor reaches the
+            # Service directly; hl.m6o.dev needs no port because the ingress
+            # terminates on 443 and the browser omits it.
+            HOMEPAGE_ALLOWED_HOSTS: hl.m6o.dev,homepage.dashboard.svc.cluster.local:3000
             HOMEPAGE_SKIP_TLS_VERIFY: "true"
             # * env vars injected via values.sops.yaml
           resources:

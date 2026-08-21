@@ -108,6 +108,14 @@ repoServer:
         - name: custom-tools
           mountPath: /custom-tools
 
+  # The chart default is a 1s timeout on /healthz?full=true. That check exercises
+  # the full rendering path, which here means helm-secrets shelling out to sops on
+  # most apps, so it routinely overruns 1s while the repo-server is busy and the
+  # container gets killed mid-render.
+  livenessProbe:
+    timeoutSeconds: 5
+    failureThreshold: 5
+
   resources:
     requests:
       cpu: 10m

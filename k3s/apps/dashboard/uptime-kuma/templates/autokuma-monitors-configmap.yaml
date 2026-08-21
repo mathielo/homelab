@@ -46,6 +46,13 @@ data:
       "url": "http://uptime-kuma.dashboard.svc.cluster.local:3001",
       "parent_name": "dashboard"
     }
+  yata.json: |
+    {
+      "type": "http",
+      "name": "Yata",
+      "url": "http://yata.dashboard.svc.cluster.local:8420",
+      "parent_name": "dashboard"
+    }
 
   # --- Infrastructure ---
   grafana.json: |
