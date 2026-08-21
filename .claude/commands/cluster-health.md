@@ -125,6 +125,23 @@ high threshold (85%, set in `ansible/k3s/install-k3s.yaml`).
   trace to a single past timestamp = a prior planned reboot, **not** churn — say
   so rather than alarming. Only recent/repeating restarts matter. Note the
   `reason` — an **OOMKilled** terminated-state feeds §3 (real mem-limit pressure).
+- **Pending kernel reboot:** the k3s nodes install security updates unattended but
+  never reboot themselves — an unattended reboot tears Longhorn volumes off
+  mid-write (§5), so the reboot is deferred to `make shutdown` / `make startup`.
+  That safety costs visibility: a node can sit for weeks on a superseded kernel and
+  nothing in `kubectl` shows it, so read the marker file directly.
+
+  ```
+  for h in $(kubectl get nodes -o name | cut -d/ -f2); do printf '%-14s %s\n' "$h" \
+    "$(ssh $h 'cat /var/run/reboot-required.pkgs 2>/dev/null | tr "\n" " "' || echo none)"; done
+  ```
+
+  Discover the hosts from `kubectl` rather than listing them — node names are the
+  SSH host names. 🟡 once a node has been pending more than a week; 🔴 when the
+  pending set includes `linux-image-*` **and** the booted kernel is behind the newest
+  installed one (`ssh $h 'uname -r; ls -1 /boot/vmlinuz-*'`), because the security fix
+  that prompted the update is not actually running. Report it as scheduled work with
+  the quiesced-reboot command — never suggest rebooting the node in place.
 
 **Silent failures** — `Running` and `0 restarts` is not proof of health. Three known
 modes here present as a perfectly green pod, so check for them explicitly:
@@ -283,6 +300,25 @@ Volume `robustness`/`state` (flag non-`healthy`/non-`attached`); confirm the
 recurring `backup`/`snapshot` **job** pods reached `Completed`. Match the
 timestamped job pods only (`grep -E 'daily-backup-|snapshot-[0-9]'`) — NOT the
 always-`Running` `csi-snapshotter` controller pods.
+
+**`robustness: healthy` does not mean the data is intact.** Longhorn reports on the
+block device; it replicates a corrupted filesystem just as faithfully as a good one,
+so a volume whose ext4 was destroyed by an unclean detach still shows
+`attached`/`healthy` with every replica `Running`. The damage surfaces one layer up,
+as a pod that never starts:
+
+```
+kubectl get events -A --field-selector reason=FailedMount \
+  -o custom-columns=NS:.involvedObject.namespace,POD:.involvedObject.name,MSG:.message | grep -i fsck
+```
+
+Any `UNEXPECTED INCONSISTENCY; RUN fsck MANUALLY` here is 🔴 regardless of what the
+volume list says, and it is not self-healing — replica rebuild copies the damage.
+Recovery is `e2fsck` on the attached-but-unmounted device
+(`docs/storage-longhorn.md` → "Corrupted volume"). Because it takes a mount to notice,
+this can stay latent for days: a `FailedMount` naming files whose mtimes predate the
+last reboot means the corruption is older than the reboot that exposed it, and the
+snapshots from that window carry it too — say so, so nobody restores onto the same damage.
 
 A `Completed` job pod only proves the job ran. An individual volume can fail inside a
 job that still reports success, so check the **volumes**, two ways:

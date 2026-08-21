@@ -120,6 +120,10 @@ Symptoms: pod `CrashLoopBackOff` with app errors like `database disk image is ma
      -p '[{"op":"remove","path":"/spec/attachmentTickets/fsck"}]'                                   # detach
    ```
 
+   A pod stuck retrying `MountVolume.MountDevice` is already holding the volume attached with nothing mounted on it, so `/dev/longhorn/$PV` is directly `e2fsck`-able without the ticket. Confirm with `ssh $NODE 'mount | grep $PV'` returning nothing before touching it.
+
+   `e2fsck -y` resolves multiply-claimed blocks by cloning the shared block into one of the claimants, so expect one of the two files to come out wrong even though the filesystem is then clean. Check which files were named in the `fsck` output and treat them as lost.
+
 3. **Assess the data.** Mount the volume in a throwaway pod (`alpine`, `apk add sqlite`) over its PVC and check, e.g. `sqlite3 /config/<app>.db "PRAGMA integrity_check;"`. `fsck` fixes the filesystem, not file contents — an SQLite DB can still be malformed.
 
 4. **If the DB itself is unrecoverable** (`.recover` can't rebuild the tables): restore the newest **pre-incident** backup tier to a temp Longhorn volume, mount it alongside, verify (`integrity_check` = `ok` + sane row counts), checkpoint any WAL, then copy the clean DB into the live (repaired) PVC. Keep the app's existing `config.toml`/secrets.
@@ -143,6 +147,20 @@ kubectl -n longhorn-system get volumes | grep -v Healthy   # empty = safe to reb
 ```
 
 > A simultaneous/unclean shutdown can tear iSCSI volumes away mid-write and corrupt them. `make shutdown` (`scripts/rack/shutdown`) detaches every Longhorn volume first (cordon → scale workloads to 0 → wait for `detached`) before powering off; `make startup` (`scripts/rack/startup`) uncordons on the way back. Don't power the nodes off by other means without detaching first.
+
+## Kernel updates
+
+Unattended-upgrades installs security updates on every host, but reboots only hosts that define `unattended_reboot_time` in `host_vars`. The k3s nodes define none, because an unattended reboot is exactly the "other means" above: it powers the node down with Longhorn volumes still attached — no cordon, no scale-down, no wait for `detached`.
+
+The damage lands on ext4 metadata on the attached volumes and can stay latent for days, until something forces an `fsck` at mount time and the pod fails to start. A node that rebooted and came back up serving traffic is therefore not evidence that the reboot was safe.
+
+A node due for a kernel reboot is marked by `/var/run/reboot-required`; `/cluster-health` reports it. Clear it with `make shutdown` / `make startup`, which detach first.
+
+```bash
+for h in k3s-server k3s-node-01 k3s-node-02; do
+  echo "$h: $(ssh $h 'cat /var/run/reboot-required.pkgs 2>/dev/null | tr "\n" " " || echo none')"
+done
+```
 
 ## Settings drift
 

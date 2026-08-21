@@ -63,7 +63,7 @@
       notify: Restart sshd
 
     # Ordered before the unattended-upgrades config: Automatic-Reboot-Time is
-    # wall-clock local, so the slot below only means what it says once the zone
+    # wall-clock local, so a reboot slot only means what it says once the zone
     # is right.
     - name: Set system timezone
       community.general.timezone:
@@ -86,12 +86,18 @@
           APT::Periodic::AutocleanInterval "7";
         mode: "0644"
 
-    # Each host reboots for kernel updates in its own slot, pinned in host_vars;
-    # the inline default is a fallback for a not-yet-assigned host. Two hosts
-    # sharing a slot reboot in the same second: for the k3s nodes that drops two
-    # Longhorn replica holders at once, for the Pi-holes it takes DNS down
-    # network-wide. Kernel updates land on whatever hosts are due, so a collision
-    # only shows up on the nights it can hurt.
+    # Automatic reboots are opt-in: a host gets them only by defining
+    # `unattended_reboot_time` in host_vars, and each opted-in host reboots in
+    # its own slot. Two hosts sharing a slot reboot in the same second, which for
+    # the Pi-holes takes DNS down network-wide.
+    #
+    # The k3s nodes deliberately define no slot. An unattended reboot severs
+    # their Longhorn iSCSI sessions mid-write with no cordon, no scale-down and
+    # no wait-for-detach, which corrupts the ext4 on the attached volumes
+    # (docs/storage-longhorn.md). Security updates still install unattended
+    # there; the reboot waits for `scripts/rack/shutdown`, which quiesces
+    # Longhorn first. `/var/run/reboot-required` marks a node that is due, and
+    # `/cluster-health` reports it.
     - name: Configure unattended-upgrades (50unattended-upgrades)
       copy:
         dest: /etc/apt/apt.conf.d/50unattended-upgrades
@@ -103,7 +109,7 @@
               "${distro_id}ESM:${distro_codename}-infra-security";
           };
           Unattended-Upgrade::Remove-Unused-Dependencies "true";
-          Unattended-Upgrade::Automatic-Reboot "true";
+          Unattended-Upgrade::Automatic-Reboot "{{ 'true' if unattended_reboot_time is defined else 'false' }}";
           Unattended-Upgrade::Automatic-Reboot-Time "{{ unattended_reboot_time | default('03:00') }}";
           Unattended-Upgrade::Automatic-Reboot-WithUsers "false";
 

@@ -3,7 +3,3 @@ nic_device: eno1
 nic_rps_cpus: fffff
 nic_rx_ring: 4096
 nic_tx_ring: 4096
-
-# Reboot slot — last, and the widest gap: this node carries the DAS hostPath
-# workloads and the largest share of Longhorn replicas.
-unattended_reboot_time: "05:20"
