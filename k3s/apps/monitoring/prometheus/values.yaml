@@ -24,7 +24,7 @@ prometheus:
         {{ .Annotations.summary }}
         {{ end }}
         {{ range .Alerts.Resolved }}
-        <b>{{ .Labels.alertname }}</b> ({{ .Labels.severity }}) — cleared
+        <b>{{ .Labels.alertname }}</b> ({{ .Labels.severity }}){{ with .Labels.device }} on {{ . }}{{ end }}{{ with .Labels.node }} on {{ . }}{{ end }} — cleared
         {{ end }}
         {{ end }}
     config:
@@ -304,19 +304,20 @@ prometheus:
         - name: disk-health
           rules:
             # Current HDDs: 60 °C max operating, 10-40 °C recommended.
-            # Sustained operation above ~50 °C measurably shortens drive life,
-            # so this fires with room to fix airflow before the hardware limit.
-            # `max_over_time` is hysteresis, not smoothing: the DAS pair idles
-            # within 1 °C of this threshold, and a bare `> 50` resolves and
-            # re-fires on every crossing, which re-notifies regardless of
-            # repeat_interval. The alert clears only after a full 2 h below 50.
+            # 58 °C is where the DAS pair's accepted operating band ends. The
+            # enclosure sits at 50-55 °C and its airflow is already at its
+            # practical limit, so a threshold inside that band flaps across the
+            # line for hours while describing a condition nobody will act on;
+            # only a sustained shift toward the 60 °C hardware limit is news.
+            # `avg_over_time` + `for` demands that shift be real rather than a
+            # single hot sample, which is why no hysteresis wrapper is needed.
             - alert: DiskTemperatureHigh
-              expr: max_over_time(smartctl_device_temperature{device=~"sd.+",temperature_type="current"}[2h]) > 50
-              for: 15m
+              expr: avg_over_time(smartctl_device_temperature{device=~"sd.+",temperature_type="current"}[1h]) > 58
+              for: 30m
               labels:
                 severity: warning
               annotations:
-                summary: "Disk {{ $labels.device }} at {{ $value }}°C — above the 50°C long-term-wear threshold (check DAS airflow)"
+                summary: "Disk {{ $labels.device }} at {{ $value | printf \"%.0f\" }}°C — sustained above 58°C, approaching the 60°C limit (check DAS airflow)"
 
             - alert: DiskTemperatureCritical
               expr: smartctl_device_temperature{device=~"sd.+",temperature_type="current"} > 60

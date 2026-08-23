@@ -561,9 +561,17 @@ run, and if one fires, it leaves this table and becomes a 🔴 finding.
 | ---------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 2026-08-19 | `DiskTemperatureHigh` firing on DAS drives `sda`/`sdb` | Enclosure airflow is at its practical limit; a lower steady temperature needs a physical rebuild | `DiskTemperatureCritical` (>60 °C) fires · `DasDiskLatencyImbalance` fires · any reallocated/pending sector appears · steady state exceeds ~58 °C |
 
-Baseline for that row (so drift is detectable rather than a fresh surprise): steady
-**52–54 °C**, 7d max **58–60 °C**, SMART otherwise clean. Quote the current numbers
-against that baseline in the one-liner — an accepted condition still gets measured.
+Baseline for that row (so drift is detectable rather than a fresh surprise), as of
+**2026-08-23**: steady **50–52 °C**, 7d max **57/59 °C**, daily max **51–55 °C**,
+SMART otherwise clean. Quote the current numbers against that baseline in the
+one-liner — an accepted condition still gets measured.
+
+The enclosure cooled by ~3 °C between 2026-08-11 and 2026-08-19 (daily max 58/60 →
+52/53), which left `DiskTemperatureHigh`'s old 50 °C threshold sitting *below* the
+median and flapping across it for hours. It now fires on a 1 h average above **58 °C**
+— the same number as this row's re-open trigger, so the alert and the acceptance say
+the same thing. If this row is ever retired, that coupling is the reason the threshold
+is 58 and not something else.
 
 Adding a row here is a deliberate act: it needs the re-open trigger and the baseline,
 otherwise it is not an acceptance, it is a blind spot.
