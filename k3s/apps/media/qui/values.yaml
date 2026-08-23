@@ -28,8 +28,8 @@ app-template:
               cpu: 100m
               memory: 512Mi
             limits:
-              cpu: 500m
-              memory: 768Mi
+              cpu: 2000m
+              memory: 1Gi
 
   service:
     qui:
