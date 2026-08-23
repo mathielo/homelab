@@ -217,6 +217,14 @@ day() { kubectl get backups.longhorn.io -n longhorn-system -o json \
 comm -23 <(day "$(date -d yesterday +%F)") <(day "$(date +%F)")
 ```
 
+**Prometheus `longhorn` targets refused on :9500** — the chart's
+`networkPolicies.restrictInternalTraffic` (default `true` since 1.12.1, and gated
+independently of `networkPolicies.enabled`) renders NetworkPolicies that admit only
+Longhorn's own components to `longhorn-manager:9500`. The scrape is refused, `up` goes
+0 for all three managers, and every Longhorn alert rule goes blind while looking
+healthy. `ansible/k3s/files/longhorn.values.yaml` sets it to `false`; confirm with
+`kubectl get networkpolicy -n longhorn-system` returning nothing.
+
 **Degraded volume / stopped replica** — Longhorn rebuilds automatically; force it by deleting the stopped replica:
 
 ```bash

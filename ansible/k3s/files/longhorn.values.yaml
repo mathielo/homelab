@@ -33,3 +33,10 @@ ingress:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/backend-protocol: HTTP
+
+networkPolicies:
+  # The chart's internal-traffic policies restrict ingress to longhorn-manager:9500
+  # to Longhorn's own components, which locks out the Prometheus scrape of the
+  # longhorn job and blinds every Longhorn alert. The cluster is single-tenant, so
+  # the metrics are worth more than the restriction.
+  restrictInternalTraffic: false
