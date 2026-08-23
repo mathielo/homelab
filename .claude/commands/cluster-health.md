@@ -340,17 +340,56 @@ kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- wget
   | jq -r '.data.result[]|"\(.metric.pvc_namespace)/\(.metric.pvc)\t\((.value[1]|tonumber)|floor)h"' | sort -k2 -rn
 ```
 
-- **Age** — against the schedule (`daily-backup` 00:15, `weekly-backup` Sun 00:30,
-  `monthly-backup` 1st 00:45, `snapshot-6h`). `LonghornVolumeBackupStale` alerts on
-  this at 30h, so §0 normally catches it first.
-- **Gaps** — count *distinct volumes backed up per day* over the last week. A day
-  whose count dips below its neighbours means specific volumes were skipped while the
-  job still reported Completed, and the newest-backup timestamp stays green:
+- **Errors** — the most direct signal, and the one age and job-status both miss.
+  Check it first:
 
   ```
   kubectl get backups.longhorn.io -n longhorn-system -o json \
-    | jq -r '.items[]|"\(.status.snapshotCreatedAt[0:10])\t\(.status.volumeName)"' \
-    | sort -u | awk '{c[$1]++} END{for(d in c) print d, c[d]}' | sort | tail -8
+    | jq -r '.items[]|select(.status.state=="Error")|"\(.metadata.creationTimestamp)\t\(.status.error[0:160])"'
+  ```
+
+  `failed to write data during saving blocks: close ...` means the backup target's
+  `soft` NFS mount hit its timeout budget mid-write and returned EIO. It scales with
+  volume size, so the **largest** volume fails while every other volume in the same
+  run succeeds — a partial failure that leaves the job `Completed`. `retrans=5` on the
+  target widens the budget (`ansible/k3s/files/longhorn.values.yaml`); `hard` would
+  remove the limit but risks an unkillable D-state wedge on the NAS mount. Full
+  failure mode in `docs/storage-longhorn.md` → "Silently skipped volumes".
+
+  *Pending decision (2026-08-23):* an alert on `longhorn_backup_state == Error` would
+  catch this at 22:30 instead of 06:00, but `retrans=5` was applied the same day and
+  may remove the failure entirely. **Re-evaluate after 2026-08-30:** if any volume has
+  errored again since, add the rule to `prometheus/values.yaml`; if the week is clean,
+  delete this note.
+- **Age** — against the schedule (`daily-backup` 00:15, `weekly-backup` Sun 00:30,
+  `monthly-backup` 1st 00:45, `snapshot-6h`). `LonghornVolumeBackupStale` alerts on
+  this at 30h, so §0 normally catches it first — but note it fires ~8h *after* the
+  failed run, and cannot fire at all for a volume whose previous night succeeded
+  inside the 30h window. Treat it as a backstop, not the primary detector.
+- **Gaps** — count *distinct volumes backed up per day* over the last week. A day
+  whose count dips below its neighbours means specific volumes were skipped while the
+  job still reported Completed, and the newest-backup timestamp stays green.
+
+  **Bucket by local date, not UTC.** The jobs run 00:15 local and the cluster is
+  `+0200`, so every nightly backup carries a `22:15Z` timestamp belonging to the
+  *previous* UTC day. Slicing `snapshotCreatedAt[0:10]` puts the whole run in the day
+  before and makes the current day look empty — which reads as a total backup
+  failure when nothing is wrong.
+
+  ```
+  day() { kubectl get backups.longhorn.io -n longhorn-system -o json \
+    | jq -r '.items[]|"\(.status.snapshotCreatedAt)\t\(.status.volumeName)"' \
+    | while read -r ts vol; do [ "$(date -d "$ts" +%F)" = "$1" ] && echo "$vol"; done | sort -u; }
+  for d in $(seq 7 -1 0); do d=$(date -d "$d days ago" +%F); echo "$d $(day $d | wc -l)"; done
+  ```
+
+  A count that *matches* its neighbour is not proof the same volumes ran — the set can
+  change while the size holds. Diff two days to name what was dropped, then map the
+  volume back to its PVC:
+
+  ```
+  comm -23 <(day "$(date -d yesterday +%F)") <(day "$(date +%F)")
+  kubectl get volumes.longhorn.io -n longhorn-system <vol> -o jsonpath='{.status.kubernetesStatus.pvcName}'
   ```
 
 Also watch longhorn-manager for `Failed to get backupInfo from remote backup target`
