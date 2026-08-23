@@ -89,7 +89,7 @@
       command: >
         kubectl patch backuptarget default -n longhorn-system
         --type merge
-        -p '{"spec":{"backupTargetURL":"nfs://10.10.50.4:/var/nfs/shared/k3s?nfsOptions=vers=3,nolock,actimeo=1,soft,timeo=300,retry=2"}}'
+        -p '{"spec":{"backupTargetURL":"nfs://10.10.50.4:/var/nfs/shared/k3s?nfsOptions=vers=3,nolock,actimeo=1,soft,timeo=300,retry=2,retrans=5"}}'
       changed_when: false
 
     - name: Set default-data-path on cluster Setting CR

@@ -63,7 +63,7 @@ sudo mkdir -p /mnt/nvme/local/qbt-br /mnt/nvme/local/qbt-se && sudo chown 1000:1
 Target: the dedicated `k3s` NFS share on UNAS-4 (NFSv3 forced; UNAS only exports v3):
 
 ```
-nfs://10.10.50.4:/var/nfs/shared/k3s?nfsOptions=vers=3,actimeo=1,soft,timeo=300,retry=2
+nfs://10.10.50.4:/var/nfs/shared/k3s?nfsOptions=vers=3,nolock,actimeo=1,soft,timeo=300,retry=2,retrans=5
 ```
 
 Set in `ansible/k3s/files/longhorn.values.yaml`, patched onto the `default` BackupTarget CR by the Ansible playbook.
@@ -189,6 +189,33 @@ ssh <node> 'df -h /mnt/nvme/longhorn'
 - `rpc.statd is not running` → `sudo systemctl start rpc-statd` (permanent fix in `install-k3s.yaml`)
 - `No such file or directory` → URL path must be the export root, not a subdirectory
 - `remote share not in 'host:dir' format` → URL needs the colon: `nfs://host:/path`
+- `failed to write data during saving blocks: close ...` → the `soft` mount hit its
+  timeout budget mid-write and returned EIO. It scales with volume size, so the
+  largest volume fails while every other volume in the same run succeeds. `retrans=5`
+  on the backup target widens that budget; `hard` would remove the limit entirely but
+  risks an unkillable D-state wedge on the NAS mount.
+
+**Silently skipped volumes** — a recurring-job pod reports `Completed` even when
+individual volumes inside it errored, and `longhorn_volume_last_backup_at` stays green
+for every volume that did succeed. `LonghornVolumeBackupStale` only notices ~8h later,
+at 30h. The direct signal is the Backup CR state:
+
+```bash
+kubectl get backups.longhorn.io -n longhorn-system -o json \
+  | jq -r '.items[]|select(.status.state=="Error")|"\(.metadata.creationTimestamp)\t\(.status.error[0:160])"'
+```
+
+A day's volume *count* can also match while the *set* differs, so diff consecutive
+days to name what was dropped. Bucket by **local** date: the jobs run 00:15 local,
+which is `22:15Z` the previous day, so a UTC bucket puts every nightly backup in the
+day before and makes the current day look empty.
+
+```bash
+day() { kubectl get backups.longhorn.io -n longhorn-system -o json \
+  | jq -r '.items[]|"\(.status.snapshotCreatedAt)\t\(.status.volumeName)"' \
+  | while read -r ts vol; do [ "$(date -d "$ts" +%F)" = "$1" ] && echo "$vol"; done | sort -u; }
+comm -23 <(day "$(date -d yesterday +%F)") <(day "$(date +%F)")
+```
 
 **Degraded volume / stopped replica** — Longhorn rebuilds automatically; force it by deleting the stopped replica:
 
