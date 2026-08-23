@@ -82,12 +82,12 @@ app-template:
         # ─────────────────────────────────────────────────────────────────────
         # Homepage is the desktop+mobile control center: every service one tap
         # away, with live status widgets — self-sufficient when away from home.
-        # It deliberately does NOT duplicate the rack kiosk's per-node graphs;
-        # the kiosk (Prometheus-driven) owns deep metrics + reversible actions.
-        # Homepage is read-only by design.
+        # It deliberately does NOT duplicate the rack kiosk's or Grafana's
+        # per-node graphs; those own deep metrics and per-host history. Homepage
+        # answers "is anything broken, and where do I click" and is read-only.
         #
-        # Widget `url:` uses in-cluster service DNS (the pod can't resolve the
-        # m6o.dev service names — that's Pi-hole split-DNS, browser-only).
+        # Widget `url:` uses in-cluster service DNS so the poll stays inside the
+        # cluster instead of hairpinning out through the ingress and back.
         # `href:` uses the ingress URL since the browser, not the pod, opens it.
         # Secrets are `{{HOMEPAGE_VAR_*}}` injected from values.sops.yaml; the
         # outer `{{ "…" }}` is Helm-escaping so the literal token reaches the
@@ -105,38 +105,96 @@ app-template:
             blur: xl
           headerStyle: boxedWidgets
           cardBlur: md
+          statusStyle: dot
+          useEqualHeights: true
+          # Renovate owns image tags; an in-app update banner has nothing to act on.
+          hideVersion: true
+          disableUpdateCheck: true
+
+          providers:
+            # Longhorn's in-cluster API is unauthenticated, so the header widget
+            # needs the URL only.
+            longhorn:
+              url: http://longhorn-frontend.longhorn-system.svc.cluster.local
+
+          quicklaunch:
+            provider: custom
+            url: https://srx.m6o.dev/search?q=
+            suggestionUrl: https://srx.m6o.dev/autocompleter?q=
+            showSearchSuggestions: true
+            searchDescriptions: true
+            hideVisitURL: true
+
           pwa:
             icons:
               - src: https://r2.m6o.dev/8matchii/1024x1024.jpg
                 type: image/jpeg
                 sizes: 1024x1024
+            shortcuts:
+              - name: Media
+                url: /#media
+              - name: Downloads
+                url: /#downloads
+              - name: Infra
+                url: /#infra
+
           layout:
             Quick links:
+              tab: Home
+              style: row
+              columns: 6
               iconsOnly: true
-              initiallyCollapsed: false
-              style: row
-              columns: 5
-            Downloads:
+            Health:
+              tab: Home
               style: row
               columns: 2
-              useEqualHeights: true
-            Media:
+            Homelab:
+              tab: Home
+            Resources:
+              tab: Home
+
+            Library:
+              tab: Media
+              style: row
+              columns: 4
+            Automation:
+              tab: Media
+              style: row
+              columns: 4
+
+            Torrents:
+              tab: Downloads
               style: row
               columns: 3
-              useEqualHeights: true
-            Network & Platform:
+            Grabbers:
+              tab: Downloads
               style: row
-              columns: 3
-              useEqualHeights: true
+              columns: 4
+
+            Platform:
+              tab: Infra
+              style: row
+              columns: 2
+            Network:
+              tab: Infra
+              style: row
+              columns: 4
+            Tools:
+              tab: Infra
+              style: row
+              columns: 2
             Hosts:
+              tab: Infra
               style: row
-              columns: 2
-              useEqualHeights: true
+              columns: 4
+              initiallyCollapsed: true
 
         kubernetes.yaml: |
           mode: cluster
 
         widgets.yaml: |
+          # Cluster totals only — per-node CPU/memory lives in the Grafana
+          # homelab-overview dashboard and on the rack kiosk.
           - kubernetes:
               cluster:
                 show: true
@@ -145,7 +203,12 @@ app-template:
                 showLabel: true
                 label: k3s cluster
               nodes:
-                show: true
+                show: false
+          - longhorn:
+              total: true
+              labels: false
+              nodes: false
+              expanded: false
           - openmeteo:
               label: Stockholm
               latitude: 59.3293
@@ -161,74 +224,61 @@ app-template:
                 hourCycle: h23
 
         services.yaml: |
+          # Icons-only launchers for the daily-driver apps. Each also has a full
+          # card on its own tab; these entries carry no widget or siteMonitor so
+          # they add no extra polling.
           - Quick links:
-              - qui:
-                  icon: qui.png
-                  href: https://qui.m6o.dev
-                  siteMonitor: http://qui.media.svc.cluster.local:7476
-              - Pulsarr:
-                  icon: pulsarr.png
-                  href: https://pulsarr.m6o.dev
-                  siteMonitor: http://pulsarr.media.svc.cluster.local:3003/health
-              - Prismarr:
-                  icon: mdi-movie-search
-                  href: https://prismarr.m6o.dev
-                  siteMonitor: http://prismarr.media.svc.cluster.local:7070
-              - Longhorn:
-                  icon: longhorn.png
-                  href: https://lh.m6o.dev
-                  siteMonitor: http://longhorn-frontend.longhorn-system.svc.cluster.local
               - Rack kiosk:
                   icon: mdi-monitor-dashboard
                   href: https://kiosk.m6o.dev
-                  siteMonitor: http://kiosk.dashboard.svc.cluster.local:8080/healthz
-
-          - Downloads:
-              - Autobrr:
-                  href: https://autobrr.m6o.dev
-                  description: Release automation
-                  icon: autobrr.png
-                  widget:
-                    type: autobrr
-                    url: http://autobrr.media.svc.cluster.local:7474
-                    key: "{{ "{{HOMEPAGE_VAR_AUTOBRR_KEY}}" }}"
-              - qBt SE:
-                  href: https://se.qbt.m6o.dev
-                  description: Torrents · SE exit
-                  icon: qbittorrent.png
-                  widget:
-                    type: qbittorrent
-                    url: http://qbt-se.media.svc.cluster.local:8080
-              - qBt BR:
-                  href: https://br.qbt.m6o.dev
-                  description: Torrents · BR exit
-                  icon: qbittorrent.png
-                  widget:
-                    type: qbittorrent
-                    url: http://qbt-br.media.svc.cluster.local:8080
-              - SABnzbd:
-                  href: https://sabnzbd.m6o.dev
-                  description: Usenet downloader
-                  icon: sabnzbd.png
-                  widget:
-                    type: sabnzbd
-                    url: http://sabnzbd.media.svc.cluster.local:8080
-                    key: "{{ "{{HOMEPAGE_VAR_SABNZBD_KEY}}" }}"
+              - Plex:
+                  icon: plex.png
+                  href: https://plex.m6o.dev
+              - qui:
+                  icon: qui.png
+                  href: https://qui.m6o.dev
               - Yata:
-                  href: https://yata.m6o.dev
-                  description: Tracker stats & ratio
                   icon: mdi-chart-box
-                  siteMonitor: http://yata.dashboard.svc.cluster.local:8420
+                  href: https://yata.m6o.dev
+              - SearXNG:
+                  icon: searxng.png
+                  href: https://srx.m6o.dev
+              - Miniflux:
+                  icon: miniflux.png
+                  href: https://miniflux.m6o.dev
 
-          - Media:
-              - Prowlarr:
-                  href: https://prowlarr.m6o.dev
-                  description: Indexer manager
-                  icon: prowlarr.png
+          - Health:
+              - Grafana:
+                  href: https://grafana.m6o.dev
+                  description: Metrics & alerts
+                  icon: grafana.png
                   widget:
-                    type: prowlarr
-                    url: http://prowlarr.media.svc.cluster.local:9696
-                    key: "{{ "{{HOMEPAGE_VAR_PROWLARR_KEY}}" }}"
+                    type: grafana
+                    version: 2
+                    url: http://grafana.monitoring.svc.cluster.local
+                    alerts: alertmanager
+                    alertmanagerUrl: http://prometheus-alertmanager.monitoring.svc.cluster.local:9093
+                    username: "{{ "{{HOMEPAGE_VAR_GRAFANA_USERNAME}}" }}"
+                    password: "{{ "{{HOMEPAGE_VAR_GRAFANA_PASSWORD}}" }}"
+              - Uptime Kuma:
+                  href: https://status.m6o.dev
+                  description: Service monitoring
+                  icon: uptime-kuma.png
+                  widget:
+                    type: uptimekuma
+                    url: http://uptime-kuma.dashboard.svc.cluster.local:3001
+                    slug: homelab
+                    key: "{{ "{{HOMEPAGE_VAR_UPTIMEKUMA_KEY}}" }}"
+
+          - Library:
+              - Plex:
+                  href: https://plex.m6o.dev
+                  description: Media server
+                  icon: plex.png
+                  widget:
+                    type: plex
+                    url: http://plex.media.svc.cluster.local:32400
+                    key: "{{ "{{HOMEPAGE_VAR_PLEX_TOKEN}}" }}"
               - Sonarr:
                   href: https://sonarr.m6o.dev
                   description: TV automation
@@ -253,20 +303,99 @@ app-template:
                     type: bazarr
                     url: http://bazarr.media.svc.cluster.local:6767
                     key: "{{ "{{HOMEPAGE_VAR_BAZARR_KEY}}" }}"
+
+          - Automation:
+              - Prowlarr:
+                  href: https://prowlarr.m6o.dev
+                  description: Indexer manager
+                  icon: prowlarr.png
+                  widget:
+                    type: prowlarr
+                    url: http://prowlarr.media.svc.cluster.local:9696
+                    key: "{{ "{{HOMEPAGE_VAR_PROWLARR_KEY}}" }}"
               - Profilarr:
                   href: https://profilarr.m6o.dev
                   description: Quality profiles & custom formats
                   icon: profilarr.png
-              - Plex:
-                  href: https://plex.m6o.dev
-                  description: Media server
-                  icon: plex.png
-                  widget:
-                    type: plex
-                    url: http://plex.media.svc.cluster.local:32400
-                    key: "{{ "{{HOMEPAGE_VAR_PLEX_TOKEN}}" }}"
+                  siteMonitor: http://profilarr.media.svc.cluster.local:6868
+              - Pulsarr:
+                  href: https://pulsarr.m6o.dev
+                  description: Watchlist sync
+                  icon: pulsarr.png
+                  siteMonitor: http://pulsarr.media.svc.cluster.local:3003/health
+              - Prismarr:
+                  href: https://prismarr.m6o.dev
+                  description: Library insights
+                  icon: mdi-movie-search
+                  siteMonitor: http://prismarr.media.svc.cluster.local:7070
 
-          - Network & Platform:
+          - Torrents:
+              - qBt SE:
+                  href: https://se.qbt.m6o.dev
+                  description: Torrents · SE exit
+                  icon: qbittorrent.png
+                  widget:
+                    type: qbittorrent
+                    url: http://qbt-se.media.svc.cluster.local:8080
+              - qBt BR:
+                  href: https://br.qbt.m6o.dev
+                  description: Torrents · BR exit
+                  icon: qbittorrent.png
+                  widget:
+                    type: qbittorrent
+                    url: http://qbt-br.media.svc.cluster.local:8080
+              - qBt MAM:
+                  href: https://mam.qbt.m6o.dev
+                  description: Torrents · MAM
+                  icon: qbittorrent.png
+                  widget:
+                    type: qbittorrent
+                    url: http://qbt-mam.media.svc.cluster.local:8080
+
+          - Grabbers:
+              - SABnzbd:
+                  href: https://sabnzbd.m6o.dev
+                  description: Usenet downloader
+                  icon: sabnzbd.png
+                  widget:
+                    type: sabnzbd
+                    url: http://sabnzbd.media.svc.cluster.local:8080
+                    key: "{{ "{{HOMEPAGE_VAR_SABNZBD_KEY}}" }}"
+              - Autobrr:
+                  href: https://autobrr.m6o.dev
+                  description: Release automation
+                  icon: autobrr.png
+                  widget:
+                    type: autobrr
+                    url: http://autobrr.media.svc.cluster.local:7474
+                    key: "{{ "{{HOMEPAGE_VAR_AUTOBRR_KEY}}" }}"
+              - qui:
+                  href: https://qui.m6o.dev
+                  description: qBittorrent manager
+                  icon: qui.png
+                  siteMonitor: http://qui.media.svc.cluster.local:7476
+              - Yata:
+                  href: https://yata.m6o.dev
+                  description: Tracker stats & ratio
+                  icon: mdi-chart-box
+                  siteMonitor: http://yata.dashboard.svc.cluster.local:8420
+
+          - Platform:
+              - ArgoCD:
+                  href: https://argo.m6o.dev
+                  description: GitOps deployments
+                  icon: argo-cd.png
+                  widget:
+                    type: argocd
+                    url: http://argocd-server.argocd.svc.cluster.local
+                    key: "{{ "{{HOMEPAGE_VAR_ARGOCD_KEY}}" }}"
+              - Longhorn:
+                  href: https://lh.m6o.dev
+                  description: Block storage
+                  icon: longhorn.png
+                  siteMonitor: http://longhorn-frontend.longhorn-system.svc.cluster.local
+
+          - Network:
               - Pi-hole:
                   href: http://10.10.53.53/admin
                   description: DNS ad-blocking
@@ -292,90 +421,76 @@ app-template:
                   # qbt-se's tunnel (the privacy-critical one). Its
                   # Service already exposes gluetun's control server on :8000;
                   # auth defaults to none for in-cluster reads (public IP is
-                  # non-sensitive). qbt-br and SABnzbd have their own identical
-                  # tunnels — add more widgets here later if you want them too.
+                  # non-sensitive). qbt-br, qbt-mam and SABnzbd have their own
+                  # identical tunnels — add more widgets here if you want them.
                   widget:
                     type: gluetun
                     url: http://qbt-se.media.svc.cluster.local:8000
-              - ArgoCD:
-                  href: https://argo.m6o.dev
-                  description: GitOps deployments
-                  icon: argo-cd.png
+              - Tailscale:
+                  href: https://login.tailscale.com/admin/machines
+                  description: Overlay network
+                  icon: tailscale.png
+                  # Per-device widget: this is the k3s-server node, which is the
+                  # subnet router for 10.10.50.0/24 — if its key expires, remote
+                  # access to the whole LAN goes with it.
                   widget:
-                    type: argocd
-                    url: http://argocd-server.argocd.svc.cluster.local
-                    key: "{{ "{{HOMEPAGE_VAR_ARGOCD_KEY}}" }}"
-              - Grafana:
-                  href: https://grafana.m6o.dev
-                  description: Metrics & alerts
-                  icon: grafana.png
-                  widget:
-                    type: grafana
-                    version: 2
-                    url: http://grafana.monitoring.svc.cluster.local
-                    alerts: alertmanager
-                    alertmanagerUrl: http://prometheus-alertmanager.monitoring.svc.cluster.local:9093
-                    username: "{{ "{{HOMEPAGE_VAR_GRAFANA_USERNAME}}" }}"
-                    password: "{{ "{{HOMEPAGE_VAR_GRAFANA_PASSWORD}}" }}"
-              - Uptime Kuma:
-                  href: https://status.m6o.dev
-                  description: Service monitoring
-                  icon: uptime-kuma.png
-                  widget:
-                    type: uptimekuma
-                    url: http://uptime-kuma.dashboard.svc.cluster.local:3001
-                    slug: homelab
-                    key: "{{ "{{HOMEPAGE_VAR_UPTIMEKUMA_KEY}}" }}"
+                    type: tailscale
+                    deviceid: "{{ "{{HOMEPAGE_VAR_TAILSCALE_DEVICEID}}" }}"
+                    key: "{{ "{{HOMEPAGE_VAR_TAILSCALE_KEY}}" }}"
+                    fields: ["address", "last_seen", "expires"]
 
+          - Tools:
+              - SearXNG:
+                  href: https://srx.m6o.dev
+                  description: Metasearch · dashboard search bar
+                  icon: searxng.png
+                  siteMonitor: http://searxng.tools.svc.cluster.local:8080
+              - Miniflux:
+                  href: https://miniflux.m6o.dev
+                  description: RSS reader
+                  icon: miniflux.png
+                  widget:
+                    type: miniflux
+                    url: http://miniflux.tools.svc.cluster.local:8080
+                    key: "{{ "{{HOMEPAGE_VAR_MINIFLUX_KEY}}" }}"
+
+          # Root-filesystem headroom only. Everything else glances can report
+          # (CPU, memory, load, sensors) is in the Grafana homelab-overview
+          # dashboard with history; a disk filling up is the one thing worth a
+          # number on the dashboard itself.
           - Hosts:
               - k3s-server:
                   icon: ubuntu.png
                   href: http://10.10.50.10:61208
-                  widgets:
-                    - type: glances
-                      url: http://10.10.50.10:61208
-                      version: 4
-                      metric: info
-                    - type: glances
-                      url: http://10.10.50.10:61208
-                      version: 4
-                      metric: fs:/
-              - pi-hole:
-                  icon: pi-hole.png
-                  href: http://10.10.53.53:61208
-                  widgets:
-                    - type: glances
-                      url: http://10.10.53.53:61208
-                      version: 4
-                      metric: info
-                    - type: glances
-                      url: http://10.10.53.53:61208
-                      version: 4
-                      metric: fs:/
+                  widget:
+                    type: glances
+                    url: http://10.10.50.10:61208
+                    version: 4
+                    metric: fs:/
               - k3s-node-01:
                   icon: ubuntu.png
                   href: http://10.10.50.11:61208
-                  widgets:
-                    - type: glances
-                      url: http://10.10.50.11:61208
-                      version: 4
-                      metric: info
-                    - type: glances
-                      url: http://10.10.50.11:61208
-                      version: 4
-                      metric: fs:/
+                  widget:
+                    type: glances
+                    url: http://10.10.50.11:61208
+                    version: 4
+                    metric: fs:/
               - k3s-node-02:
                   icon: ubuntu.png
                   href: http://10.10.50.12:61208
-                  widgets:
-                    - type: glances
-                      url: http://10.10.50.12:61208
-                      version: 4
-                      metric: info
-                    - type: glances
-                      url: http://10.10.50.12:61208
-                      version: 4
-                      metric: fs:/
+                  widget:
+                    type: glances
+                    url: http://10.10.50.12:61208
+                    version: 4
+                    metric: fs:/
+              - pi-hole:
+                  icon: pi-hole.png
+                  href: http://10.10.53.53:61208
+                  widget:
+                    type: glances
+                    url: http://10.10.53.53:61208
+                    version: 4
+                    metric: fs:/
 
         bookmarks.yaml: |
           - Homelab:
@@ -386,6 +501,6 @@ app-template:
                   - abbr: CPU
                     href: https://www.cpubenchmark.net/compare/5889vs3565vs3301/Intel-i5-14500T-vs-AMD-Ryzen-5-PRO-3400GE-vs-AMD-Ryzen-3-2200GE
           - Resources:
-               - Servers@Home:
+              - Servers@Home:
                   - abbr: S@H
                     href: https://wiki.serversatho.me/
