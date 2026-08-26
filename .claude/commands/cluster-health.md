@@ -1,7 +1,7 @@
 ---
-description: Health sweep of the k3s cluster (firing alerts, node metrics, pods, resource balance, ArgoCD, Longhorn, per-app logs, warnings) — read-only against infra; may apply resource sizing to values.yaml when the repo is clean
+description: Health sweep of the k3s cluster (firing alerts, node metrics, pods, resource balance, ArgoCD, Longhorn, per-app logs, warnings) — read-only against infra; when the repo is clean it may apply resource sizing to values.yaml and its own skill-feedback edits to this file
 argument-hint: "[log window, e.g. 1h, 6h — default 1h]"
-allowed-tools: Bash(kubectl get:*), Bash(kubectl top:*), Bash(kubectl logs:*), Bash(kubectl describe:*), Bash(kubectl exec:*), Bash(ssh:*), Bash(git status:*), Bash(git diff:*), Bash(jq:*), Bash(grep:*), Bash(sed:*), Bash(awk:*), Bash(echo:*), Bash(printf:*), Bash(date:*), Bash(tail:*), Bash(head:*), Bash(cut:*), Bash(sort:*), Bash(uniq:*), Bash(for:*), Read, Edit
+allowed-tools: Bash(kubectl get:*), Bash(kubectl top:*), Bash(kubectl logs:*), Bash(kubectl describe:*), Bash(kubectl exec:*), Bash(ssh:*), Bash(git status:*), Bash(git diff:*), Bash(jq:*), Bash(grep:*), Bash(sed:*), Bash(awk:*), Bash(echo:*), Bash(printf:*), Bash(date:*), Bash(tail:*), Bash(head:*), Bash(cut:*), Bash(sort:*), Bash(uniq:*), Bash(comm:*), Bash(seq:*), Bash(wc:*), Bash(tr:*), Bash(for:*), Read, Edit
 ---
 
 Run an on-demand health check of the homelab k3s cluster and give me a structured
@@ -11,10 +11,14 @@ report. Log scan window: `$1` (default `1h` if empty).
 `exec` of read commands, and read-only `ssh` OS inspection. No `apply`/`edit`/`patch`/
 `scale`, no writes through any app's API, nothing changed on a node.
 
-The one thing this check may write is the **repo working tree**, and only under §3's
-sizing gate — resource requests and limits in `values.yaml`, when the tree is clean.
-That is proposing a change as code, which is how every change here is made; it is not
-touching the running cluster. Never `git add`/`commit`/`push`.
+The one thing this check may write is the **repo working tree**, and only two things
+in it, both behind §3's clean-tree gate:
+
+- **resource requests and limits** in `values.yaml` (§3), and
+- **this file** — the §8 skill-feedback edits, applied rather than merely proposed.
+
+Both are proposing a change as code, which is how every change here is made; neither
+touches the running cluster. Never `git add`/`commit`/`push`.
 
 Run the checks below (batch independent commands in parallel), then **interpret**
 the results — don't just dump raw output. Apply judgment: separate real problems
@@ -57,15 +61,44 @@ Prometheus also answers questions this sweep otherwise guesses at — SMART driv
 temperatures (`smartctl_device_temperature`), CPU throttling, memory peaks. Retention
 is **15d**, so any "is this normal or new?" question is answerable, not speculative.
 
+**Scrape health — the monitoring system's own blind spots.** An alert cannot fire on
+a target Prometheus failed to scrape, so check the scrapers before trusting anything
+below. Note `wget` chokes on `{` and `"` in a GET query string, so POST the query:
+
+```
+PQ() { kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- \
+  wget -qO- --post-data="query=$(printf %s "$1" | jq -sRr @uri)" 'localhost:9090/api/v1/query'; }
+PQ 'avg_over_time(up[24h]) < 1' | jq -r '.data.result[]|"\(.metric.job)\t\(.metric.instance)\t\(.value[1])"'
+```
+
+🟡 any target below 1.0. A target that scrapes *slowly* fails the same way: a
+`broken pipe` in an exporter's own log is Prometheus hanging up mid-response, and its
+usual cause is that exporter's CPU limit (§3), not the network.
+
+The matching monitoring gap — this sweep only runs on demand, so a partially blind
+Prometheus should not wait for someone to run it. Proposed rule for
+`prometheus/values.yaml`:
+
+```yaml
+- alert: PrometheusTargetScrapeFailing
+  expr: avg_over_time(up[30m]) < 0.95
+  for: 30m
+  labels: { severity: warning }
+  annotations:
+    summary: "Scrape target {{ $labels.instance }} ({{ $labels.job }}) failing"
+```
+
 ## 1. Node metrics (structured, glanceable, comparable between runs)
 
 `kubectl top nodes` gives CPU/mem from metrics-server, but pressure has more
-angles. SSH each node (`k3s-server`, `k3s-node-01`, `k3s-node-02`) read-only and
-gather load, CPU busy, iowait, block I/O, memory, and per-mount disk usage.
-`iostat`/`mpstat` are NOT installed — use `vmstat`/`free`/`/proc` (they are):
+angles. SSH each node read-only and gather load, CPU busy, iowait, block I/O,
+memory, and per-mount disk usage. Discover the node list from `kubectl` rather than
+naming them — node names are the SSH host names, and a hardcoded list goes stale the
+day a node is added. `iostat`/`mpstat` are NOT installed — use `vmstat`/`free`/`/proc`
+(they are):
 
 ```
-for h in k3s-server k3s-node-01 k3s-node-02; do echo "### $h"; ssh -o ConnectTimeout=5 "$h" \
+for h in $(kubectl get nodes -o name | cut -d/ -f2); do echo "### $h"; ssh -o ConnectTimeout=5 "$h" \
   'cores=$(nproc); load=$(cut -d" " -f1-3 /proc/loadavg); v=$(vmstat 1 2 | tail -1);
    usr=$(echo $v|awk "{print \$13}"); sys=$(echo $v|awk "{print \$14}"); wa=$(echo $v|awk "{print \$16}");
    bi=$(echo $v|awk "{print \$9}"); bo=$(echo $v|awk "{print \$10}");
@@ -91,7 +124,7 @@ Then a second read-only pass for the things `df` and `load` cannot show — stal
 mounts and real saturation:
 
 ```
-for h in k3s-server k3s-node-01 k3s-node-02; do echo "### $h"; ssh -o ConnectTimeout=5 "$h" \
+for h in $(kubectl get nodes -o name | cut -d/ -f2); do echo "### $h"; ssh -o ConnectTimeout=5 "$h" \
   'echo "psi_cpu=$(awk "/some/{print \$3}" /proc/pressure/cpu) psi_io=$(awk "/some/{print \$3}" /proc/pressure/io) psi_mem=$(awk "/some/{print \$3}" /proc/pressure/memory)";
    echo "dstate_procs=$(ps -eo stat= | grep -c "^D")";
    grep " nfs " /proc/mounts | awk "{print \$2}" | grep -v kubelet'; done
@@ -136,12 +169,12 @@ high threshold (85%, set in `ansible/k3s/install-k3s.yaml`).
     "$(ssh $h 'cat /var/run/reboot-required.pkgs 2>/dev/null | tr "\n" " "' || echo none)"; done
   ```
 
-  Discover the hosts from `kubectl` rather than listing them — node names are the
-  SSH host names. 🟡 once a node has been pending more than a week; 🔴 when the
-  pending set includes `linux-image-*` **and** the booted kernel is behind the newest
-  installed one (`ssh $h 'uname -r; ls -1 /boot/vmlinuz-*'`), because the security fix
-  that prompted the update is not actually running. Report it as scheduled work with
-  the quiesced-reboot command — never suggest rebooting the node in place.
+  Hosts come from `kubectl`, as in §1. 🟡 once a node has been pending more than a
+  week; 🔴 when the pending set includes `linux-image-*` **and** the booted kernel is
+  behind the newest installed one (`ssh $h 'uname -r; ls -1 /boot/vmlinuz-*'`),
+  because the security fix that prompted the update is not actually running. Report
+  it as scheduled work with the quiesced-reboot command — never suggest rebooting the
+  node in place.
 
 **Silent failures** — `Running` and `0 restarts` is not proof of health. Three known
 modes here present as a perfectly green pod, so check for them explicitly:
@@ -178,17 +211,18 @@ survive its own pods all peaking at once — the question that actually matters 
 raising a limit:
 
 ```
-for n in k3s-server k3s-node-01 k3s-node-02; do echo -n "$n: "; \
+for n in $(kubectl get nodes -o name | cut -d/ -f2); do echo -n "$n: "; \
   kubectl describe node "$n" | awk '/Allocated resources/,/Events/' | grep -E "^  (cpu|memory)" | tr '\n' ' '; echo; done
 ```
 
 Report a **per-node allocation table** (`Status | Node | RAM | Requests | Limits % |
 Verdict`). Requests are the scheduler's contract and must stay under 100%. Limits
 routinely exceed 100% — that is normal overcommit — but the *ratio* is the blast
-radius: node-02 currently sits at **208 % of RAM in limits**, so a handful of
-containers peaking together will OOM something. State the number before proposing any
-limit increase, and prefer raising a **request** (scheduling truth) over a **limit**
-(ceiling) on a node already deep in overcommit.
+radius: node-02 runs well over 200 % of RAM in limits (**219 %** on 2026-08-26, up
+from 208 % on 2026-08-23 — read the live number from the command above, never from
+this line). A handful of containers peaking together will OOM something. State the
+number before proposing any limit increase, and prefer raising a **request**
+(scheduling truth) over a **limit** (ceiling) on a node already deep in overcommit.
 
 Then the per-container view: catch containers that are **starved** (near their limit,
 or using more than they request) or **bloated** (reserving far more than they ever
@@ -252,14 +286,33 @@ CPU pressure has an equivalent, and it beats `cpu %R` as evidence — throttling
 symptom a CPU limit actually causes:
 
 ```
-  'localhost:9090/api/v1/query?query=topk(10,rate(container_cpu_cfs_throttled_periods_total{container!=""}[6h]))'
+  'localhost:9090/api/v1/query?query=topk(10,rate(container_cpu_cfs_throttled_periods_total{container!=""}[6h])
+     / rate(container_cpu_cfs_periods_total{container!=""}[6h]))'
 ```
 
+Use the **ratio**, not the raw rate: throttled periods as a fraction of all periods is
+comparable across containers, where a bare rate is not. Anything above ~15 % is real.
+
+**A 7d peak cannot corroborate a CPU limit.** Bursty containers — exporters, gRPC
+servers, anything doing per-scrape work — show a 5m-rate peak of 2–5m while throttling
+20–60 % of periods, because the burst is far shorter than the sampling window. Sizing
+those off the peak reads them as 60× over-provisioned when they are in fact starved.
+For CPU the throttle ratio *is* the evidence; the 7d-peak requirement below applies to
+**memory**, where the working set is a level rather than a spike.
+
 Quote **snapshot _and_ 7d peak** in the table so the gap between them is visible (a
-container idling at 200 Mi that peaked at 8 Gi is not over-provisioned). Propose
-`request ≈ steady`, `limit ≈ peak + headroom`, and name the exact `values.yaml` and
-number. Carry 🔴 near-limit and 🟡 under-request rows into the §8 sweep as 🔧
-fixable; keep over-provisioning as a separate optimization note.
+container idling at 200 Mi that peaked at 8 Gi is not over-provisioned), and name the
+exact `values.yaml` and number. Sizing rule, split by resource because the evidence
+differs:
+
+- **Memory** — `request ≈ steady`, `limit ≈ 7d peak + headroom`.
+- **CPU** — `request ≈ steady`; the **limit** comes from the throttle ratio, not from
+  any peak. Raise it until throttling stops mattering; a CPU limit is a burst ceiling
+  and overshooting it costs nothing, because CPU is compressible and unused ceiling is
+  never reserved.
+
+Carry 🔴 near-limit and 🟡 under-request rows into the §8 sweep as 🔧 fixable; keep
+over-provisioning as a separate optimization note.
 
 ### Applying the sizing changes
 
@@ -278,8 +331,11 @@ What may be applied this way is deliberately narrow:
 
 - **Only `resources:` requests and limits.** Never images, replicas, probes, args, or
   anything else surfaced by the run.
-- **Only numbers corroborated by the 7d peak**, never by the `kubectl top` snapshot
-  alone. No history, no edit.
+- **Only numbers corroborated by history**, never by the `kubectl top` snapshot alone
+  — the 7d peak for memory, the throttle ratio for CPU. No history, no edit.
+- **No explanatory comments in the YAML.** Set the value and nothing else; the
+  reasoning belongs in the report, where it is read once, not in the file, where it
+  becomes stale verbosity. A sizing diff should be one changed line per number.
 - **Never on a node already deep in limit overcommit** without saying so — raise the
   **request** there, and flag the limit increase for the user to decide.
 
@@ -298,8 +354,9 @@ not `Synced` + `Healthy`.
 
 Volume `robustness`/`state` (flag non-`healthy`/non-`attached`); confirm the
 recurring `backup`/`snapshot` **job** pods reached `Completed`. Match the
-timestamped job pods only (`grep -E 'daily-backup-|snapshot-[0-9]'`) — NOT the
-always-`Running` `csi-snapshotter` controller pods.
+timestamped job pods only (`grep -E 'daily-backup-|weekly-backup-|monthly-backup-|snapshot-[0-9]'`)
+— NOT the always-`Running` `csi-snapshotter` controller pods. All four schedules
+produce pods; a regex covering only two silently reports on half the backup system.
 
 **`robustness: healthy` does not mean the data is intact.** Longhorn reports on the
 block device; it replicates a corrupted filesystem just as faithfully as a good one,
@@ -392,9 +449,17 @@ kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- wget
   kubectl get volumes.longhorn.io -n longhorn-system <vol> -o jsonpath='{.status.kubernetesStatus.pvcName}'
   ```
 
-Also watch longhorn-manager for `Failed to get backupInfo from remote backup target`
-(§6): a backup record on the NFS target that cannot be read is retried every ~10 min
-forever, and it names the volume it belongs to.
+Also watch longhorn-manager (§6) for the backup-target reconcile failing to read the
+NFS target. Two distinct messages, both retried forever:
+
+- `Failed to get backupInfo from remote backup target` — a backup *record* that
+  cannot be read; it names the volume it belongs to.
+- `Failed to get info from backup store` … `timeout executing: … system-backup list`
+  — the 5-minute target reconcile timing out against the NAS. Volume backups can all
+  succeed while this fails, so check it against the volume evidence above before
+  calling it a backup failure. A cluster of these inside a **single hour**, with no
+  `Error`-state backups, is a transient NAS stall — accept it; recurrence across
+  separate hours is not.
 
 **Volumes on the `longhorn-no-bkp` StorageClass have no backups _by design_** — they
 hold disposable monitoring data and were deliberately excluded. Render them ⚪;
@@ -427,7 +492,12 @@ goal is a **quiet** log, not merely a fault-free one: noise is what hides the on
 that matters. Work down the list by count.
 
 **Pass 2 — the drill-down.** For each app that surfaced, read the actual lines,
-ranked by repetition:
+ranked by repetition.
+
+The workstation shell is **zsh**, which does not word-split unquoted parameters.
+Iterate `ns pod` pairs with `printf '%s\n' … | while read -r ns pfx`, never
+`for t in "ns app"; do set -- $t`, which yields an empty `$2` and fails silently —
+producing empty drill-down sections that look like clean apps.
 
 ```
 kubectl logs -n "$ns" "$pod" --all-containers --prefix --since="$1" 2>/dev/null \
@@ -608,13 +678,47 @@ by-design rows that are deliberately exempt from their threshold (e.g.
    State the working-tree gate either way: the `git diff` of what was applied, or
    which paths were dirty and therefore left untouched.
 7. The **Warnings & assessment** table from §8 — the focus. For 🔧 fixable ones,
-   propose the change as code/commands; **don't apply** — per repo policy all
-   changes are GitOps/IaC and the user runs them.
+   propose the change as code/commands and **don't apply it to the cluster** — per
+   repo policy all changes are GitOps/IaC and the user runs them. The two exceptions
+   are the repo-only writes named in the preamble: §3's `resources:` numbers and this
+   file's own §8 edits, both behind the clean-tree gate.
 8. **Skill feedback** — close every run with what this run taught the check itself:
    a false positive to accept-list, a manual command the sweep should have run, a
    miss a section should have caught, or a threshold that deserves a Prometheus rule.
-   Propose it as a concrete edit to this file. "Nothing to change" is a valid answer;
-   an empty section every run is not.
+   "Nothing to change" is a valid answer; an empty section every run is not.
+
+   **Apply the edit under the same gate as §3's sizing.** Clean tree at the start of
+   the run → edit this file directly and show the `git diff`. Dirty → propose the diff
+   and change nothing. The same narrow rules apply: only this file, never `git
+   add`/`commit`/`push`, and the user reviews. A finding that stays a proposal is one
+   the next run re-derives from scratch.
+
+   **Then sweep this whole file before finishing — every run, not just the ones that
+   changed it.** This file grows by accretion: each run bolts on a finding, and
+   nothing removes anything. Left alone it drifts into a document that contradicts
+   itself and is too long to trust. Read it end to end and fix:
+
+   - **Contradiction** — two passages that cannot both be followed. The newest one is
+     usually right and the older one usually needs *scoping*, not deletion (a rule
+     that held universally may now hold only for memory, or only for cluster state).
+   - **Duplication** — the same guidance stated in two sections. Keep it where it is
+     acted on and leave a cross-reference at the other, never a second copy that will
+     drift.
+   - **Staleness** — a literal that reality has moved past: a grep string the logs no
+     longer emit, a regex that misses a job that now exists, a hardcoded percentage,
+     a path or filename that was renamed. Every literal in this file is a claim about
+     the cluster; verify the ones this run touched and correct what has drifted.
+   - **Hardcoded lists** — node names, namespaces, apps, volumes enumerated by hand.
+     Replace with the discovery query. This file tells its own §2 to do this; the
+     rule applies to the file itself.
+   - **Expired notes** — anything carrying a date or a re-evaluate-by. Act on it when
+     due, and *delete* it once acted on. A dated note left past its date is worse
+     than no note: it reads as current.
+   - **Ambiguity** — a threshold with no unit, a verdict with no owning section, an
+     instruction whose subject is unclear on a cold read.
+
+   Report what the sweep changed, and say **"swept, nothing to tidy"** when it found
+   nothing — silence is indistinguishable from not looking.
 
    **Repetition is itself a finding.** This file is the check's only memory, so
    anything worth knowing next run has to be written into it:
