@@ -5,7 +5,7 @@ app-template:
         pulsarr:
           image:
             repository: lakker/pulsarr
-            tag: 0.18.0
+            tag: 0.19.0
           env:
             TZ: Europe/Stockholm
             # Use in-cluster URL instead of automatic IP discovery
