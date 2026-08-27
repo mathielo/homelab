@@ -16,7 +16,7 @@ app-template:
               memory: 384Mi
             limits:
               cpu: 1000m
-              memory: 512Mi
+              memory: 768Mi
 
   service:
     bazarr:

@@ -134,15 +134,32 @@ for h in $(kubectl get nodes -o name | cut -d/ -f2); do echo "### $h"; ssh -o Co
   **k3s-server's load average lies**: it spikes to 10–20 with CPU idle, zero iowait
   and flat PSI (thread-churn artifact). On that node, judge by PSI and `CPU busy`,
   and never open a §8 warning on `Load÷core` alone. On node-02 the load is real.
-- **`dstate_procs` > 0 with `/mnt/nas/media` present** — the wedged-`hard`-NFS-mount
-  failure mode. Uninterruptible processes survive `kill -9`; symptoms are node-wide
-  slowness and high iowait, not one sick pod. 🔴 — the fix is at the NAS/mount end,
-  not in k8s. **Do not `ls`, `df` or `stat` the wedged mount to confirm** — that
-  hangs the check too. `/proc/mounts` and PSI are enough.
+- **`dstate_procs` > 0 with `/mnt/nas/media` present** — *possibly* the
+  wedged-`hard`-NFS-mount failure mode. Uninterruptible processes survive `kill -9`;
+  symptoms are node-wide slowness and high iowait, not one sick pod. The fix is at
+  the NAS/mount end, not in k8s.
+
+  **A single D-state process is not a wedge.** node-02 does continuous heavy DAS I/O,
+  so a proc sitting in `D` for one sampling instant is ordinary disk wait and is the
+  common case, not the failure. Resample before judging — only a D-state set that
+  *persists* across samples is 🔴; one that clears is 🟢 and must not reach §8:
+
+  ```
+  ssh <node> 'ps -eo pid,stat,wchan:30,comm --no-headers | awk "\$2 ~ /^D/"; sleep 3;
+    echo ---; ps -eo pid,stat,wchan:30,comm --no-headers | awk "\$2 ~ /^D/"'
+  ```
+
+  **The §1 `df` above is the wedge canary — read it, don't repeat it.** That first
+  pass already touches every NFS mount, so a wedge shows up there as a `df` that
+  hangs instead of returning. If it *did* return usage numbers for `/mnt/nas/media`,
+  the mount is alive and the D-state is local I/O. Once a wedge is suspected, do
+  **not** `ls`, `df` or `stat` the mount again to confirm — the re-probe hangs the
+  check too; `/proc/mounts` and PSI are enough.
 
 Flag with thresholds (these are warnings — carry to §8):
 `Load÷core` 🟡 >1.0 / 🔴 >2.0 sustained (⚪ on k3s-server, see above) ·
-`PSI io avg60` 🟡 >20 · `dstate_procs` 🔴 >0 · `CPU busy` 🟡 >85% · `iowait` 🟡 >20% ·
+`PSI io avg60` 🟡 >20 · `dstate_procs` 🔴 >0 *and persisting across a resample* ·
+`CPU busy` 🟡 >85% · `iowait` 🟡 >20% ·
 `Mem` 🟡 >90% · `Disk` 🟡 ≥85% / 🔴 ≥90% (except `/mnt/r0` — always ⚪, see
 above). The 40 GiB `/` partitions trend high (containerd image cache in
 `/var/lib/k3s/agent`); note ≥85% but know kubelet image-GC self-prunes at the
@@ -218,9 +235,9 @@ for n in $(kubectl get nodes -o name | cut -d/ -f2); do echo -n "$n: "; \
 Report a **per-node allocation table** (`Status | Node | RAM | Requests | Limits % |
 Verdict`). Requests are the scheduler's contract and must stay under 100%. Limits
 routinely exceed 100% — that is normal overcommit — but the *ratio* is the blast
-radius: node-02 runs well over 200 % of RAM in limits (**219 %** on 2026-08-26, up
-from 208 % on 2026-08-23 — read the live number from the command above, never from
-this line). A handful of containers peaking together will OOM something. State the
+radius: node-02 has run steadily above 200 % of RAM in limits since 2026-08-23 — read
+the live number from the command above, never from this line. A handful of containers
+peaking together will OOM something. State the
 number before proposing any limit increase, and prefer raising a **request**
 (scheduling truth) over a **limit** (ceiling) on a node already deep in overcommit.
 
@@ -282,6 +299,21 @@ kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- wget
   | jq -r '.data.result[]|"\(.metric.namespace)/\(.metric.pod)/\(.metric.container)\t\(.value[1]|tonumber|floor)Mi"'
 ```
 
+**`container_memory_working_set_bytes` over-reports for I/O-heavy containers.** The
+working set counts active page cache, so anything streaming large files — `qbt-*`,
+`sabnzbd`, `plex` — grows to fill whatever limit it is given without ever being at
+risk: the kernel reclaims that cache under pressure instead of OOMing. Before calling
+any container near-limit, cross-check RSS, which is the part that actually cannot be
+reclaimed:
+
+```
+  'localhost:9090/api/v1/query?query=max_over_time(container_memory_rss{container="main",pod=~"<pod>.*"}[7d])/1024/1024'
+```
+
+A large working-set/RSS gap means page cache, not pressure — 🟢, and no limit change.
+(Measured 2026-08-27: `qbt-se/main` working set peaked at 7947Mi against an 8Gi limit
+— 97 %, and a fresh 🔴 every run if read alone — while RSS peaked at 1193Mi.)
+
 CPU pressure has an equivalent, and it beats `cpu %R` as evidence — throttling is the
 symptom a CPU limit actually causes:
 
@@ -333,6 +365,11 @@ What may be applied this way is deliberately narrow:
   anything else surfaced by the run.
 - **Only numbers corroborated by history**, never by the `kubectl top` snapshot alone
   — the 7d peak for memory, the throttle ratio for CPU. No history, no edit.
+  **An `OOMKilled` is itself that history, and outranks the peak.** The kill is a
+  sub-second spike, so a 30s-scrape working set never records it: expect the 7d peak
+  to sit *well under* the limit on exactly the container that was killed, and raise
+  the limit anyway. (2026-08-27: `media/bazarr` OOMKilled at a 512Mi limit with a 7d
+  peak of 254Mi.) Never read a low peak as evidence the OOMKill was spurious.
 - **No explanatory comments in the YAML.** Set the value and nothing else; the
   reasoning belongs in the report, where it is read once, not in the file, where it
   becomes stale verbosity. A sizing diff should be one changed line per number.
@@ -461,6 +498,57 @@ NFS target. Two distinct messages, both retried forever:
   `Error`-state backups, is a transient NAS stall — accept it; recurrence across
   separate hours is not.
 
+**Stuck volume expansion — `attached`/`healthy` hides it completely.** A PVC whose
+size was raised in git can land half-expanded: Longhorn grows the block device, the
+*engine* never finishes, and the filesystem inside stays at the old size. Every signal
+§5 checks so far stays green — `state: attached`, `robustness: healthy`, backups
+current — while `external-resizer` retries forever. Check the claim, not the volume:
+
+```
+kubectl get pvc -A -o json | jq -r '.items[]
+  | select((.status.conditions//[])[]?.type=="Resizing" or (.spec.resources.requests.storage != .status.capacity.storage))
+  | "\(.metadata.namespace)/\(.metadata.name)\twant=\(.spec.resources.requests.storage)\thave=\(.status.capacity.storage)"'
+kubectl get volumes.longhorn.io -n longhorn-system -o json \
+  | jq -r '.items[]|select(.status.expansionRequired)|"\(.metadata.name)\tspec=\(.spec.size)\texpansionRequired"'
+```
+
+🔴 on any hit. Confirm by comparing the engine's `spec.volumeSize` against its
+`status.currentSize` (equal = done; different with `EngineMonitor` logging
+`Starting engine expansion` on a loop = stuck), and read the real filesystem size with
+`kubectl exec -n <ns> deploy/<app> -- df -h <mountpath>`.
+
+Online expansion is what fails; the engine completes it once the volume is **detached**.
+So the fix is a quiesce cycle — but two details decide whether it works, and getting
+either wrong looks like the fix simply doing nothing (verified the hard way 2026-08-27):
+
+- **Suspend the root App-of-Apps *first*.** `media-apps` reverts `syncPolicy` patches
+  on its children, so suspending only the per-service app lets the child be re-enabled
+  and the Deployment scaled straight back to 1 — the pod returns within seconds.
+  See `docs/pvc-maintenance.md` → "Two-tier ArgoCD app structure".
+- **Wait on the Longhorn volume reaching `state: detached`, not on the pod being
+  deleted.** Pod deletion is not detachment; a pod that comes back before the volume
+  detaches leaves the engine on the same stale instance-manager and nothing changes.
+
+Re-enable in reverse: per-service app first, root **last**. Never `kubectl patch` the
+PVC or edit the Longhorn volume to paper over it.
+
+The matching monitoring gap — this is silent between runs of this check. Proposed rule
+for `prometheus/values.yaml`:
+
+```yaml
+- alert: LonghornVolumeExpansionStuck
+  expr: longhorn_volume_actual_size_bytes > 0 and on(volume) longhorn_volume_state == 2
+        and on(volume) (longhorn_volume_capacity_bytes != ignoring(instance) longhorn_volume_actual_size_bytes)
+  for: 30m
+  labels: { severity: warning }
+  annotations:
+    summary: "Longhorn volume {{ $labels.volume }} stuck expanding for 30m"
+```
+
+(Verify the exact metric names against `/api/v1/label/__name__/values` before
+committing the rule — the `kubectl get pvc` query above is the authoritative check
+either way.)
+
 **Volumes on the `longhorn-no-bkp` StorageClass have no backups _by design_** — they
 hold disposable monitoring data and were deliberately excluded. Render them ⚪;
 flagging them as missing-backup is a **false positive**, not a finding. Enumerate
@@ -479,11 +567,17 @@ Frequency column needs. Coverage is every namespace — `dashboard`, `tools`,
 
 ```
 W=${1:-1h}
-Q='sum by (namespace, app) (count_over_time({namespace=~".+"} |~ "(?i)(error|fatal|panic|warn)" ['"$W"']))'
+Q='sum by (namespace, app) (count_over_time({namespace=~".+"} |~ "(?i)(error|fatal|panic|warn)" != "\"error\":null" != "error=null" ['"$W"']))'
 kubectl exec -n monitoring deploy/grafana -c grafana -- wget -qO- http://loki:3100/loki/api/v1/query \
   --post-data="query=$(printf %s "$Q" | jq -sRr @uri)" \
   | jq -r '.data.result[]|"\(.value[1])\t\(.metric.namespace)/\(.metric.app)"' | sort -rn
 ```
+
+The two `!=` filters mirror Pass 2's exclusions. Without them the count is inflated by
+structured-log lines whose *success* payload contains the word — `"error":null` — and
+an app is ranked near the top of the sweep with nothing wrong with it, then drills down
+to zero lines. (2026-08-27: `media/profilarr` scored 97, all of them `DEBUG ... "status":"success" ... "error":null`.)
+Any exclusion added to Pass 2 belongs here too, or the ranking lies.
 
 **Every app with a non-zero count gets triaged — including the ones whose count looks
 "normal".** A steady 60/h of the same benign line is still noise worth fixing at the
@@ -632,9 +726,16 @@ run, and if one fires, it leaves this table and becomes a 🔴 finding.
 | 2026-08-19 | `DiskTemperatureHigh` firing on DAS drives `sda`/`sdb` | Enclosure airflow is at its practical limit; a lower steady temperature needs a physical rebuild | `DiskTemperatureCritical` (>60 °C) fires · `DasDiskLatencyImbalance` fires · any reallocated/pending sector appears · steady state exceeds ~58 °C |
 
 Baseline for that row (so drift is detectable rather than a fresh surprise), as of
-**2026-08-23**: steady **50–52 °C**, 7d max **57/59 °C**, daily max **51–55 °C**,
-SMART otherwise clean. Quote the current numbers against that baseline in the
-one-liner — an accepted condition still gets measured.
+**2026-08-27**: steady **53/55 °C** (sda/sdb), 7d max **53/55 °C**, SMART otherwise
+clean — and `DiskTemperatureHigh` **not firing**, the enclosure having settled below
+its 58 °C threshold. (Previous baseline, 2026-08-23: steady 50–52 °C, 7d max 57/59 °C.)
+Quote the current numbers against that baseline in the one-liner — an accepted
+condition still gets measured.
+
+The row stays despite the quiet alert: the drives still run 13–15 °C above Toshiba's
+40 °C recommendation, and the cooling that bought this margin is ambient, not a fix.
+**Retire it only after a full warm-week holds under 58 °C** — and note that retiring
+it orphans the 58 °C threshold's rationale below.
 
 The enclosure cooled by ~3 °C between 2026-08-11 and 2026-08-19 (daily max 58/60 →
 52/53), which left `DiskTemperatureHigh`'s old 50 °C threshold sitting *below* the

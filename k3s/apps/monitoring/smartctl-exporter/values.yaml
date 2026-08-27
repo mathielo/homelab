@@ -39,5 +39,5 @@ prometheus-smartctl-exporter:
       cpu: 10m
       memory: 32Mi
     limits:
-      cpu: 600m
+      cpu: 2000m
       memory: 64Mi

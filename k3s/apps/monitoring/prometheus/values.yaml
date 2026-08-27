@@ -556,7 +556,7 @@ prometheus:
         memory: 1280Mi
       limits:
         cpu: 500m
-        memory: 2Gi
+        memory: 3Gi
     persistentVolume:
       enabled: true
       storageClass: longhorn-no-bkp # disposable metrics TSDB — not backed up
