@@ -2,12 +2,24 @@ app-template:
   defaultPodOptions:
     nodeSelector:
       kubernetes.io/hostname: k3s-node-02
+
+    # Prometheus discovers this pod through the `kubernetes-pods` job's
+    # annotation-based scraping. The metrics port stays off the Service so it
+    # isn't reachable through the ingress.
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "9074"
+
     # Run as the same uid/gid as the qbt-* instances (hotio PUID/PGID 1000) so
     # cross-seed hardlinks/dirs qui creates under /r0/cross-seed are owned by
     # the same PUID
     # OnRootMismatch skips the recursive chown when /config's root already has the
     # right ownership — without it kubelet walks every file on each start, which
     # holds the pod in ContainerCreating for minutes.
+    # The image entrypoint honours PUID/PGID only when it starts as root, and
+    # that path runs an unconditional full-tree chown over /config. runAsUser
+    # already drops it to 1000, so the entrypoint execs straight into qui —
+    # setting PUID/PGID here would reintroduce that walk.
     securityContext:
       runAsUser: 1000
       runAsGroup: 1000
@@ -23,6 +35,12 @@ app-template:
             tag: v1.27.0
           env:
             TZ: Europe/Stockholm
+            # Prometheus exporter (qBittorrent per-instance + per-tracker
+            # counters). It binds a second port and defaults to 127.0.0.1,
+            # which no scraper outside the pod can reach.
+            QUI__METRICS_ENABLED: "true"
+            QUI__METRICS_HOST: 0.0.0.0
+            QUI__METRICS_PORT: "9074"
           resources:
             requests:
               cpu: 100m

@@ -14,6 +14,12 @@ plus two explicit jobs in `prometheus/values.yaml`:
 | `longhorn`| `longhorn-backend` endpoints, `manager` port| Annotation-based discovery doesn't pick the manager up   |
 | `pihole`  | `10.10.53.51:9100`, `10.10.53.52:9100`      | The Pis are standalone hosts, not cluster nodes          |
 
+`kubernetes-pods` picks up two in-cluster exporters from pod annotations, with no
+job of their own: smartctl-exporter on `:9633` and qui on `:9074`. qui's exporter
+binds `127.0.0.1` by default, so `QUI__METRICS_HOST=0.0.0.0` is what makes it
+scrapable at all; it is deliberately absent from qui's Service, which keeps it off
+the ingress and off the network it isn't authenticated on.
+
 ### Label conventions (these bite when writing queries)
 
 - **node-exporter** carries `node="k3s-node-02"`. The `pihole` job sets `node` by
@@ -90,6 +96,7 @@ removing a file needs no `values.yaml` change.** The upstream grafana chart is a
 | Homelab Overview   | `homelab-overview` | Full-detail cluster + Pi-hole view for a desktop browser             |
 | Rack Kiosk         | `rack-kiosk`       | 1280×400 layout for the rack touchscreen                             |
 | Pi-hole HA         | `pihole-ha`        | VIP ownership, resolver health, keepalived state                     |
+| qui / qBittorrent  | `qui-overview`     | Per-instance qBt connection, transfer rate and per-tracker totals    |
 
 Community dashboards (node-exporter Full `1860`, Loki Log Explorer `13639`) are
 still pulled by `gnetId` under the separate `default` provider.

@@ -458,6 +458,22 @@ prometheus:
               annotations:
                 summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} is not Ready (renewal may be failing)"
 
+        # qui's Prometheus exporter is the only view of a qBittorrent WebUI that
+        # is up but not serving the API — the pod stays Ready through that, so
+        # none of the pod/deployment rules above see it.
+        - name: media-health
+          rules:
+            # A gluetun VPN restart (the vpn-port-healer path) takes the WebUI
+            # with it for a minute or two, so a short window would page on
+            # routine port-forward recovery.
+            - alert: QbtInstanceUnreachable
+              expr: qbittorrent_instance_connection_status == 0
+              for: 15m
+              labels:
+                severity: warning
+              annotations:
+                summary: "qui cannot reach qBittorrent instance {{ $labels.instance_name }} — WebUI wedged, credentials rejected, or the instance is disabled in qui"
+
         # Pi-hole HA (two standalone RPis sharing keepalived VIPs 10.10.53.53 / ::53).
         # Host CPU/mem/disk are already covered by the generic node-health group
         # above (the Pis now expose node_exporter); these are the HA-specific signals.
