@@ -204,6 +204,12 @@
         group: "1000"
       when: r0_mountpoint.rc == 0
 
+    # Both scripts are re-runnable: they are operator commands invoked during a
+    # power cycle, often after a partial manual step, so each acts only on what
+    # is not already in the wanted state. Without that, `mdadm --assemble` on an
+    # assembled array (or `umount` on an unmounted path) exits non-zero, `set -e`
+    # stops the script, and the remaining step never runs — while the failure
+    # reads as "it broke" rather than "already done".
     - name: Install das-up
       copy:
         dest: /usr/local/sbin/das-up
@@ -211,8 +217,13 @@
         content: |
           #!/bin/sh
           set -e
-          mdadm --assemble --scan
-          mount {{ mount_point }}
+          if [ ! -b {{ md_device }} ]; then
+            mdadm --assemble --scan
+          fi
+          if ! mountpoint -q {{ mount_point }}; then
+            mount {{ mount_point }}
+          fi
+      tags: scripts
 
     # udevadm settle: umount triggers a udev change event whose blkid probe holds
     # the device open briefly. Without the wait, mdadm --stop races it and fails
@@ -224,9 +235,14 @@
         content: |
           #!/bin/sh
           set -e
-          umount {{ mount_point }}
+          if mountpoint -q {{ mount_point }}; then
+            umount {{ mount_point }}
+          fi
           udevadm settle
-          mdadm --stop {{ md_device }}
+          if [ -b {{ md_device }} ]; then
+            mdadm --stop {{ md_device }}
+          fi
+      tags: scripts
 
     - name: Install nfs-kernel-server
       apt:

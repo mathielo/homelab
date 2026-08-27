@@ -139,6 +139,51 @@ number — a healthy node shows around a dozen, all slaves. Any `PRIVATE` line n
 process to remove before retrying; grepping for an open file will not find it, because a
 passive mount holds the device without holding a single file descriptor.
 
+### NFS holders — checked separately, and not visible above
+
+**A clean namespace listing does not mean `/mnt/r0` is free.** The node exports it over
+NFS to the workstation, and `nfsd` is a kernel thread: it holds no file descriptor, no
+cwd, and no mount namespace of its own, so it appears in neither the listing above nor
+in `lsof`/`fuser`. There are two independent references and each alone is enough to make
+`umount` report `target is busy`:
+
+```bash
+# 1. Client side — the workstation's own mount. It is an x-systemd.automount,
+#    so simply listing the path remounts it; stop the unit, don't just umount.
+mount | grep n02r0
+sudo systemctl stop mnt-n02r0.automount
+sudo umount /mnt/n02r0 || sudo umount -l /mnt/n02r0
+
+# 2. Server side — the export itself, which pins the filesystem even with zero
+#    clients connected (the `mountpoint` export option is what does it).
+ssh k3s-node-02 'sudo ss -tn state established "( sport = :2049 )"'   # clients, may be empty
+ssh k3s-node-02 'sudo exportfs -v'                                    # the export, the real holder
+ssh k3s-node-02 'sudo exportfs -u 10.10.50.180:/mnt/r0'
+```
+
+Checking only the client side is the trap: with the workstation unmounted and **no
+established sessions at all**, the export still holds the array. If it is still busy
+after both, stop the server outright with `sudo systemctl stop nfs-server`.
+
+Neither needs undoing. `/etc/exports` is untouched on disk so `nfs-server` re-exports at
+boot, and the workstation's automount remounts on next access — start it again with
+`sudo systemctl start mnt-n02r0.automount`.
+
+`scripts/rack/shutdown` does both of these automatically in its step 3; this section is
+for a standalone power cycle, or when that step reports a failure.
+
+### Verify the end state, not the exit code
+
+`das-up` and `das-down` are re-runnable — each skips whatever is already in the wanted
+state — so a second run after a partial manual step is safe and silent. Still confirm
+the outcome rather than trusting a return code, because this is RAID 0 with no backup:
+
+```bash
+ssh k3s-node-02 'cat /proc/mdstat; mountpoint /mnt/r0 || echo "unmounted OK"'
+```
+
+`unused devices: <none>` plus `unmounted OK` means the array is down.
+
 ## 3. Power off and move it
 
 Power the enclosure off at its own switch _before_ unplugging anything. Then move it.

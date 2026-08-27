@@ -101,6 +101,76 @@ kubectl -n argocd get application <app> -o jsonpath='{.spec.syncPolicy}'
 
 Or in the ArgoCD UI: Application → "Enable Auto-Sync".
 
+## Expanding a PVC
+
+Raise `storage:` in `k3s/apps/<ns>/_infra/longhorn-pvcs.yaml` and let Argo apply it.
+Longhorn expands the block device, then kubelet grows the filesystem on the next mount
+(`FileSystemResizeSuccessful`). Confirm both layers — the PVC's `status.capacity` only
+catches up after the filesystem step:
+
+```bash
+kubectl get pvc -n <ns> <pvc> -o jsonpath='want={.spec.resources.requests.storage} have={.status.capacity.storage}{"\n"}'
+kubectl exec -n <ns> deploy/<app> -- df -h <mountpath>
+```
+
+### When it gets stuck
+
+Online expansion needs the engine to refresh the iSCSI initiator on the node. If that
+call fails the expansion never completes and `external-resizer` retries forever, while
+**every routine health signal stays green** — the volume reads `attached`/`healthy`,
+replicas are `running`, backups keep succeeding. Symptoms:
+
+```bash
+kubectl get pvc -A -o json | jq -r '.items[]
+  | select((.status.conditions//[])[]?.type=="Resizing")
+  | "\(.metadata.namespace)/\(.metadata.name) want=\(.spec.resources.requests.storage) have=\(.status.capacity.storage)"'
+
+# engine spec vs current — different, with EngineMonitor looping, means stuck
+kubectl get engines.longhorn.io -n longhorn-system -o json | jq -r \
+  '.items[]|select(.spec.volumeName=="<vol>")|"spec=\(.spec.volumeSize) current=\(.status.currentSize) im=\(.status.instanceManagerName)"'
+```
+
+The instance-manager log names the cause:
+
+```
+Failed to expand the frontend … fail to refresh iSCSI initiator: nsenter
+  --mount=/host/proc/<pid>/ns/mnt … cannot open …: No such file or directory
+```
+
+That PID is `iscsid` as it was when the instance-manager started. If `iscsid` has since
+restarted, the cached reference is dangling and **every** online expansion on that node
+fails until the instance-manager is replaced. Confirm with
+`ssh <node> 'ls -d /proc/<pid>; pgrep -a iscsid'`.
+
+**Scaling the workload down does not fix it, and the volume will not detach.** Longhorn's
+`volume-expansion-controller` holds its own attachment ticket in order to perform the
+expansion, and only releases it on success — so `expansionRequired: true` and the ticket
+keep each other alive. A wait-for-detached loop never returns:
+
+```bash
+kubectl get volumeattachments.longhorn.io -n longhorn-system <vol> \
+  -o json | jq -r '.spec.attachmentTickets|keys[]'
+# volume-expansion-controller-<vol>  ← the holder; no workload involved
+```
+
+The fix is to replace the instance-manager holding the engine, which means detaching
+every volume on it. In practice that is a full quiesce cycle — `make shutdown` then
+`make startup`. On reattach the engine lands on a current instance-manager with a valid
+`iscsid` PID and the expansion completes on its own.
+
+Two things to expect during that shutdown:
+
+- The step-2 detach wait will list the stuck volume. It is attached at block level with
+  **no mounted filesystem**, so there is no writer and powering off is safe — the script
+  now says so explicitly per volume.
+- Restarting the instance-manager live instead is possible but takes down every volume it
+  hosts, typically a dozen SQLite-backed apps at once. That is the unclean-teardown
+  pattern that corrupted databases before; prefer the quiesce cycle.
+
+An expansion left pending is not urgent on its own — the volume keeps working at its old
+size. Its real cost is noise: a few hundred errors an hour in the instance-manager log,
+plus continuous `external-resizer` retries.
+
 ## Restoring a Longhorn-backed PVC from backup
 
 Use this when the current PVC is empty (fresh provision) and you want to swap in data from a Longhorn backup on UNAS-4. The flow re-creates the original Longhorn volume + a pre-claimed PV, so when Argo recreates the PVC it static-binds (no dynamic provisioning).
