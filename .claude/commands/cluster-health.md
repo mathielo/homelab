@@ -446,8 +446,8 @@ kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- wget
   above a confirmation step rather than the detector; it is still the only place the
   error *text* appears. Note the metric drops the failed Backup CR once the next run
   rotates it out, so Prometheus history outlives the CR list.
-- **Age** — against the schedule (`daily-backup` 00:15, `weekly-backup` Sun 00:30,
-  `monthly-backup` 1st 00:45, `snapshot-6h`). `LonghornVolumeBackupStale` alerts on
+- **Age** — against the schedule (`daily-backup` 01:00, `weekly-backup` Sun 02:00,
+  `monthly-backup` 1st 03:00, all local; `snapshot-6h`). `LonghornVolumeBackupStale` alerts on
   this at 30h, so §0 normally catches it first — but note it fires ~8h *after* the
   failed run, and cannot fire at all for a volume whose previous night succeeded
   inside the 30h window. Treat it as a backstop, not the primary detector.
@@ -455,8 +455,8 @@ kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- wget
   whose count dips below its neighbours means specific volumes were skipped while the
   job still reported Completed, and the newest-backup timestamp stays green.
 
-  **Bucket by local date, not UTC.** The jobs run 00:15 local and the cluster is
-  `+0200`, so every nightly backup carries a `22:15Z` timestamp belonging to the
+  **Bucket by local date, not UTC.** The jobs run 01:00 local and the cluster is
+  `+0200`, so every nightly backup carries a `23:00Z` timestamp belonging to the
   *previous* UTC day. Slicing `snapshotCreatedAt[0:10]` puts the whole run in the day
   before and makes the current day look empty — which reads as a total backup
   failure when nothing is wrong.

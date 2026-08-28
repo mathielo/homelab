@@ -286,7 +286,7 @@ prometheus:
             # The job above reports success as long as it ran, even when an
             # individual volume inside it failed to back up, so volume age is
             # the only signal that a volume is actually falling behind.
-            # Dailies run 00:15, so 30h flags a single missed run without
+            # Dailies run 01:00 local, so 30h flags a single missed run without
             # firing during the window itself.
             #
             # `> 0` drops the volumes on longhorn-no-bkp, which never back up by
@@ -306,9 +306,9 @@ prometheus:
             # state label. The join relabels the PV to its PVC — `> bool 0` yields 1
             # so the multiplication preserves the state value.
             #
-            # Fires at 22:30 rather than waiting for the age alert above, which
-            # cannot notice until 30h have passed. Clears when the next run rotates
-            # the failed Backup CR out.
+            # Fires within minutes of the failing run rather than waiting for the
+            # age alert above, which cannot notice until 30h have passed. Clears
+            # when the next run rotates the failed Backup CR out.
             - alert: LonghornBackupError
               expr: (longhorn_backup_state == 4) * on(volume) group_left(pvc, pvc_namespace) (max by (volume, pvc, pvc_namespace) (longhorn_volume_last_backup_at) > bool 0)
               for: 5m

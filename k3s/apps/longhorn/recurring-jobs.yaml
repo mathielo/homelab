@@ -9,6 +9,17 @@
 # Retention is tiered (GFS) so silent corruption discovered late is still
 # recoverable: daily (2 weeks) + weekly (2 months) + monthly (6 months).
 # Snapshots are on-cluster, fast, same-disk — for quick logical rollback.
+#
+# Cron is evaluated in the k3s-server node's local time (Europe/Stockholm):
+# Longhorn renders each job into a k8s CronJob with no `timeZone`, so it
+# inherits the controller-manager's clock, not UTC.
+#
+# The three backup jobs sit an hour apart because `concurrency` is per-job,
+# not global — jobs that overlap each open their own serialized NFS stream,
+# and together they outrun the soft mount's timeout budget and fail with EIO.
+# 01:00-03:00 is the quietest stretch on the NAS: SAB resumes at 22:00 and
+# drains its queue through roughly 00:30, and 03:00 onward starts climbing
+# again toward the 09:00-10:00 daytime peak.
 apiVersion: longhorn.io/v1beta2
 kind: RecurringJob
 metadata:
@@ -29,7 +40,7 @@ metadata:
   namespace: longhorn-system
 spec:
   task: backup
-  cron: "15 0 * * *"
+  cron: "0 1 * * *"
   retain: 14 # 2 weeks
   concurrency: 1 # serialize NFS writes — 1 GbE + low-RAM NAS chokes on parallel backup streams
   groups:
@@ -42,7 +53,7 @@ metadata:
   namespace: longhorn-system
 spec:
   task: backup
-  cron: "30 0 * * 0" # Sundays
+  cron: "0 2 * * 0" # Sundays
   retain: 8 # ~2 months
   concurrency: 1
   groups:
@@ -55,7 +66,7 @@ metadata:
   namespace: longhorn-system
 spec:
   task: backup
-  cron: "45 0 1 * *" # 1st of month
+  cron: "0 3 1 * *" # 1st of month
   retain: 6 # 6 months
   concurrency: 1
   groups:

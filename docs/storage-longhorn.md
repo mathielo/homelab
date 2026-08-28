@@ -72,12 +72,21 @@ Set in `ansible/k3s/files/longhorn.values.yaml`, patched onto the `default` Back
 
 Recurring jobs are GitOps in `k3s/apps/longhorn/recurring-jobs.yaml` (Argo app `longhorn-config`). Every volume auto-enrolls via the `default` group label. Retention is tiered (GFS) so corruption found late is still recoverable:
 
-| Job              | Task     | Cron          | Retain | Window    |
-| ---------------- | -------- | ------------- | ------ | --------- |
-| `snapshot-6h`    | snapshot | `0 */6 * * *` | 8      | ~2 days   |
-| `daily-backup`   | backup   | `15 0 * * *`  | 14     | 2 weeks   |
-| `weekly-backup`  | backup   | `30 0 * * 0`  | 8      | ~2 months |
-| `monthly-backup` | backup   | `45 0 1 * *`  | 6      | 6 months  |
+| Job              | Task     | Cron          | Fires (local)  | Retain | Window    |
+| ---------------- | -------- | ------------- | -------------- | ------ | --------- |
+| `snapshot-6h`    | snapshot | `0 */6 * * *` | every 6h       | 8      | ~2 days   |
+| `daily-backup`   | backup   | `0 1 * * *`   | 01:00          | 14     | 2 weeks   |
+| `weekly-backup`  | backup   | `0 2 * * 0`   | Sun 02:00      | 8      | ~2 months |
+| `monthly-backup` | backup   | `0 3 1 * *`   | 1st 03:00      | 6      | 6 months  |
+
+Cron is **local time** (Europe/Stockholm), not UTC: Longhorn renders each job into a
+k8s CronJob with no `timeZone`, so it inherits the controller-manager's clock. A run
+therefore carries a UTC timestamp two hours earlier — 01:00 local is `23:00Z`.
+
+`concurrency` is per-job, not global. Backup jobs scheduled close together each open
+their own serialized NFS stream, and the combined write rate is what pushes the soft
+mount past its timeout budget; the hour of separation above is what keeps them from
+overlapping, since a full daily pass over every volume takes 10–35 min.
 
 Each retained backup is an independent restore point — new ones don't overwrite old ones; the oldest in each tier rolls off. Snapshots are on-cluster and fast but live on the volume's own replicas, so they cover logical mistakes, **not** disk loss.
 
@@ -190,10 +199,13 @@ ssh <node> 'df -h /mnt/nvme/longhorn'
 - `No such file or directory` → URL path must be the export root, not a subdirectory
 - `remote share not in 'host:dir' format` → URL needs the colon: `nfs://host:/path`
 - `failed to write data during saving blocks: close ...` → the `soft` mount hit its
-  timeout budget mid-write and returned EIO. It scales with volume size, so the
-  largest volume fails while every other volume in the same run succeeds. `retrans=5`
-  on the backup target widens that budget; `hard` would remove the limit entirely but
-  risks an unkillable D-state wedge on the NAS mount.
+  timeout budget mid-write and returned EIO, failing one volume while the rest of the
+  run succeeds. Which volume loses is probabilistic — larger volumes hold the mount
+  longer and so fail more often, but small ones are not exempt. The driver is
+  concurrent NFS write pressure, so the levers are the schedule (keep backup jobs off
+  each other and out of SAB's 22:00–00:30 drain) and `retrans=5` on the backup target,
+  which widens the budget. `hard` would remove the limit entirely but risks an
+  unkillable D-state wedge on the NAS mount.
 
 **Silently skipped volumes** — a recurring-job pod reports `Completed` even when
 individual volumes inside it errored, and `longhorn_volume_last_backup_at` stays green
@@ -206,8 +218,8 @@ kubectl get backups.longhorn.io -n longhorn-system -o json \
 ```
 
 A day's volume *count* can also match while the *set* differs, so diff consecutive
-days to name what was dropped. Bucket by **local** date: the jobs run 00:15 local,
-which is `22:15Z` the previous day, so a UTC bucket puts every nightly backup in the
+days to name what was dropped. Bucket by **local** date: the jobs run 01:00 local,
+which is `23:00Z` the previous day, so a UTC bucket puts every nightly backup in the
 day before and makes the current day look empty.
 
 ```bash
