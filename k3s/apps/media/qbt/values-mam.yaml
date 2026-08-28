@@ -21,7 +21,7 @@ app-template:
           # Overrides the defaults in values-common.yaml.
           resources:
             requests:
-              memory: 256Mi
+              memory: 1Gi
             limits:
               memory: 2Gi
 
