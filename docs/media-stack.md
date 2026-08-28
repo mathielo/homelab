@@ -124,11 +124,20 @@ SABnzbd and qBittorrent both run behind a Gluetun VPN sidecar for privacy:
 
 Credentials (`WIREGUARD_PRIVATE_KEY`, `WIREGUARD_ADDRESSES`) are encrypted per instance in `values-<instance>.sops.yaml`.
 
+### Restarting a qBittorrent instance
+
+A `preStop` hook stops every torrent (`hashes=all`) before the pod terminates, so libtorrent flushes fastresume to disk instead of losing progress. The matching resume on startup is **deliberately not wired up** — a bulk `torrents/start` re-announces the whole library at once — so **torrents come back stopped and resuming them is a manual step**. On `qbt-mam` that is ~2000 torrents reading `stoppedUP` with 0 leechers, which looks like a failed rollout and is not one.
+
+The hook's `sleep 5` is a fixed window, so a large library only partially stops before SIGTERM; the remainder come back seeding. A post-restart split like 1955 stopped / 233 seeding is that race, not selective breakage.
+
 ### MyAnonaMouse dynamic seedbox (qbt-mam)
 
 MAM gates download/announce permission on the requesting IP via an ASN-locked session. To keep that lock matched, `qbt-mam` is a dedicated instance pinned to a fixed set of Stockholm ProtonVPN servers. A `mam` sidecar calls [`dynamicSeedbox`](https://www.myanonamouse.net/api/endpoint.php/3/json/dynamicSeedbox.php) hourly to keep the seedbox IP current.
 
 - **Seedbox session:** MAM **Preferences → Security** → "Allow session to set dynamic seedbox IP", then ASN-lock it (after the first successful call registers the right ASN). Separate from the browser session. Its `mam_id` is stored as `MAM_ID` in `values-mam.sops.yaml` and seeds a cookie jar at `/config/mam/cookies.txt`.
+- **`MAM_ID` is single-use.** MAM rotates the `mam_id` on every accepted call and invalidates the previous one, so the cookie jar on the `qbt-mam-config-lh` PVC is the live credential and `MAM_ID` is only a bootstrap that is spent the first time it works. Once the jar is lost, no restart or redeploy recovers the session — the sidecar logs `Invalid session - Other` forever and the only fix is a new `mam_id` from Preferences → Security.
+- **Announces outlive the updater.** The lock is on the ASN, not the IP, so seeding keeps working on a stale seedbox IP as long as Gluetun stays inside the pinned ASNs (AS212238, AS208172). A dead updater is therefore silent: the first symptom is MAM's tracker-error list, not qBittorrent. Check `kubectl -n media logs deploy/qbt-mam -c mam --tail=5` for `"Success":true` after any qbt-mam restart.
+- **429 is not a rejection.** A restart within an hour of a successful IP change draws `Last change too recent` (rate limit: 1 change/hour, rolling). The cookie jar is still valid — the sidecar waits out the window rather than discarding it.
 
 ## Setting Up Services
 

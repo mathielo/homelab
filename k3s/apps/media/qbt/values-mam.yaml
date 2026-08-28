@@ -26,8 +26,15 @@ app-template:
               memory: 2Gi
 
         # Keeps MAM's seedbox IP current via dynamicSeedbox.php from inside the VPN
-        # netns. Seeds from MAM_ID (values-mam.sops.yaml), then reuses a refreshed
-        # cookie jar on the config PVC. Rate limit 1/hour — loop backs off per case below.
+        # netns. MAM rotates the mam_id on every accepted call and invalidates the
+        # previous one, so the cookie jar on the config PVC — not MAM_ID — is the live
+        # credential; MAM_ID only bootstraps a jar that does not exist yet, and is spent
+        # the moment it works. Losing the jar to anything short of a real session
+        # rejection is therefore unrecoverable without a new mam_id, which is why the
+        # jar is written to a scratch file and promoted only on success, and why the
+        # 1/hour rate limit and the IP/ASN lock mismatches get their own cases instead
+        # of falling into the reject branch. Only an accepted call spends a credential,
+        # so a rejected seed leaves MAM_ID reusable and is safe to retry.
         # https://www.myanonamouse.net/api/endpoint.php/3/json/dynamicSeedbox.php
         mam:
           image:
@@ -41,18 +48,34 @@ app-template:
               JAR=/config/mam/cookies.txt
               URL=https://t.myanonamouse.net/json/dynamicSeedbox.php
               mkdir -p /config/mam
+              seeded=0
               while true; do
-                # Use the jar only after a success; otherwise reseed from MAM_ID.
                 if [ -s "$JAR" ]; then
-                  resp=$(curl -sS -c "$JAR" -b "$JAR" "$URL")
+                  resp=$(curl -sS -c "$JAR.new" -b "$JAR" "$URL")
                 else
-                  resp=$(curl -sS -c "$JAR" -b "mam_id=$MAM_ID" "$URL")
+                  resp=$(curl -sS -c "$JAR.new" -b "mam_id=$MAM_ID" "$URL")
+                  seeded=1
                 fi
                 echo "[mam] $(date -u +%FT%TZ) ${resp:-<no response>}"
                 case "$(printf %s "$resp" | tr -d ' ')" in
-                  *'"Success":true'*)  sleep 3900 ;;                  # ok — keep jar, hold 1/hr limit
-                  *'"Success":false'*) rm -f "$JAR"; sleep 300 ;;     # rejected — drop jar, reseed from MAM_ID
-                  *)                   sleep 30 ;;                    # no response (startup/DNS/blip) — retry soon
+                  *'"Success":true'*)
+                    mv "$JAR.new" "$JAR"; seeded=0; sleep 3900 ;;   # ok — keep rotated jar, hold 1/hr limit
+                  *Lastchangetoorecent*)
+                    rm -f "$JAR.new"; sleep 900 ;;                  # 429 — jar still valid, wait out the window
+                  *mismatch*)
+                    rm -f "$JAR.new"
+                    echo "[mam] session locked to another IP/ASN — widen the lock on MAM or move the exit into it"
+                    sleep 900 ;;                                    # credential is fine, the exit is wrong
+                  *'"Success":false'*)
+                    rm -f "$JAR.new" "$JAR"
+                    if [ "$seeded" = 1 ]; then
+                      echo "[mam] MAM_ID rejected — put a fresh mam_id in values-mam.sops.yaml"
+                      sleep 3600
+                    else
+                      sleep 60
+                    fi ;;
+                  *)
+                    rm -f "$JAR.new"; sleep 30 ;;                   # no response (startup/DNS/blip) — retry soon
                 esac
               done
           securityContext:
