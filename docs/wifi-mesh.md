@@ -22,18 +22,18 @@ gateway:
 ssh UGCMax 'ip neigh show | grep -i "<mac-suffix>"'
 ```
 
-| Device       | MAC suffix   | Radios                                   |
-| ------------ | ------------ | ---------------------------------------- |
-| U7 Pro XG    | `…3e:6b:ac`  | 2.4 ch11@20 · 5 ch36@80 · **6 ch37@320** |
-| U7 Mesh      | `…ea:d9:a4`  | 2.4 ch1@20 · 5 **ch104@40 (DFS)**        |
+| Device    | MAC suffix  | Radios                                   |
+| --------- | ----------- | ---------------------------------------- |
+| U7 Pro XG | `…3e:6b:ac` | 2.4 ch11@20 · 5 ch36@80 · **6 ch37@320** |
+| U7 Mesh   | `…ea:d9:a4` | 2.4 **auto** · 5 **ch104@40 (DFS)**      |
 
 Mesh children:
 
-| UDB          | MAC suffix   | Parent    | Link(s)                  |
-| ------------ | ------------ | --------- | ------------------------ |
-| Homelab      | `…1a:b5:f2`  | U7 Pro XG | MLO: 5 ch36 **+** 6 ch37 |
-| Living Room  | `…1a:b7:2e`  | U7 Pro XG | 6 ch37                   |
-| G6 Balcony   | `…b4:7e:b9`  | U7 Mesh   | 5 ch104                  |
+| UDB         | MAC suffix  | Parent    | Link(s)                  |
+| ----------- | ----------- | --------- | ------------------------ |
+| Homelab     | `…1a:b5:f2` | U7 Pro XG | MLO: 5 ch36 **+** 6 ch37 |
+| Living Room | `…1a:b7:2e` | U7 Pro XG | 6 ch37                   |
+| G6 Balcony  | `…b4:7e:b9` | U7 Mesh   | 5 ch104                  |
 
 A UDB's per-link MACs are its base MAC with the last octet incremented — e.g.
 `…b5:f4` is the 5 GHz link and `…b5:f5` the 6 GHz link of the same MLD. That is how
@@ -107,7 +107,7 @@ All three of these made a working 6 GHz link look completely dead during the
 2. **All MLO traffic is accounted to the _primary_ link's station entry.** The
    controller's `downlink_table` per-station `tx_bytes`/`rx_bytes` read ≈0 on the
    secondary link even while it moves hundreds of Mbit/s. Anything built on that same
-   API inherits the distortion: a per-band series tracks which link is *primary*, not
+   API inherits the distortion: a per-band series tracks which link is _primary_, not
    which is loaded.
 
 3. **The secondary link legitimately reports `STATE 3` with blank `HTCAPS` and
@@ -151,7 +151,7 @@ channel change did.
 ### Reading the utilisation numbers
 
 `cu_total` alone is misleading. Subtract `cu_self_tx + cu_self_rx` to get what is
-actually *someone else's* airtime. High utilisation from our own useful traffic is
+actually _someone else's_ airtime. High utilisation from our own useful traffic is
 fine; high utilisation from an external source is not.
 
 ## Known-good baseline
@@ -159,14 +159,14 @@ fine; high utilisation from an external source is not.
 Verified 2026-08-05 under combined load (cluster downloads plus a 4K Plex stream, ~19
 minutes of one-minute samples):
 
-| Metric                          | Value                                    |
-| ------------------------------- | ---------------------------------------- |
-| Mesh downstream peak            | 663 Mbit/s (WAN speedtest 688/726)       |
-| Mesh downstream range           | 260–663 Mbit/s, tracking demand          |
-| Mesh vs child NIC divergence    | mean 1.0%, max 3.2% (no queueing/loss)   |
-| Stalls                          | 0                                        |
-| XG 5 GHz ch36                   | 61% CU, **6% external**, 10.5% retries   |
-| XG 6 GHz ch37                   | 56% CU, **7% external**, 15.0% retries   |
+| Metric                       | Value                                  |
+| ---------------------------- | -------------------------------------- |
+| Mesh downstream peak         | 663 Mbit/s (WAN speedtest 688/726)     |
+| Mesh downstream range        | 260–663 Mbit/s, tracking demand        |
+| Mesh vs child NIC divergence | mean 1.0%, max 3.2% (no queueing/loss) |
+| Stalls                       | 0                                      |
+| XG 5 GHz ch36                | 61% CU, **6% external**, 10.5% retries |
+| XG 6 GHz ch37                | 56% CU, **7% external**, 15.0% retries |
 
 At these numbers the path is WAN-limited, not mesh-limited. Throughput varying with
 demand is expected and is not a fault.
