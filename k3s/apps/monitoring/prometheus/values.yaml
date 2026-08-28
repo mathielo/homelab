@@ -299,6 +299,24 @@ prometheus:
               annotations:
                 summary: "Longhorn volume {{ $labels.pvc_namespace }}/{{ $labels.pvc }} has no backup for {{ $value | humanizeDuration }} — the recurring job is skipping it"
 
+            # A per-volume failure inside a job that still reports success. The
+            # backup target's soft NFS mount returns EIO once a write outruns its
+            # timeout budget, which scales with volume size, so the largest volume
+            # fails alone. State 4 is Error (3 is Completed); the metric carries no
+            # state label. The join relabels the PV to its PVC — `> bool 0` yields 1
+            # so the multiplication preserves the state value.
+            #
+            # Fires at 22:30 rather than waiting for the age alert above, which
+            # cannot notice until 30h have passed. Clears when the next run rotates
+            # the failed Backup CR out.
+            - alert: LonghornBackupError
+              expr: (longhorn_backup_state == 4) * on(volume) group_left(pvc, pvc_namespace) (max by (volume, pvc, pvc_namespace) (longhorn_volume_last_backup_at) > bool 0)
+              for: 5m
+              labels:
+                severity: warning
+              annotations:
+                summary: "Longhorn backup of {{ $labels.pvc_namespace }}/{{ $labels.pvc }} failed — the recurring job will still report Completed"
+
         # SMART health from smartctl-exporter (k3s-node-02: the DAS pair behind
         # /mnt/r0, plus the NVMe carrying Longhorn and /local).
         - name: disk-health

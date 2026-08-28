@@ -55,7 +55,8 @@ This section also keeps the skill honest, in both directions:
   file. Name it and propose the check.
 - **A threshold in this file with no matching alert rule** = a gap in monitoring;
   this check only runs when the user runs it, an alert rule runs always. Propose the
-  rule for `prometheus/values.yaml`.
+  rule for `prometheus/values.yaml`. Once the user applies one, replace the proposal
+  here with a one-line reference — a rule that ships should not also live here as YAML.
 
 Prometheus also answers questions this sweep otherwise guesses at — SMART drive
 temperatures (`smartctl_device_temperature`), CPU throttling, memory peaks. Retention
@@ -75,18 +76,9 @@ PQ 'avg_over_time(up[24h]) < 1' | jq -r '.data.result[]|"\(.metric.job)\t\(.metr
 `broken pipe` in an exporter's own log is Prometheus hanging up mid-response, and its
 usual cause is that exporter's CPU limit (§3), not the network.
 
-The matching monitoring gap — this sweep only runs on demand, so a partially blind
-Prometheus should not wait for someone to run it. Proposed rule for
-`prometheus/values.yaml`:
-
-```yaml
-- alert: PrometheusTargetScrapeFailing
-  expr: avg_over_time(up[30m]) < 0.95
-  for: 30m
-  labels: { severity: warning }
-  annotations:
-    summary: "Scrape target {{ $labels.instance }} ({{ $labels.job }}) failing"
-```
+**Open monitoring gap** — nothing alerts on a failing scrape target, so a partially
+blind Prometheus waits for someone to run this check. Proposed but not applied:
+`PrometheusTargetScrapeFailing`, `avg_over_time(up[30m]) < 0.95` for 30m, warning.
 
 ## 1. Node metrics (structured, glanceable, comparable between runs)
 
@@ -183,7 +175,7 @@ high threshold (85%, set in `ansible/k3s/install-k3s.yaml`).
 
   ```
   for h in $(kubectl get nodes -o name | cut -d/ -f2); do printf '%-14s %s\n' "$h" \
-    "$(ssh $h 'cat /var/run/reboot-required.pkgs 2>/dev/null | tr "\n" " "' || echo none)"; done
+    "$(ssh $h 'test -e /var/run/reboot-required.pkgs && tr "\n" " " < /var/run/reboot-required.pkgs || echo none')"; done
   ```
 
   Hosts come from `kubectl`, as in §1. 🟡 once a node has been pending more than a
@@ -235,10 +227,9 @@ for n in $(kubectl get nodes -o name | cut -d/ -f2); do echo -n "$n: "; \
 Report a **per-node allocation table** (`Status | Node | RAM | Requests | Limits % |
 Verdict`). Requests are the scheduler's contract and must stay under 100%. Limits
 routinely exceed 100% — that is normal overcommit — but the *ratio* is the blast
-radius: node-02 has run steadily above 200 % of RAM in limits since 2026-08-23 — read
-the live number from the command above, never from this line. A handful of containers
-peaking together will OOM something. State the
-number before proposing any limit increase, and prefer raising a **request**
+radius: node-02 runs deep in RAM overcommit, and a handful of containers peaking
+together will OOM something. Read the live number from the command above and state it
+before proposing any limit increase, and prefer raising a **request**
 (scheduling truth) over a **limit** (ceiling) on a node already deep in overcommit.
 
 Then the per-container view: catch containers that are **starved** (near their limit,
@@ -311,8 +302,8 @@ reclaimed:
 ```
 
 A large working-set/RSS gap means page cache, not pressure — 🟢, and no limit change.
-(Measured 2026-08-27: `qbt-se/main` working set peaked at 7947Mi against an 8Gi limit
-— 97 %, and a fresh 🔴 every run if read alone — while RSS peaked at 1193Mi.)
+`qbt-se/main` is the standing example: its working set sits near its 8Gi limit while
+RSS stays around 1.2Gi, so reading the working set alone produces a false 🔴 every run.
 
 CPU pressure has an equivalent, and it beats `cpu %R` as evidence — throttling is the
 symptom a CPU limit actually causes:
@@ -368,8 +359,7 @@ What may be applied this way is deliberately narrow:
   **An `OOMKilled` is itself that history, and outranks the peak.** The kill is a
   sub-second spike, so a 30s-scrape working set never records it: expect the 7d peak
   to sit *well under* the limit on exactly the container that was killed, and raise
-  the limit anyway. (2026-08-27: `media/bazarr` OOMKilled at a 512Mi limit with a 7d
-  peak of 254Mi.) Never read a low peak as evidence the OOMKill was spurious.
+  the limit anyway. Never read a low peak as evidence the OOMKill was spurious.
 - **No explanatory comments in the YAML.** Set the value and nothing else; the
   reasoning belongs in the report, where it is read once, not in the file, where it
   becomes stale verbosity. A sizing diff should be one changed line per number.
@@ -405,7 +395,7 @@ as a pod that never starts:
 LIVE=$(kubectl get pods -A -o json | jq -c '[.items[]|.metadata.namespace+"/"+.metadata.name]')
 kubectl get events -A --field-selector reason=FailedMount -o json \
 | jq -r --arg t "$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ)" --argjson live "$LIVE" '
-  .items[] | select((.eventTime // .lastTimestamp // .firstTimestamp) > $t)
+  .items[] | select((.series.lastObservedTime // .lastTimestamp // .eventTime // .firstTimestamp) > $t)
   | (.involvedObject.namespace + "/" + .involvedObject.name) as $p
   | select($live | index($p))
   | "\($p)\t\(.message)"' | grep -i fsck
@@ -450,11 +440,12 @@ kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- wget
   remove the limit but risks an unkillable D-state wedge on the NAS mount. Full
   failure mode in `docs/storage-longhorn.md` → "Silently skipped volumes".
 
-  *Pending decision (2026-08-23):* an alert on `longhorn_backup_state == Error` would
-  catch this at 22:30 instead of 06:00, but `retrans=5` was applied the same day and
-  may remove the failure entirely. **Re-evaluate after 2026-08-30:** if any volume has
-  errored again since, add the rule to `prometheus/values.yaml`; if the week is clean,
-  delete this note.
+  `retrans=5` widened the budget but did not remove the ceiling — the largest volume
+  still errors — so do not propose raising it again as a fix. `LonghornBackupError`
+  (in `prometheus/values.yaml`) now fires on this within 5m, which makes the CR query
+  above a confirmation step rather than the detector; it is still the only place the
+  error *text* appears. Note the metric drops the failed Backup CR once the next run
+  rotates it out, so Prometheus history outlives the CR list.
 - **Age** — against the schedule (`daily-backup` 00:15, `weekly-backup` Sun 00:30,
   `monthly-backup` 1st 00:45, `snapshot-6h`). `LonghornVolumeBackupStale` alerts on
   this at 30h, so §0 normally catches it first — but note it fires ~8h *after* the
@@ -512,14 +503,28 @@ kubectl get volumes.longhorn.io -n longhorn-system -o json \
   | jq -r '.items[]|select(.status.expansionRequired)|"\(.metadata.name)\tspec=\(.spec.size)\texpansionRequired"'
 ```
 
-🔴 on any hit. Confirm by comparing the engine's `spec.volumeSize` against its
+Both queries only see an expansion that is **still in flight**. The moment it completes
+— including when a reboot completes it as a side effect — they go clean and the incident
+leaves no trace in any object's status. The `VolumeResizeFailed` event is the only
+record that it happened at all, so read it too:
+
+```
+kubectl get events -A --field-selector reason=VolumeResizeFailed -o json | jq -r '.items[]
+  | "\(.involvedObject.namespace)/\(.involvedObject.name)\t\(.count // .series.count)x\tfirst=\(.eventTime // .firstTimestamp)\tlast=\(.series.lastObservedTime // .lastTimestamp)"'
+```
+
+A hit whose `last` is inside the window but whose PVC now reads `spec == status` is a
+**resolved** expansion — report it as such, not as a live 🔴, and say what completed it.
+A rack reboot resolves one incidentally, by detaching the volume.
+
+🔴 on any hit of the two live queries. Confirm by comparing the engine's `spec.volumeSize` against its
 `status.currentSize` (equal = done; different with `EngineMonitor` logging
 `Starting engine expansion` on a loop = stuck), and read the real filesystem size with
 `kubectl exec -n <ns> deploy/<app> -- df -h <mountpath>`.
 
 Online expansion is what fails; the engine completes it once the volume is **detached**.
 So the fix is a quiesce cycle — but two details decide whether it works, and getting
-either wrong looks like the fix simply doing nothing (verified the hard way 2026-08-27):
+either wrong looks like the fix simply doing nothing:
 
 - **Suspend the root App-of-Apps *first*.** `media-apps` reverts `syncPolicy` patches
   on its children, so suspending only the per-service app lets the child be re-enabled
@@ -532,22 +537,12 @@ either wrong looks like the fix simply doing nothing (verified the hard way 2026
 Re-enable in reverse: per-service app first, root **last**. Never `kubectl patch` the
 PVC or edit the Longhorn volume to paper over it.
 
-The matching monitoring gap — this is silent between runs of this check. Proposed rule
-for `prometheus/values.yaml`:
-
-```yaml
-- alert: LonghornVolumeExpansionStuck
-  expr: longhorn_volume_actual_size_bytes > 0 and on(volume) longhorn_volume_state == 2
-        and on(volume) (longhorn_volume_capacity_bytes != ignoring(instance) longhorn_volume_actual_size_bytes)
-  for: 30m
-  labels: { severity: warning }
-  annotations:
-    summary: "Longhorn volume {{ $labels.volume }} stuck expanding for 30m"
-```
-
-(Verify the exact metric names against `/api/v1/label/__name__/values` before
-committing the rule — the `kubectl get pvc` query above is the authoritative check
-either way.)
+**Open monitoring gap** — a stuck expansion is silent between runs of this check.
+Proposed but not applied: `LonghornVolumeExpansionStuck`, comparing
+`longhorn_volume_capacity_bytes` against `longhorn_volume_actual_size_bytes` on an
+attached volume for 30m; verify the metric names against `/api/v1/label/__name__/values`
+first. The `kubectl get pvc` query above is the authoritative check for an expansion
+still in flight, and the `VolumeResizeFailed` event for one that has since resolved.
 
 **Volumes on the `longhorn-no-bkp` StorageClass have no backups _by design_** — they
 hold disposable monitoring data and were deliberately excluded. Render them ⚪;
@@ -576,8 +571,22 @@ kubectl exec -n monitoring deploy/grafana -c grafana -- wget -qO- http://loki:31
 The two `!=` filters mirror Pass 2's exclusions. Without them the count is inflated by
 structured-log lines whose *success* payload contains the word — `"error":null` — and
 an app is ranked near the top of the sweep with nothing wrong with it, then drills down
-to zero lines. (2026-08-27: `media/profilarr` scored 97, all of them `DEBUG ... "status":"success" ... "error":null`.)
-Any exclusion added to Pass 2 belongs here too, or the ranking lies.
+to zero lines. Any exclusion added to Pass 2 belongs here too, or the ranking lies.
+
+**Establish currency before triaging.** A count is a total over the window and says
+nothing about *when*. After a node reboot — or any restart — the drill-down fills with
+startup churn that was over in seconds, and it looks identical to a fault that has been
+running all day. Re-run the app's dominant message over a short trailing window; if the
+recent count is zero, it is history:
+
+```
+kubectl logs -n "$ns" "$pod" --all-containers --since=20m 2>/dev/null | grep -c '<message>'
+kubectl logs -n "$ns" "$pod" --all-containers --since="$W" --timestamps 2>/dev/null \
+  | grep '<message>' | sed -n '1p;$p' | cut -c1-30   # first and last occurrence
+```
+
+Do this for every burst before writing it into §8 — the §8 Frequency column should read
+"3 311, all inside the reboot minute" or "60/h, ongoing", never a bare total.
 
 **Every app with a non-zero count gets triaged — including the ones whose count looks
 "normal".** A steady 60/h of the same benign line is still noise worth fixing at the
@@ -598,12 +607,17 @@ kubectl logs -n "$ns" "$pod" --all-containers --prefix --since="$1" 2>/dev/null 
   | sed 's/\x1b\[[0-9;]*m//g' \
   | grep -iE '\b(error|fatal|panic|warn(ing)?)\b|level=(error|warn)|"level":"(error|warn|fatal)"|[[:space:]]E[0-9]{4}[[:space:]]|\[(error|crit)\]' \
   | grep -ivE '"error":null|error=null|level=info|caller=metrics\.go|warnings\.go|is deprecated|"GET |"POST |HTTP/[12]' \
-  | sed 's/[0-9]\{4\}-[0-9-]*T[0-9:.]*Z\?//g' | sort | uniq -c | sort -rn | head -10
+  | sed -E 's/[0-9]{4}-[0-9-]*T?[0-9:.]*Z?//g; s/\b[EWIF][0-9]{4} [0-9:.]+ +[0-9]+\b//g; s/[0-9]{2}:[0-9]{2}:[0-9]{2}//g; s/[0-9]+/N/g' \
+  | sort | uniq -c | sort -rn | head -10
 ```
 
-`uniq -c` ranks distinct messages by how often they repeat (the `sed` strips
-timestamps so identical events collapse). A message seen once and a message seen
-4 000 times need different responses, so the count must survive into §8.
+`uniq -c` ranks distinct messages by how often they repeat. **All four `sed`
+substitutions are load-bearing**: ISO stamps, klog (`W0827 11:31:11.275065       1`),
+bare `HH:MM:SS`, and the blanket `[0-9]+`→`N` for IPs, ports, durations and IDs. Any
+format left un-normalized makes every line unique and `uniq -c` returns a column of
+`1`s. It costs some readability, which is the right trade for a ranking pass — read the
+raw lines for the one message that matters. A message seen once and one seen 4 000
+times need different responses, so the count must survive into §8.
 
 Match on **log-severity markers**, not bare substrings (`fail` matches the
 `failed_only` query param in nginx access logs; `error` matches `"error":null`).
@@ -654,13 +668,22 @@ Events must be time-filtered explicitly. `kubectl get events` returns the full
 retained history, and events from the `events.k8s.io` API carry `lastTimestamp: null`
 (the timestamp lives in `eventTime`), so sorting or filtering on `lastTimestamp`
 silently keeps them. Unfiltered, an 11-day-old `ImageGCFailed` and a cordon-storm of
-`FailedScheduling` from the last rack maintenance both read as current problems:
+`FailedScheduling` from the last rack maintenance both read as current problems.
+
+**For a repeating event, `eventTime` is the *first* observation, not the last** — the
+last lives in `.series.lastObservedTime`. Filtering on `eventTime` therefore fails in
+both directions: it collapses a long-running burst to a single line at the wrong
+instant, and it drops an event that is *still firing* whenever the series began before
+the window. Order the coalesce last-first, and read the span, not a point: a large
+`count` between a first and last that differ by hours is one past incident, while the
+same count whose last observation is minutes old is live.
 
 ```
 kubectl get events -A --field-selector type=Warning -o json | jq -r --arg t "$(date -u -d '12 hours ago' +%Y-%m-%dT%H:%M:%SZ)" '
-  .items[] | (.eventTime // .lastTimestamp // .firstTimestamp) as $ts
-  | select($ts != null and $ts > $t)
-  | "\($ts)\t\(.reason)\t\(.involvedObject.namespace)/\(.involvedObject.name)\t\(.count // .series.count // 1)x\t\(.message[0:100])"' | sort
+  .items[] | (.series.lastObservedTime // .lastTimestamp // .eventTime // .firstTimestamp) as $last
+  | (.eventTime // .firstTimestamp // $last) as $first
+  | select($last != null and $last > $t)
+  | "\($last)\t\(.reason)\t\(.involvedObject.namespace)/\(.involvedObject.name)\t\(.count // .series.count // 1)x\tsince=\($first)\t\(.message[0:100])"' | sort
 ```
 
 (substitute the run's window for `12 hours ago`.) Present a table:
@@ -688,8 +711,9 @@ accept:
   `*_PASSWORD`) holds live credentials in plaintext, so when a config check needs one,
   grep for that single variable instead of dumping the block:
   `kubectl -n <ns> get deploy <d> -o jsonpath='{...}' | grep ALLOWED_HOSTS`.
-- loki query-stats (`caller=metrics.go`, `level=info`) and coredns `[INFO]`
-  query logs — verbose telemetry, not faults.
+- loki query-stats (`caller=metrics.go`, `level=info`) and coredns `[INFO]`/`[WARNING]`
+  query logs — verbose telemetry, not faults. coredns query logging is deliberately on
+  and dominates every Loki count by tens of thousands per hour; rank it, then set it aside.
 - `loki-canary` `tail max duration limit exceeded` — canary recycling its tail.
 - k8s API deprecation `Warning:` lines (`v1 Endpoints is deprecated`) from
   longhorn-manager/controllers — upstream chatter, not a cluster fault.
@@ -703,9 +727,16 @@ accept:
   `/local` mount and br always has active downloads, and qui marks any run with walk
   errors and zero orphans as failed. Not fixable via Ignore Paths; never mount
   `/local` into qui.
-- **coredns** `[INFO]`/`[WARNING]` query-log lines (tens of thousands per hour) —
-  query logging is deliberately on. It dominates every Loki count; rank it, then set
-  it aside.
+- **Startup churn in the minute after a node restart** — every rack cycle reproduces
+  the same set, in volume: cert-manager `ACME client for issuer not initialised`,
+  longhorn-manager `mismatching disks`, the CSI sidecars' `dial unix /csi/csi.sock:
+  connect: connection refused`, promtail readiness-probe timeouts, and qui `instance is
+  in backoff period` — each a controller reconciling ahead of its dependency. All
+  self-clear. **Accepted only when confined to the restart window**: establish that with
+  §6's currency check, and confirm the end state with `kubectl get clusterissuer` +
+  `kubectl get certificates -A` (all `Ready=True`) and `kubectl get nodes.longhorn.io
+  -n longhorn-system` (every disk `Ready`/`Schedulable`). The same message still
+  arriving 20 minutes later is a real finding.
 - **pulsarr** `ERROR: [WATCHLIST_WORKFLOW] Failed to fetch RSS feed` (≈0.7% of
   polls) — Pulsarr polls the Plex watchlist RSS (`rss.plex.tv`, S3-backed) every
   ~10 s with a hardcoded 30 s timeout; occasional Plex-side latency trips it.
@@ -726,23 +757,17 @@ run, and if one fires, it leaves this table and becomes a 🔴 finding.
 | 2026-08-19 | `DiskTemperatureHigh` firing on DAS drives `sda`/`sdb` | Enclosure airflow is at its practical limit; a lower steady temperature needs a physical rebuild | `DiskTemperatureCritical` (>60 °C) fires · `DasDiskLatencyImbalance` fires · any reallocated/pending sector appears · steady state exceeds ~58 °C |
 
 Baseline for that row (so drift is detectable rather than a fresh surprise), as of
-**2026-08-27**: steady **53/55 °C** (sda/sdb), 7d max **53/55 °C**, SMART otherwise
+**2026-08-28**: steady **52/54 °C** (sda/sdb), 7d max **55/56 °C**, SMART otherwise
 clean — and `DiskTemperatureHigh` **not firing**, the enclosure having settled below
-its 58 °C threshold. (Previous baseline, 2026-08-23: steady 50–52 °C, 7d max 57/59 °C.)
+its 58 °C threshold. (Previous baseline, 2026-08-27: steady 53/55 °C, 7d max 53/55 °C.)
 Quote the current numbers against that baseline in the one-liner — an accepted
 condition still gets measured.
 
 The row stays despite the quiet alert: the drives still run 13–15 °C above Toshiba's
-40 °C recommendation, and the cooling that bought this margin is ambient, not a fix.
-**Retire it only after a full warm-week holds under 58 °C** — and note that retiring
-it orphans the 58 °C threshold's rationale below.
-
-The enclosure cooled by ~3 °C between 2026-08-11 and 2026-08-19 (daily max 58/60 →
-52/53), which left `DiskTemperatureHigh`'s old 50 °C threshold sitting *below* the
-median and flapping across it for hours. It now fires on a 1 h average above **58 °C**
-— the same number as this row's re-open trigger, so the alert and the acceptance say
-the same thing. If this row is ever retired, that coupling is the reason the threshold
-is 58 and not something else.
+40 °C recommendation, and the margin comes from ambient cooling, not a fix. **Retire it
+only after a full warm-week holds under 58 °C.** `DiskTemperatureHigh` fires on a 1 h
+average above **58 °C** — deliberately the same number as this row's re-open trigger, so
+the alert and the acceptance say one thing; retiring the row orphans that rationale.
 
 Adding a row here is a deliberate act: it needs the re-open trigger and the baseline,
 otherwise it is not an acceptance, it is a blind spot.
@@ -788,6 +813,24 @@ by-design rows that are deliberately exempt from their threshold (e.g.
    miss a section should have caught, or a threshold that deserves a Prometheus rule.
    "Nothing to change" is a valid answer; an empty section every run is not.
 
+   **Most findings do not belong in this file.** A run surfaces plenty that is worth
+   saying and not worth persisting: what a metric read today, which incident a burst
+   traced back to, why a number was chosen, what got ruled out. That belongs in the
+   report, discussed in the session. Only write here what **changes how a future run
+   behaves** — a check it would otherwise not run, a false positive it would otherwise
+   re-derive, a threshold, a failure mode with a named fix, a command that was wrong.
+   Everything else is bloat that makes the rest less trustworthy. Specifically, keep out:
+
+   - **This run's measurements.** Dates and readings age into lies. The exception is a
+     standing condition's baseline, which exists to be compared against.
+   - **Narrated history** — "X did not work", "this used to be Y", "verified the hard
+     way". State what *is*, and what to do. If a ruled-out fix would otherwise be
+     re-proposed, one clause saying so is the whole entry.
+   - **Illustrative examples**, unless the example is the recurring false positive
+     itself and naming it saves the next run the investigation.
+   - **Decisions still being weighed.** Bring those to the user in the report. Once
+     decided, what lands here is the resulting rule or check, not the deliberation.
+
    **Apply the edit under the same gate as §3's sizing.** Clean tree at the start of
    the run → edit this file directly and show the `git diff`. Dirty → propose the diff
    and change nothing. The same narrow rules apply: only this file, never `git
@@ -815,6 +858,9 @@ by-design rows that are deliberately exempt from their threshold (e.g.
    - **Expired notes** — anything carrying a date or a re-evaluate-by. Act on it when
      due, and *delete* it once acted on. A dated note left past its date is worse
      than no note: it reads as current.
+   - **Bloat** — anything failing the test above: a measurement, a narrated incident,
+     an example carrying no rule, a proposal already applied or already declined. Cut
+     it and keep whatever rule it was carrying.
    - **Ambiguity** — a threshold with no unit, a verdict with no owning section, an
      instruction whose subject is unclear on a cold read.
 
