@@ -209,13 +209,30 @@ ssh <node> 'df -h /mnt/nvme/longhorn'
 
 **Silently skipped volumes** — a recurring-job pod reports `Completed` even when
 individual volumes inside it errored, and `longhorn_volume_last_backup_at` stays green
-for every volume that did succeed. `LonghornVolumeBackupStale` only notices ~8h later,
-at 30h. The direct signal is the Backup CR state:
+for every volume that did succeed. Reading the failures takes the Backup CRs:
 
 ```bash
 kubectl get backups.longhorn.io -n longhorn-system -o json \
   | jq -r '.items[]|select(.status.state=="Error")|"\(.metadata.creationTimestamp)\t\(.status.error[0:160])"'
 ```
+
+**An `Error` CR is not by itself a finding.** The job retries a failed volume inside
+the same run, so an error is usually followed minutes later by a successful backup of
+that volume — the data is safe and only the record remains. Longhorn keeps that record
+for `failed-backup-ttl` (1440m), so this list holds a full day of already-repaired
+failures. Compare each error against its volume's `status.lastBackupAt`: a newer
+success means recovered. This is a diagnosis step, run once an alert says a volume is
+actually behind; it is not a detector, which is why no alert is keyed on it.
+
+**Editing a recurring job's cron backfills the missed run** — Longhorn patches the
+schedule of the existing CronJob rather than replacing it, so the k8s CronJob
+controller sees the most recent occurrence of the *new* schedule already in the past
+and runs it immediately. `concurrencyPolicy: Forbid` is per CronJob and does not hold
+across them, so changing all three backup crons at once fires all three the moment
+ArgoCD syncs — the exact overlap the staggered schedule exists to prevent. Overlapping
+jobs open parallel NFS streams (EIO), and two jobs reaching the same volume collide on
+the backupstore lock (`failed to acquire lock backupstore/volumes/...`). Expect one
+noisy run after any cron edit; the following night is back on schedule.
 
 A day's volume *count* can also match while the *set* differs, so diff consecutive
 days to name what was dropped. Bucket by **local** date: the jobs run 01:00 local,

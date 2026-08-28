@@ -273,49 +273,51 @@ prometheus:
               annotations:
                 summary: "Longhorn volume {{ $labels.volume }} is FAULTED — data unavailable"
 
-            # Longhorn recurring backups/snapshots run as k8s (Cron)Jobs, so a
-            # failed run surfaces here as kube_job_failed.
-            - alert: LonghornBackupJobFailed
-              expr: kube_job_failed{namespace="longhorn-system"} > 0
-              for: 5m
-              labels:
-                severity: warning
-              annotations:
-                summary: "Longhorn backup/snapshot job {{ $labels.job_name }} failed"
-
-            # The job above reports success as long as it ran, even when an
-            # individual volume inside it failed to back up, so volume age is
-            # the only signal that a volume is actually falling behind.
-            # Dailies run 01:00 local, so 30h flags a single missed run without
-            # firing during the window itself.
+            # Backups alert on state, never on failure events.
+            #
+            # Longhorn keeps every failure record long after the failure is
+            # repaired: an Error Backup CR lives for `failed-backup-ttl` (24h), a
+            # failed Job lives until the next failure evicts it
+            # (`failedJobsHistoryLimit: 1`). A rule keyed on either one therefore
+            # describes a condition that has already passed and cannot resolve
+            # itself. The recurring job also retries a failed volume inside the
+            # same run, so an attempt failure is usually repaired minutes later
+            # and the record is all that survives.
+            #
+            # `longhorn_volume_last_backup_at` is the volume's `status.lastBackupAt`
+            # — the newest *completed* backup. A successful retry moves it, a
+            # failure never touches it, and a good run clears the alert on its own.
+            # It is undocumented upstream, which ships no backup rules at all.
+            #
+            # Why a volume is behind is diagnosis, not detection, and the error
+            # text exists only on the Backup CR: docs/storage-longhorn.md.
+            #
+            # Dailies run 01:00 local, so 30h flags one missed run without firing
+            # during the window itself, and the warning stops at the 3d handover so
+            # a volume in trouble is reported at one severity rather than two.
             #
             # `> 0` drops the volumes on longhorn-no-bkp, which never back up by
-            # design and report a zero timestamp.
+            # design and report a zero timestamp. It also hides a volume that has
+            # never once backed up — reachable only by labelling one out of the
+            # `default` recurring-job group, which nothing in this repo does. If a
+            # second opt-out mechanism ever appears, select the volumes to alert on
+            # by joining `kube_persistentvolumeclaim_info` on its `storageclass`
+            # label instead.
             - alert: LonghornVolumeBackupStale
-              expr: (time() - longhorn_volume_last_backup_at > 30 * 3600) and longhorn_volume_last_backup_at > 0
-              for: 1h
+              expr: (time() - longhorn_volume_last_backup_at > 30 * 3600 < 3 * 24 * 3600) and longhorn_volume_last_backup_at > 0
+              for: 15m
               labels:
                 severity: warning
               annotations:
-                summary: "Longhorn volume {{ $labels.pvc_namespace }}/{{ $labels.pvc }} has no backup for {{ $value | humanizeDuration }} — the recurring job is skipping it"
+                summary: "Longhorn volume {{ $labels.pvc_namespace }}/{{ $labels.pvc }} has no backup for {{ $value | humanizeDuration }} — one run skipped it"
 
-            # A per-volume failure inside a job that still reports success. The
-            # backup target's soft NFS mount returns EIO once a write outruns its
-            # timeout budget, which scales with volume size, so the largest volume
-            # fails alone. State 4 is Error (3 is Completed); the metric carries no
-            # state label. The join relabels the PV to its PVC — `> bool 0` yields 1
-            # so the multiplication preserves the state value.
-            #
-            # Fires within minutes of the failing run rather than waiting for the
-            # age alert above, which cannot notice until 30h have passed. Clears
-            # when the next run rotates the failed Backup CR out.
-            - alert: LonghornBackupError
-              expr: (longhorn_backup_state == 4) * on(volume) group_left(pvc, pvc_namespace) (max by (volume, pvc, pvc_namespace) (longhorn_volume_last_backup_at) > bool 0)
-              for: 5m
+            - alert: LonghornVolumeBackupMissing
+              expr: (time() - longhorn_volume_last_backup_at > 3 * 24 * 3600) and longhorn_volume_last_backup_at > 0
+              for: 15m
               labels:
-                severity: warning
+                severity: critical
               annotations:
-                summary: "Longhorn backup of {{ $labels.pvc_namespace }}/{{ $labels.pvc }} failed — the recurring job will still report Completed"
+                summary: "Longhorn volume {{ $labels.pvc_namespace }}/{{ $labels.pvc }} has no backup for {{ $value | humanizeDuration }} — backups are broken, not merely late"
 
         # SMART health from smartctl-exporter (k3s-node-02: the DAS pair behind
         # /mnt/r0, plus the NVMe carrying Longhorn and /local).

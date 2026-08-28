@@ -385,6 +385,13 @@ timestamped job pods only (`grep -E 'daily-backup-|weekly-backup-|monthly-backup
 — NOT the always-`Running` `csi-snapshotter` controller pods. All four schedules
 produce pods; a regex covering only two silently reports on half the backup system.
 
+**This job-pod check is the only coverage of a run that failed outright** — no alert
+watches it. `kube_job_failed` only exists once a Job carries a `Failed` condition
+(`backoffLimit: 3` exhausted), and `failedJobsHistoryLimit: 1` then keeps that Job
+until the *next* failure evicts it, so a rule on it would fire permanently for a run
+that has long since been superseded. A wholesale failure still reaches §0 as backup
+age within ~6h; this check is what closes the gap in between.
+
 **`robustness: healthy` does not mean the data is intact.** Longhorn reports on the
 block device; it replicates a corrupted filesystem just as faithfully as a good one,
 so a volume whose ext4 was destroyed by an unclean detach still shows
@@ -416,7 +423,9 @@ last reboot means the corruption is older than the reboot that exposed it, and t
 snapshots from that window carry it too — say so, so nobody restores onto the same damage.
 
 A `Completed` job pod only proves the job ran. An individual volume can fail inside a
-job that still reports success, so check the **volumes**, two ways:
+job that still reports success, so check the **volumes**. Age is the detector; the
+other two views explain a volume it has already flagged, and neither is a finding on
+its own:
 
 ```
 kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- wget -qO- \
@@ -424,8 +433,20 @@ kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- wget
   | jq -r '.data.result[]|"\(.metric.pvc_namespace)/\(.metric.pvc)\t\((.value[1]|tonumber)|floor)h"' | sort -k2 -rn
 ```
 
-- **Errors** — the most direct signal, and the one age and job-status both miss.
-  Check it first:
+- **Age — the detector.** Against the schedule (`daily-backup` 01:00, `weekly-backup`
+  Sun 02:00, `monthly-backup` 1st 03:00, all local; `snapshot-6h`).
+  `longhorn_volume_last_backup_at` is the newest *completed* backup, so it is the only
+  Longhorn backup signal that both ignores repaired failures and clears itself.
+  `LonghornVolumeBackupStale` (warning) covers 30h–3d, `LonghornVolumeBackupMissing`
+  (critical) takes over past 3d, so §0 normally catches this first.
+- **Errors — why a volume is behind, not whether it is.** No alert is keyed on an
+  `Error` CR, and one is not a finding on its own: the job retries a failed volume
+  inside the same run, so most errors sit beside a successful backup of that volume
+  minutes later — the data is safe and only the record remains. Longhorn keeps that
+  record for `failed-backup-ttl` (1440m), so the list carries a full day of
+  already-repaired failures. Read it once the age check has flagged a volume, and
+  judge each error against that volume's `longhorn_volume_last_backup_at` — a newer
+  success means recovered.
 
   ```
   kubectl get backups.longhorn.io -n longhorn-system -o json \
@@ -441,16 +462,7 @@ kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- wget
   failure mode in `docs/storage-longhorn.md` → "Silently skipped volumes".
 
   `retrans=5` widened the budget but did not remove the ceiling — the largest volume
-  still errors — so do not propose raising it again as a fix. `LonghornBackupError`
-  (in `prometheus/values.yaml`) now fires on this within 5m, which makes the CR query
-  above a confirmation step rather than the detector; it is still the only place the
-  error *text* appears. Note the metric drops the failed Backup CR once the next run
-  rotates it out, so Prometheus history outlives the CR list.
-- **Age** — against the schedule (`daily-backup` 01:00, `weekly-backup` Sun 02:00,
-  `monthly-backup` 1st 03:00, all local; `snapshot-6h`). `LonghornVolumeBackupStale` alerts on
-  this at 30h, so §0 normally catches it first — but note it fires ~8h *after* the
-  failed run, and cannot fire at all for a volume whose previous night succeeded
-  inside the 30h window. Treat it as a backstop, not the primary detector.
+  still errors — so do not propose raising it again as a fix.
 - **Gaps** — count *distinct volumes backed up per day* over the last week. A day
   whose count dips below its neighbours means specific volumes were skipped while the
   job still reported Completed, and the newest-backup timestamp stays green.
