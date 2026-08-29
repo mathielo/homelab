@@ -5,7 +5,7 @@ app-template:
         prismarr:
           image:
             repository: shoshuo/prismarr
-            tag: 1.1.1
+            tag: 1.2.0
           env:
             TRUSTED_PROXIES: "127.0.0.1,REMOTE_ADDR"
           resources:
