@@ -212,6 +212,12 @@ modes here present as a perfectly green pod, so check for them explicitly:
   but anything reading `.spec.containers[]` does not — see §3.
 - **Wedged NFS mount** — surfaces as slow pods on one node, not as a pod condition.
   Caught in §1, not here.
+- **Shared-uplink bounce** — a restart burst timestamped within one minute across
+  *unrelated* namespaces, with `NodeNotReady` for most of the cluster, is the nodes
+  losing the network, not apps failing. The nodes do not reboot, so uptime and the
+  reboot marker read normal; `ssh <node> 'sudo dmesg -T | grep -i "link is"'` and UDB
+  Homelab's uptime confirm it. It cuts every Longhorn replica mid-write, so check §5's
+  `AutoSalvaged` events and confirm the volumes came back before closing it.
 
 ## 3. Resource right-sizing (requests/limits balance)
 
@@ -263,7 +269,10 @@ table `Status | ns/pod/container | CPU use/req | Mem use/req/lim | mem %R | mem 
   definitive signal; a high snapshot alone is only a lead.
 - 🟡 **Under-requested memory** — `mem %R > 100%` (using more than it reserves).
   The scheduler under-counts it and it's first to be evicted under node pressure
-  → **bump the mem request** toward real steady usage.
+  → **bump the mem request** toward real steady usage. Judge on the 7d **median**
+  (`quantile_over_time(0.5, …)`), never the snapshot: a request sized for steady usage
+  is meant to be exceeded during a burst, and `sabnzbd` after its drain window or
+  `prometheus-server` mid-compaction both read as under-requested when they are not.
 - 🟡 **Under-requested CPU** — `cpu %R` persistently ≫ 100% on a latency-sensitive
   service (not a batch/burst job) → nudge the CPU request up.
 - 🟡 **Over-provisioned (waste)** — `mem %R < 20%` **and** `cpu %R < 10%` on a
@@ -597,6 +606,12 @@ kubectl logs -n "$ns" "$pod" --all-containers --since="$W" --timestamps 2>/dev/n
   | grep '<message>' | sed -n '1p;$p' | cut -c1-30   # first and last occurrence
 ```
 
+Pass a real pod name, never a `-l` selector: `kubectl logs -l` prints nothing and exits
+0 when nothing matches, so a guessed label yields a count of `0` that is
+indistinguishable from a burst that ended. Loki's labels are not the pods'
+(`app=longhorn` in Loki is `app=longhorn-manager` on the pod) — when unsure, bucket
+Pass 1's query by `[1h]` instead, which answers *when* without needing a selector.
+
 Do this for every burst before writing it into §8 — the §8 Frequency column should read
 "3 311, all inside the reboot minute" or "60/h, ongoing", never a bare total.
 
@@ -769,9 +784,9 @@ run, and if one fires, it leaves this table and becomes a 🔴 finding.
 | 2026-08-19 | `DiskTemperatureHigh` firing on DAS drives `sda`/`sdb` | Enclosure airflow is at its practical limit; a lower steady temperature needs a physical rebuild | `DiskTemperatureCritical` (>60 °C) fires · `DasDiskLatencyImbalance` fires · any reallocated/pending sector appears · steady state exceeds ~58 °C |
 
 Baseline for that row (so drift is detectable rather than a fresh surprise), as of
-**2026-08-28**: steady **52/54 °C** (sda/sdb), 7d max **55/56 °C**, SMART otherwise
+**2026-08-29**: steady **52/53 °C** (sda/sdb), 7d max **54/56 °C**, SMART otherwise
 clean — and `DiskTemperatureHigh` **not firing**, the enclosure having settled below
-its 58 °C threshold. (Previous baseline, 2026-08-27: steady 53/55 °C, 7d max 53/55 °C.)
+its 58 °C threshold. (Previous baseline, 2026-08-28: steady 52/54 °C, 7d max 55/56 °C.)
 Quote the current numbers against that baseline in the one-liner — an accepted
 condition still gets measured.
 
