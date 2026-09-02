@@ -32,7 +32,7 @@ app-template:
         qui:
           image:
             repository: ghcr.io/autobrr/qui
-            tag: v1.27.0
+            tag: v1.28.0
           env:
             TZ: Europe/Stockholm
             # Prometheus exporter (qBittorrent per-instance + per-tracker
