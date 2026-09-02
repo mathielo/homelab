@@ -157,7 +157,7 @@ app-template:
             # schedulable capacity; the unset CPU limit is what covers the spikes.
             requests:
               cpu: 500m
-              memory: 256Mi
+              memory: 320Mi
             # Sabnzbd can spike CPU and RAM usage in post-processing and verification/repair jobs.
             limits:
               memory: 6Gi

@@ -37,7 +37,7 @@ threshold below:
 ```
 kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- \
   wget -qO- 'localhost:9090/api/v1/query?query=ALERTS' \
-  | jq -r '.data.result[]|"\(.metric.alertstate)\t\(.metric.severity)\t\(.metric.alertname)\t\(.metric.node // .metric.pod // .metric.device // "-")"' | sort -u
+  | jq -r '.data.result[]|"\(.metric.alertstate)\t\(.metric.severity)\t\(.metric.alertname)\t\(.metric.node // .metric.pod // .metric.device // .metric.persistentvolumeclaim // "-")"' | sort -u
 ```
 
 Every **firing** alert goes into the §8 table — a report that says 🟢 while an
@@ -439,8 +439,11 @@ its own:
 ```
 kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- wget -qO- \
   'localhost:9090/api/v1/query?query=(time()-longhorn_volume_last_backup_at)/3600' \
-  | jq -r '.data.result[]|"\(.metric.pvc_namespace)/\(.metric.pvc)\t\((.value[1]|tonumber)|floor)h"' | sort -k2 -rn
+  | jq -r '.data.result[]|select((.value[1]|tonumber) < 100000)|"\(.metric.pvc_namespace)/\(.metric.pvc)\t\((.value[1]|tonumber)|floor)h"' | sort -k2 -rn
 ```
+
+The `select` drops the `longhorn-no-bkp` volumes: they have no backup timestamp, so
+`time()-0` renders as a six-figure age and sorts them above every real result.
 
 - **Age — the detector.** Against the schedule (`daily-backup` 01:00, `weekly-backup`
   Sun 02:00, `monthly-backup` 1st 03:00, all local; `snapshot-6h`).

@@ -573,7 +573,7 @@ prometheus:
     resources:
       requests:
         cpu: 100m
-        memory: 1280Mi
+        memory: 1536Mi
       limits:
         cpu: 500m
         memory: 3Gi
