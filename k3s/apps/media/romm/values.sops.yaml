@@ -6,6 +6,9 @@ app-template:
                 MARIADB_ROOT_PASSWORD: ENC[AES256_GCM,data:SRANhnlDWEX5dLDKrrExylwQpfZCLuDjpsF15HMaHwA+TTZG,iv:awQ8evxzuodN8+3m0+pP4JWg/LES+aj1IJXvl8YjnXw=,tag:IxhNJ+BQMf22CGChhtV+Sw==,type:str]
                 DB_PASSWD: ENC[AES256_GCM,data:Lq1QMwWy51Cm7O8SACp4vzgkKdsNxpEi3jPHx13esmT2Gjl6,iv:tc1twJsGpMu9lVAGhJIfPHWCRnt3D7xuVtr+FE3gUFQ=,tag:SmCykqf5yemAM2fWyTUcQQ==,type:str]
                 RETROACHIEVEMENTS_API_KEY: ENC[AES256_GCM,data:XxaeV8dL+kWIAoZIriSaUbFuTwbixNn/MYSMqv+DkxU=,iv:U9E7qFRIaFgth2EtWSLincAI7T6UYynLgcfFqah95fQ=,tag:8Km/h8aR7bWwRfk6BULaow==,type:str]
+                IGDB_CLIENT_ID: ENC[AES256_GCM,data:X+kn/cK+hTkfp9o4Kp+7lcD2DRxweBPgUoOv4PqA,iv:yTRvrBctsF6nbxIWhfXW1n+ynqrDT7kjf3utKbjWpik=,tag:BK+hmGxTKKpgIF1PfsrgdA==,type:str]
+                IGDB_CLIENT_SECRET: ENC[AES256_GCM,data:lYld9PyWcOVWWPem/2dPJ7GDrCI+8p9gqfX1x00G,iv:h4DqudUc2smeriaGxl/DoHqGc33Axu8j3GaodgT1Ll0=,tag:Ner/Bl44PAVQCDL+8T/L3g==,type:str]
+                STEAMGRIDDB_API_KEY: ENC[AES256_GCM,data:H9qegT0MzcY50bU3eFgpGgX8WvQTXAEKOWoxRHaB+/Y=,iv:uxHFW9yCrRJnlHi3DilkGLMB8AHchU1muH6HDHLsHMs=,tag:QwC33jEaLPxYQUsWhiN66g==,type:str]
 sops:
     age:
         - enc: |
@@ -26,7 +29,7 @@ sops:
             n1Y/Q5XikiVJhZkggKqf85egFQMHNleq9BrjQNBx8N8Ohzuhd0zxJA==
             -----END AGE ENCRYPTED FILE-----
           recipient: age1kt5aynyagn4t6v4epgl95ls9gpskq49f07j2v797g99zhje8teussmnytu
-    lastmodified: "2026-09-04T07:44:33Z"
-    mac: ENC[AES256_GCM,data:pIj8GJEKXpXiPevPVBEKc7t7V8wM7ugZo6hNu97m2s7mpLrABhuK1ll3cBbjbAob82ZEy45xIQzl/hdJm2FAfb7V1RY0caJyppiFJwEm4Ow2mlvpnrOmj3AFI9cHK1QCG0YbDUFkQhlY+9MshL3LxC8d6fEaBf1pDy/HoIW9Mhk=,iv:oJhoD/HQWpNcJFGTo5FWgf1O5ACzNXQB47ZBEib0S10=,tag:d0PWLA8cX3hgn4qOyDCpVA==,type:str]
+    lastmodified: "2026-09-04T11:09:53Z"
+    mac: ENC[AES256_GCM,data:IPm+IpV20eqOpxioE2yFBb9B8vZsW3AiBid1twyYmLuoFAjT3vICR9cHalVlheUxcRAObPAnybL3fhHx5rL1nnK453ePRcDzEngBAUJqzsY5bK6K2Q34lZ2lVKmgkjnEadhFiubYFPEDwOaGeSgI9+Ud+4XPFDZI1SFF06zW6no=,iv:8EB5zslOQBNt/Zt/33bjs9Nz3PDSrsTrfHl0aF4X5kk=,tag:F7d4iJG5JLyeDXh33DxNuQ==,type:str]
     unencrypted_suffix: _unencrypted
     version: 3.13.0

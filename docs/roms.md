@@ -108,7 +108,7 @@ artwork files on every start.
 ### Library layout
 
 RomM scans `/romm/library`, which is the `library/` subdir of the share. Platform
-directory names must match RomM's slugs (`snes`, `gba`, `ps`, `n64`, …); the full
+directory names must match RomM's slugs (`snes`, `gba`, `psx`, `n64`, …); the full
 list is in RomM's Supported Platforms page, and a non-matching name can be remapped
 via `system.platforms` in `config.yml`.
 
@@ -118,10 +118,10 @@ via `system.platforms` in `config.yml`.
 │   ├── roms/
 │   │   ├── gba/
 │   │   ├── snes/
-│   │   └── ps/
+│   │   └── psx/
 │   └── bios/
 │       ├── gba/
-│       └── ps/
+│       └── psx/
 └── deck/
     └── saves/          ← EmuDeck saves, synced back from the Deck
 ```
@@ -231,7 +231,7 @@ per-device and live on the receiver**. To keep the Deck to a subset, set the
 // keep these
 !/gba
 !/snes
-!/ps
+!/psx
 // drop everything else
 /*
 ```

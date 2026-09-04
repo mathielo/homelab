@@ -109,6 +109,7 @@ app-template:
             # Upstream sizing: one scan worker per CPU, 2×CPU+1 web workers.
             SCAN_WORKERS: "1"
             WEB_SERVER_CONCURRENCY: "3"
+            HLTB_API_ENABLED: true
           envFrom:
             - secretRef:
                 identifier: romm # ROMM_AUTH_SECRET_KEY + DB_PASSWD + provider keys
