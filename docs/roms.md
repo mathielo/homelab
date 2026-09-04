@@ -35,9 +35,11 @@ by hand; the workstation mount is in
 [`.config/etc.fstab`](../.config/etc.fstab) at `/mnt/nas/roms`.
 
 Ownership matches the `Media` share: **`1000:988`, mode `770`** below the share root,
-the root itself left as the NAS created it (`988:988`). uid 1000 is what the pods and
-the workstation user both run as; gid 988 is the NAS's share group. `mkdir` on the NAS
-runs as root, so the tree comes out `root:root 755` and must be corrected after:
+the root itself left as the NAS created it (`988:988`). The export is `all_squash` with
+`anonuid=977,anongid=988`, so every client — the workstation and both pods — writes as
+`977:988` whatever uid it runs as; gid 988 and mode 770 are what grant access, and the
+owning uid matters only on the NAS itself. `mkdir` there runs as root, so the tree comes
+out `root:root 755` and must be corrected after:
 
 ```sh
 ssh UNAS

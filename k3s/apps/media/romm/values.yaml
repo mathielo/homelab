@@ -82,6 +82,15 @@ app-template:
           image:
             repository: rommapp/romm
             tag: "5.2.0"
+          # The image defines a romm (1000:1000) user but its entrypoint never
+          # drops to it, so without this every process — nginx, gunicorn, the RQ
+          # workers and valkey — runs as root. The image is built for it: nginx
+          # keeps its pid and temp paths under /tmp and logs to stdout. Set
+          # per-container, not on the pod: the MariaDB sidecar's datadir is owned
+          # by 999:999 and a pod-wide runAsUser would lock it out of its own data.
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
           env:
             DB_HOST: 127.0.0.1
             DB_NAME: romm
@@ -90,6 +99,13 @@ app-template:
             # Hasheous matches ROMs by file hash and needs no account or key,
             # so it works before any metadata provider is configured.
             HASHEOUS_API_ENABLED: "true"
+            # Both rescan triggers ship disabled, so without this RomM never
+            # picks up a file added to the share — every import would need a
+            # manual scan from the UI. The filesystem-watcher trigger stays off:
+            # it is inotify-based and blind to writes from other NFS clients,
+            # which is where every write here comes from.
+            ENABLE_SCHEDULED_RESCAN: "true"
+            SCHEDULED_RESCAN_CRON: "0 3 * * *"
             # Upstream sizing: one scan worker per CPU, 2×CPU+1 web workers.
             SCAN_WORKERS: "1"
             WEB_SERVER_CONCURRENCY: "3"
