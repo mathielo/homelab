@@ -128,7 +128,7 @@ app-template:
         vpn-port-healer:
           image:
             repository: curlimages/curl
-            tag: "8.21.0"
+            tag: "8.22.0"
           restartPolicy: Always
           command:
             - /bin/sh
