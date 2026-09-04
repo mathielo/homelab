@@ -1,0 +1,95 @@
+# Syncthing is the delivery layer between the NAS ROM library and the Steam
+# Deck. EmuDeck has no RomM client and Syncthing is its own documented sync
+# method, so Syncthing carries both directions:
+# roms/ out to the Deck, and the Deck's emulator saves back to the NAS.
+#
+# Folder wiring lives in Syncthing's own config, not here — this chart only
+# provides the process, its config volume and the ROMs share. See docs/roms.md.
+app-template:
+  defaultPodOptions:
+    nodeSelector:
+      kubernetes.io/hostname: k3s-node-01
+
+  controllers:
+    syncthing:
+      # RWO config PVC requires the old pod to fully release before the new one
+      # mounts it.
+      strategy: Recreate
+
+      containers:
+        syncthing:
+          image:
+            repository: syncthing/syncthing
+            tag: "2.1.3"
+          env:
+            TZ: Europe/Stockholm
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              # Hashing a freshly added platform folder is CPU-bound and the
+              # only time this is not near-idle.
+              cpu: 2000m
+              memory: 1Gi
+
+  service:
+    syncthing:
+      controller: syncthing
+      ports:
+        http:
+          port: 8384
+
+    # The Deck is on VLAN 10 and cannot reach a ClusterIP, and MetalLB's pool
+    # is a single /32 already taken by ingress-nginx. A NodePort makes the sync
+    # protocol reachable at any node IP — 10.10.50.10:32000 works both on the
+    # LAN and over Tailscale, since k3s-server advertises 10.10.50.0/24.
+    sync:
+      controller: syncthing
+      type: NodePort
+      ports:
+        tcp:
+          port: 22000
+          protocol: TCP
+          nodePort: 32000
+        # QUIC survives the Deck's WiFi packet loss better than TCP; Syncthing
+        # picks whichever connects and falls back on its own.
+        quic:
+          port: 22000
+          protocol: UDP
+          nodePort: 32000
+
+  ingress:
+    syncthing:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+        # The GUI streams scan/sync progress over a long-poll event API.
+        nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+        nginx.ingress.kubernetes.io/proxy-buffering: "off"
+      hosts:
+        - host: syncthing.m6o.dev
+          paths:
+            - path: /
+              service:
+                identifier: syncthing
+                port: http
+      tls:
+        - hosts:
+            - syncthing.m6o.dev
+          secretName: syncthing-tls
+
+  persistence:
+    # HOME for the image; the entrypoint chowns it to 1000:1000 and Syncthing
+    # creates config/ (device ID, keys, folder config) inside it.
+    config:
+      existingClaim: syncthing-config-lh
+      globalMounts:
+        - path: /var/syncthing
+
+    # Whole ROMs share, so the folder paths configured in the GUI can point at
+    # both library/roms and deck/saves.
+    nas:
+      existingClaim: roms-data
+      globalMounts:
+        - path: /nas

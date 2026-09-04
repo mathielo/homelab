@@ -61,3 +61,58 @@ spec:
   resources:
     requests:
       storage: 52Ti
+
+---
+# ---------------------------------------------------------------------------
+# PersistentVolume to the "ROMs" share on the UniFi NAS (10.10.50.4, VLAN 50).
+#
+# Separate from the Media share so the ROM library has its own quota and its
+# own NFS export, and so a Syncthing rescan never walks 50 TB of video.
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: roms-data
+spec:
+  capacity:
+    storage: 2Ti
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  mountOptions:
+    - nconnect=4
+  nfs:
+    server: 10.10.50.4
+    path: /var/nfs/shared/ROMs
+
+---
+# ---------------------------------------------------------------------------
+# Shared ROM PVC
+#
+# RomM scans library/; Syncthing pushes library/roms to the Steam Deck and
+# receives the Deck's emulator saves into deck/saves. deck/ deliberately sits
+# outside library/ so RomM's scanner never sees it.
+#
+# Directory layout inside the volume:
+#
+#   /
+#   ├── library/            ← RomM scan root
+#   │   ├── roms/           ← one dir per platform, named with RomM's slug
+#   │   └── bios/           ← same slugs
+#   └── deck/
+#       └── saves/          ← EmuDeck saves/states, synced back from the Deck
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: roms-data
+  namespace: media
+spec:
+  storageClassName: ""
+  volumeName: roms-data
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 2Ti

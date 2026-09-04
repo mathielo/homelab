@@ -178,3 +178,43 @@ spec:
   resources:
     requests:
       storage: 1Gi
+---
+# resources/ (artwork), assets/ (uploaded saves & states), config/ (config.yml,
+# rewritten by the UI) and redis/ (valkey cache) share one volume via subPaths.
+# Cover art and screenshots are a few hundred KB per game, so this scales with
+# the number of titles, not with the size of the ROMs on the NFS share.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: romm-data-lh
+  namespace: media
+spec:
+  storageClassName: longhorn
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: romm-db-lh
+  namespace: media
+spec:
+  storageClassName: longhorn
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: syncthing-config-lh
+  namespace: media
+spec:
+  storageClassName: longhorn
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi

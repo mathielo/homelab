@@ -1,0 +1,182 @@
+# RomM owns the ROM library on the NAS `ROMs` share: scanning, metadata,
+# artwork and in-browser play. It is the only writer the workstation needs —
+# delivering the library to the Steam Deck is Syncthing's job
+# (k3s/apps/media/syncthing), because no RomM client supports EmuDeck.
+#
+# Single pod: MariaDB is a native sidecar (initContainer with
+# restartPolicy: Always) so it starts — and is waited on — before RomM boots.
+# Valkey is bundled inside the RomM image on 127.0.0.1:6379, so the cache needs
+# a `/redis-data` mount but no container of its own.
+app-template:
+  defaultPodOptions:
+    nodeSelector:
+      kubernetes.io/hostname: k3s-node-01
+
+    securityContext:
+      # The RomM image runs its processes as root — it defines a romm (1000:1000)
+      # user but has no gosu/PUID mechanism to drop to it. fsGroup gives the
+      # Longhorn volumes gid 1000 so the ownership matches the rest of the media
+      # stack; OnRootMismatch skips the recursive chown on every start, since the
+      # resources volume holds tens of thousands of small artwork files.
+      fsGroup: 1000
+      fsGroupChangePolicy: OnRootMismatch
+
+  controllers:
+    romm:
+      # RWO Longhorn PVCs require the old pod to fully release before the new
+      # one mounts them.
+      strategy: Recreate
+
+      initContainers:
+        # restartPolicy: Always promotes this to a native sidecar — starts
+        # before the app container and is torn down after it.
+        mariadb:
+          restartPolicy: Always
+          image:
+            repository: mariadb
+            tag: "11.8.9"
+          env:
+            MARIADB_DATABASE: romm
+            MARIADB_USER: romm
+            # Without this the sidecar logs in UTC while RomM logs local time,
+            # which makes the two streams awkward to correlate.
+            TZ: Europe/Stockholm
+            # RomM calls this credential DB_PASSWD and the MariaDB image calls it
+            # MARIADB_PASSWORD; both names are fixed by their respective images, so
+            # the secret stores it once and this maps the one key onto the other.
+            # The secret is not pulled in wholesale — the database has no business
+            # holding ROMM_AUTH_SECRET_KEY or the metadata provider keys.
+            MARIADB_PASSWORD:
+              valueFrom:
+                secretKeyRef:
+                  name: romm
+                  key: DB_PASSWD
+            MARIADB_ROOT_PASSWORD:
+              valueFrom:
+                secretKeyRef:
+                  name: romm
+                  key: MARIADB_ROOT_PASSWORD
+          resources:
+            requests:
+              cpu: 25m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 768Mi
+
+        # Blocks the app container until MariaDB accepts TCP connections. The
+        # entrypoint runs its bootstrap server on a socket with --skip-networking,
+        # so an open 3306 means initialisation is finished.
+        wait-for-db:
+          dependsOn: mariadb
+          image:
+            repository: busybox
+            tag: "1.38.0"
+          command:
+            - sh
+            - -c
+            - until nc -z 127.0.0.1 3306; do echo "waiting for mariadb"; sleep 2; done
+
+      containers:
+        romm:
+          image:
+            repository: rommapp/romm
+            tag: "5.2.0"
+          env:
+            DB_HOST: 127.0.0.1
+            DB_NAME: romm
+            DB_USER: romm
+            TZ: Europe/Stockholm
+            # Hasheous matches ROMs by file hash and needs no account or key,
+            # so it works before any metadata provider is configured.
+            HASHEOUS_API_ENABLED: "true"
+            # Upstream sizing: one scan worker per CPU, 2×CPU+1 web workers.
+            SCAN_WORKERS: "1"
+            WEB_SERVER_CONCURRENCY: "3"
+          envFrom:
+            - secretRef:
+                identifier: romm # ROMM_AUTH_SECRET_KEY + DB_PASSWD + provider keys
+          resources:
+            requests:
+              cpu: 50m
+              memory: 512Mi
+            limits:
+              # A scan hashes every file in the library over NFS, so the ceiling
+              # is sized for the scan, not for idle browsing.
+              cpu: 2000m
+              memory: 2Gi
+
+  secrets:
+    romm:
+      enabled: true
+      # stringData (ROMM_AUTH_SECRET_KEY, DB_PASSWD, MARIADB_ROOT_PASSWORD +
+      # optional metadata provider keys) supplied by values.sops.yaml
+      stringData: {}
+
+  service:
+    romm:
+      controller: romm
+      ports:
+        http:
+          port: 8080
+
+  ingress:
+    romm:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+        # ROM uploads and downloads stream whole disc images through the
+        # ingress; the 1m default body size rejects them outright.
+        nginx.ingress.kubernetes.io/proxy-body-size: "0"
+        nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+        nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+        nginx.ingress.kubernetes.io/proxy-buffering: "off"
+      hosts:
+        - host: romm.m6o.dev
+          paths:
+            - path: /
+              service:
+                identifier: romm
+                port: http
+      tls:
+        - hosts:
+            - romm.m6o.dev
+          secretName: romm-tls
+
+  persistence:
+    # The `library` subdir of the ROMs share holds roms/ and bios/; deck/ lives
+    # beside it on the same share and must stay outside RomM's scan root.
+    library:
+      existingClaim: roms-data
+      advancedMounts:
+        romm:
+          romm:
+            - path: /romm/library
+              subPath: library
+
+    # One Longhorn volume for everything RomM writes outside the library.
+    # config/ holds config.yml, which RomM rewrites when platform bindings are
+    # changed in the UI, so it cannot be a ConfigMap.
+    data:
+      existingClaim: romm-data-lh
+      advancedMounts:
+        romm:
+          romm:
+            - path: /romm/resources
+              subPath: resources
+            - path: /romm/assets
+              subPath: assets
+            - path: /romm/config
+              subPath: config
+            - path: /redis-data
+              subPath: redis
+
+    db:
+      existingClaim: romm-db-lh
+      advancedMounts:
+        romm:
+          mariadb:
+            # subPath keeps the datadir clear of the Longhorn volume's
+            # lost+found, which makes mariadb-install-db refuse to initialise.
+            - path: /var/lib/mysql
+              subPath: data

@@ -161,6 +161,10 @@ app-template:
               tab: Media
               style: row
               columns: 4
+            Games:
+              tab: Media
+              style: row
+              columns: 2
 
             Torrents:
               tab: Downloads
@@ -328,6 +332,20 @@ app-template:
                   description: Library insights
                   icon: mdi-movie-search
                   siteMonitor: http://prismarr.media.svc.cluster.local:7070
+
+          - Games:
+              - RomM:
+                  href: https://romm.m6o.dev
+                  description: ROM library
+                  icon: romm.png
+                  widget:
+                    type: romm
+                    url: http://romm.media.svc.cluster.local:8080
+              - Syncthing:
+                  href: https://syncthing.m6o.dev
+                  description: ROM & save sync · Steam Deck
+                  icon: syncthing.png
+                  siteMonitor: http://syncthing.media.svc.cluster.local:8384
 
           - Torrents:
               - qBt SE:

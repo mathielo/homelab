@@ -115,6 +115,20 @@ data:
       "url": "http://plex.media.svc.cluster.local:32400/web",
       "parent_name": "media"
     }
+  romm.json: |
+    {
+      "type": "http",
+      "name": "RomM",
+      "url": "http://romm.media.svc.cluster.local:8080",
+      "parent_name": "media"
+    }
+  syncthing.json: |
+    {
+      "type": "http",
+      "name": "Syncthing",
+      "url": "http://syncthing.media.svc.cluster.local:8384",
+      "parent_name": "media"
+    }
 
   # --- Downloads ---
   sabnzbd.json: |

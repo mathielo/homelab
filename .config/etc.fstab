@@ -1,9 +1,10 @@
 # UNAS
 # The "_netdev" option makes the mount attempt happen only after network is available
 
-# sudo mkdir -p /mnt/nas/{backups,media}
+# sudo mkdir -p /mnt/nas/{backups,media,roms}
 10.10.50.4:/var/nfs/shared/Backups /mnt/nas/backups nfs defaults,_netdev 0 0
 10.10.50.4:/var/nfs/shared/Media /mnt/nas/media nfs defaults,_netdev 0 0
+10.10.50.4:/var/nfs/shared/ROMs /mnt/nas/roms nfs defaults,_netdev 0 0
 
 # k3s-node-02 DAS (RAID 0). Exported by ansible/das-raid.yaml, and only while the
 # array is actually mounted on the node — the export disappears with it.

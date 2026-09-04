@@ -44,6 +44,8 @@ DNS/indexer flow:
 
 > Searcharr (Telegram request bot) also runs in `media` but has no web UI.
 
+> RomM and Syncthing also run in `media` — the ROM library and its delivery to the Steam Deck. They are independent of the ARR/Usenet flow above; see [ROM Library & Steam Deck Sync](roms.md).
+
 > Profilarr runs a bundled stateless `profilarr-parser` sidecar (in-pod, port 5000) that powers release-pattern testing; it has no web UI of its own.
 
 > :exclamation: All URLs require Tailscale (or LAN) + Pi-hole DNS (`*.m6o.dev → 10.10.50.3`).

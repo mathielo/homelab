@@ -234,6 +234,18 @@
       enabled: false,
     },
     {
+      description: 'ROM library + Steam Deck sync (RomM, its MariaDB, Syncthing)',
+      matchDatasources: [
+        'docker',
+      ],
+      matchPackageNames: [
+        'rommapp/romm',
+        'mariadb',
+        'syncthing/syncthing',
+      ],
+      groupName: 'roms',
+    },
+    {
       description: 'Dashboard images',
       matchDatasources: [
         'docker',

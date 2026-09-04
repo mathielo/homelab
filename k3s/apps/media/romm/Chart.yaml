@@ -1,0 +1,8 @@
+apiVersion: v2
+name: romm
+description: RomM — self-hosted ROM library manager with metadata scraping
+version: 1.0.0
+dependencies:
+  - name: app-template
+    repository: https://bjw-s-labs.github.io/helm-charts/
+    version: "5.*"
