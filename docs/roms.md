@@ -183,13 +183,28 @@ Receive Only on `deck-saves` makes it a pure one-way save backup. Promote
    The plugin proxies the GUI on `localhost:58384` and can start Syncthing with
    Gamescope or at boot.
 
-4. **Deck-side folders** — mirror of the cluster side. Paths depend on where EmuDeck
-   was installed:
+4. **Deck-side folders** — mirror of the cluster side, with the types inverted.
+   EmuDeck is installed to the internal SSD, so the SD card holds only the Steam
+   library:
 
-| Folder ID    | SD card                                | Internal SSD                 | Type         |
-| ------------ | -------------------------------------- | ---------------------------- | ------------ |
-| `roms`       | `/run/media/mmcblk0p1/Emulation/roms`  | `/home/deck/Emulation/roms`  | Receive Only |
-| `deck-saves` | `/run/media/mmcblk0p1/Emulation/saves` | `/home/deck/Emulation/saves` | Send Only    |
+| Folder ID    | Path                         | Type         |
+| ------------ | ---------------------------- | ------------ |
+| `roms`       | `/home/deck/Emulation/roms`  | Receive Only |
+| `deck-saves` | `/home/deck/Emulation/saves` | Send Only    |
+
+   EmuDeck pre-creates ~180 empty platform directories. Without the ignore patterns
+   below, the Deck announces all of them and the cluster's Send Only folder reports
+   several hundred permanent out-of-sync items. Neither **Revert Local Changes** on
+   the Deck nor **Override Changes** on the cluster is the fix — both resolve it by
+   deleting EmuDeck's scaffold.
+
+   > Reinstalling or relocating EmuDeck recreates `Emulation/roms` and
+   > `Emulation/saves` from scratch, which drops Syncthing's `.stfolder` marker and
+   > stops both folders with `folder marker missing`. Recreate them and rescan:
+   >
+   > ```sh
+   > mkdir -p ~/Emulation/roms/.stfolder ~/Emulation/saves/.stfolder
+   > ```
 
 5. **Steam ROM Manager** — new ROMs are files, not Steam entries. Run SRM (desktop
    mode, or from gaming mode via the EmuDecky plugin) after a sync to add them as
@@ -221,20 +236,34 @@ Hasheous uses in RomM, so a library that scans cleanly generally matches here to
 its own UI. It is read from the existing secret as a plain env var, so no manifest
 change is needed.
 
-### Syncing only some platforms
+### Ignore patterns (required)
 
-Syncthing has no per-file selection from the sending side; **ignore patterns are
-per-device and live on the receiver**. To keep the Deck to a subset, set the
-`roms` folder's ignore patterns on the _Deck_:
+Ignore patterns are per-device and live on the **receiver**, so the Deck's `roms`
+folder carries them, in `~/Emulation/roms/.stignore`:
 
 ```
-// keep these
-!/gba
+metadata.txt
+systeminfo.txt
 !/snes
-!/psx
-// drop everything else
 /*
 ```
 
-That is the right lever for the disc-based systems, where a handful of titles already
-runs to tens of GB next to the Deck's Steam library.
+`/*` matches top-level names only — Syncthing's `*` does not cross `/` — so this
+ignores EmuDeck's scaffold while leaving the listed platforms and their contents
+syncing normally. `metadata.txt` and `systeminfo.txt` are EmuDeck's per-platform
+stubs; they are ignored because the NAS must not carry them, since RomM would scan
+them as ROMs.
+
+Ignored is not deleted: EmuDeck's directories stay on disk untouched.
+
+Adding a platform therefore takes two steps — the directory on the NAS under RomM's
+slug, and a `!/<slug>` line here. That doubles as the size control for the Deck,
+where a handful of disc-based titles already runs to tens of GB beside the Steam
+library.
+
+> Deleting a folder's directory while Syncthing is running leaves its **counters**
+> double-counted — the file tree in `/rest/db/browse` stays correct while
+> `globalFiles`/`globalBytes` report twice the real figures, and the remote device
+> sits at ~50% forever. A restart does not clear it. Remove the folder in the GUI
+> and re-accept the share on the same path: files on disk and `.stignore` both
+> survive, and the counters rebuild from the rescan.

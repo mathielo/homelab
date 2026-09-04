@@ -353,3 +353,32 @@ prevents.
 
 Before adding a PVC to an existing chart, `helm template` it and diff the rendered PVC
 names against `kubectl get pvc -n <ns>`. If a name changes, migrate the data first.
+
+## Switching a container to non-root leaves unwritable directories behind
+
+`fsGroup` with `fsGroupChangePolicy: OnRootMismatch` only chowns the volume when its
+**root** directory's gid doesn't already match. A volume that a root-running container
+has already populated has the right gid on its root, so the recursive pass is skipped —
+and every subdirectory that container created stays `root:<fsGroup>` mode `2755`. Group
+has `r-x`, so the newly non-root process cannot write into its own data:
+
+```
+drwxrwsr-x  0 1000  /romm/resources        ← kubelet applied fsGroup, group rwx
+drwxr-sr-x  0 1000  /romm/resources/roms   ← created by the root-era process, group r-x
+```
+
+Where the directory is empty, the cheap fix is to delete it and let the app recreate it
+under its own uid — the parent carries `fsGroup` and is group-writable, so the non-root
+process can remove it without help:
+
+```sh
+kubectl -n <ns> exec deploy/<app> -c <container> -- rmdir <path>
+```
+
+`fsGroupChangePolicy: Always` also fixes it, at the cost of a recursive chown on every
+pod start — not worth it on a volume holding tens of thousands of small files.
+
+The symptom is easy to misread. RomM's error named `/romm/resources/roms/1`, which looks
+like a per-item path but is `get_platform_resources_path()` — a *platform* directory,
+identical for every item scanned. A single failing path repeated across unrelated items
+is the signal that a shared parent is unwritable, not that each item is broken.
