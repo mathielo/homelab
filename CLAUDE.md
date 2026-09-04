@@ -11,11 +11,21 @@ This is a homelab repository for documenting, configuring, and automating a home
 - **Ask before assuming**: When _requirements_ are ambiguous, ask clarifying questions before starting. But for facts about the _existing setup_, read the repo's config/manifests/docs directly — the repo is the source of truth, don't ask what you can look up.
 - **Target environment**: Commands run from a Fedora Linux workstation; k3s nodes run Ubuntu Server. Assume this unless otherwise specified.
 - **User context**: Seasoned developer comfortable with code, learning networking specifics and advanced features.
-- **No git operations**: Do not commit, push, or perform other git operations unless explicitly asked. The user reviews and commits all changes themselves.
+- **No git operations**: Do not commit, push, or perform other git operations unless explicitly asked. The user reviews and commits all changes themselves. Don't append reminders that git is theirs ("staged for you", "commit when ready") — it's understood, and the repetition is noise.
 - **Scripts stay simple**: Flat, sequential commands. No logging helpers, no idempotency/exists guards inside scripts — readability over cleverness (idempotency belongs in the Ansible/GitOps layer, not shell scripts).
 - **Planning docs live in the repo**: Commit planning/runbook docs under the repo (e.g. `docs/` or `plans/`), never in a workstation-only local path.
 - **Keep docs in sync**: The repo is the source of truth, so it must stay accurate. Whenever you spot an outdated/stale doc while doing any task (removed service still listed, renamed path, changed port, etc.), fix it as part of that task. If the fix is genuinely out of scope, flag it explicitly rather than ignore it. Never trust a doc over the live config/manifests — verify, then correct the doc.
 - **Comments and docs state what _is_, not how it got there**: Comment only what isn't inferrable from the code, and phrase it as a present-tense reason — "X is here because Y". No change narration ("this used to be Z", "moved from node-02", "replaced the old approach"), no debugging history, no storytelling about what was tried. Same for docs: a reader wants why it's built this way, not the journey. Prefer no comment over a comment restating the code.
+- **A doc covers how it works and how to set it up** — nothing else. It describes the built system, not the session that built it. Leave out: `## Operations` sections listing generic `kubectl`/`helm` invocations and symptom→fix bullets; verification steps and consequence-of-failure narration after a command that already stands on its own; decision logs, comparison tables and "revisit when X ships" triggers for options that were not chosen; and derivation cross-references ("same shape as `<other app>/values.sops.yaml`"). A runbook still earns its place when a real recurring procedure exists ([`docs/das-drive-swap.md`](docs/das-drive-swap.md), [`docs/pvc-maintenance.md`](docs/pvc-maintenance.md)) — the bar is a procedure, not a list of commands.
+- **Say it once, where it belongs**: don't restate in a doc what a `values.yaml` comment or this file already owns (why a pod is pinned to a node, the Tailscale subnet route, VLAN reachability). Naming the fact is fine; re-arguing it is duplication that goes stale.
+- **Markdown formatting**: keep table columns padded so every row, the header and the separator line up in plain text — re-pad the whole table after editing any row. Elsewhere follow prettier defaults: `_italic_` (not `*italic*`), `**bold**`, and a blank line between every item of a numbered list whose items contain paragraphs or blockquotes.
+- **Propose the cheapest adequate fix**: added machinery is a cost weighed above performance gains. Lead with the smallest thing that works — a one-line config edit before a task in an existing playbook, and that before a bespoke script/service/timer — and quantify the cost of doing nothing so the trade is visible.
+- **Keep the user's edits**: when they trim or rework something you produced, continue within their version. Don't re-add removed content; limit yourself to minimal factual corrections.
+- **Pin the facts before trial-and-error**: establish what a third-party binary or app actually is (`ldd`, `strings`, upstream README and issue tracker) before debugging by running it and guessing.
+- **Peer services, not alternatives**: a service added beside an existing one is documented as a peer — no "alt", "optional", or "alongside X" framing.
+- **Rewrite paths when importing config** between instances so they match local mounts; never reshape local mounts to match the source config.
+- **Bound diagnostics on a mount that may be wedged**: keep probes to a few seconds, avoid commands that touch the suspect mount, and stop if nothing returns within ~30s. A `hard` NFS mount can freeze a process past `kill -9`.
+- **No wired-backhaul suggestions**: cross-room cable runs are not possible here. If a device is on WiFi, WiFi is the only option — propose RF/config levers, never an uplink cable.
 
 ## Skills Are Living Documents
 
@@ -56,6 +66,7 @@ Everything is GitOps: tracked in code, idempotent, replayable. **Never mutate li
 - **Prefer**: ConfigMaps over PVCs for config, Ansible over manual steps, checked-in manifests over imperative `kubectl`.
 - **kubectl/helm run locally**: the workstation kubeconfig talks to the cluster — run them directly, never SSH-wrapped. Use bare `kubectl` (no `sudo`, no `KUBECONFIG=` override). SSH to nodes only for read-only OS inspection.
 - **Ansible playbooks** (k3s, cert-manager, argocd) run from the repo root with `-i ansible/inventory.ini`. (Monitoring is GitOps now — deployed by ArgoCD from `k3s/apps/monitoring/`, not Ansible.)
+- **Destructive playbooks confirm after preflight**: use a `pause` mid-play, once the targets have been displayed — not `vars_prompt` at play start. The operator must see what will be touched before committing to it.
 - **Ad-hoc Longhorn snapshots/backups** via the Longhorn UI, not `kubectl` Snapshot/Backup CRs (Argo ownership/reconciliation fights CR-based ones).
 
 ## Security (Public Repository)
@@ -67,6 +78,7 @@ This repository is **public**. When making changes:
 - **Audit new templates** — Jinja2 templates (`.j2`) should use `{{ variable }}` references, never hardcoded secret values.
 - **Sensitive operations** — use `no_log: true` in Ansible tasks that handle secrets.
 - **Internal details are acceptable** — private IPs, VLAN layout, domain names, and public keys are fine to include; they are non-exploitable without network access.
+- **Omit purpose narration** — document *what* a thing is technically, never *what it's for* in personal or workflow terms. Sizes, mount paths, RAID levels and k8s wiring are fine; "used for <activity>" leaks usage patterns to anyone browsing. Include purpose only when explicitly asked.
 - **SOPS workflow** — never run `sops -d` or decrypt secrets; the user handles all decryption with their own AGE key (not in the repo). Do not create, populate, or encrypt `*.sops.yaml` files: build everything else (Chart, values, ArgoCD app), then tell the user exactly which sops file to create and which keys it must contain.
 - **No redundant filename prefixes** — don't prefix what the extension/convention already conveys: `argocd.sops.yaml`, not `secrets-argocd.sops.yaml`.
 
@@ -81,6 +93,7 @@ This repository is **public**. When making changes:
 
 - `docs/` - Hardware inventory, network architecture, service guides
 - `k3s/` - Kubernetes cluster setup, manifests, and Ansible playbooks
+- `k3s/apps/tools/` - catch-all namespace for miscellaneous self-hosted apps. Per-service dependencies (databases, caches) run as in-pod native sidecars — `initContainers.<name>.restartPolicy: Always` plus a `wait-for-db` initContainer — never as operators or separate Deployments.
 
 ## Runbooks
 
@@ -166,6 +179,7 @@ Claude has MCP access to Pi-hole and UniFi for **read-only purposes**:
 - **Always use the latest stable version** when adding new dependencies (Helm charts, container images, tools).
 - **Pin explicit versions** — never use `latest`, `stable`, or floating tags. Renovate tracks updates via pinned versions.
 - **Renovate** (GitHub App) monitors all dependencies and opens PRs for updates on weekends.
+- **Renovate config is `renovate.json5` only** — never create a plain `renovate.json`. Two config files make Renovate error out, and the duplicate strips every comment. Delete it if one appears.
 - **Check Renovate config** — when adding any versioned dependency (Helm chart, container image, pip/uv package, etc.), verify that `renovate.json5` has a matching custom manager regex if the file/format isn't auto-detected. Add one if missing.
 - Look up current latest versions online before implementing — don't assume versions from memory or documentation are current.
 

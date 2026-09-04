@@ -1,6 +1,9 @@
 # Plex Media Server with Intel Quick Sync hardware transcoding.
 #
-# Pinned to k3s-node-02 (M70q Gen 5) for its Intel i5-14500T iGPU (i915).
+# Pinned to k3s-node-02 (M70q Gen 5) for its Intel i5-14500T iGPU (i915). The pin is
+# required, not a preference: on the AMD Vega node every transcode segfaults PMS while
+# probing h264_vaapi / radeonsi_drv_video.so, and it respawns internally so the pod
+# still reports healthy.
 # Hardware transcoding requires Plex Pass — enable in Settings → Transcoder
 # after initial setup.
 #

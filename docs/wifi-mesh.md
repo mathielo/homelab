@@ -177,6 +177,10 @@ demand is expected and is not a fault.
   Availability Check before the AP may beacon, so after a simultaneous restart the
   parent is invisible while children are already scanning. A radar detection forces it
   off-channel within 10 s for 30 minutes, taking its children with it.
+- **Avoid the weather-radar sub-band on 5 GHz.** ch116 at 80 MHz spans 5570–5650,
+  overlapping the 5600–5650 weather-radar allocation; a detection there wedges the
+  radio rather than merely moving it. Prefer non-DFS ch36. The validated assignment is
+  2.4 GHz ch11 / 5 GHz ch36 / 6 GHz ch37 at 320 MHz.
 - **Do not widen the XG's 5 GHz to 160 MHz.** A 160 MHz block anchored at ch36 spans
   36–64, dragging in DFS channels 52–64 and the availability cost above.
 - **A slow client is airtime-expensive out of proportion to its bytes.** The Balcony

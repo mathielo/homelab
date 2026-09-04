@@ -337,3 +337,19 @@ kubectl -n argocd patch application <app> --type=merge \
 ```
 
 `tar` on busybox may emit a benign `short read` at EOF — verify by checking the extracted size matches expectations.
+
+## Adding a PVC to a live app-template chart
+
+Adding a second `persistence` entry to a bjw-s `app-template` chart that currently has
+exactly one PVC **renames the existing one**. The chart names a lone PVC after the
+release; once there are two, both gain an identifier suffix. Argo sees the old name as
+removed, prunes it, and a Longhorn StorageClass with `reclaimPolicy: Delete` destroys
+the volume with it.
+
+`global.alwaysAppendIdentifierToResourceName: true` makes the suffix unconditional, so
+the name never changes as PVCs are added. Set it on **new** charts only — switching it
+on for a live single-PVC app renames that PVC and triggers exactly the deletion it
+prevents.
+
+Before adding a PVC to an existing chart, `helm template` it and diff the rendered PVC
+names against `kubectl get pvc -n <ns>`. If a name changes, migrate the data first.

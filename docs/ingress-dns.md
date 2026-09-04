@@ -102,6 +102,40 @@ extraArgs:
 
 Unbound behind Pi-hole resolves the public `_acme-challenge` TXT recursively, so the check passes without opening external DNS egress on VLAN 50. If Pi-hole's IP or the DNS firewall rules change, update these args to match.
 
+**A new certificate can sit `pending` for up to 30 minutes.** Because the self-check
+goes through a recursive resolver rather than the authoritative nameservers, the first
+probe — fired seconds after the TXT record is created — usually beats Cloudflare's own
+propagation and gets an empty answer. That negative result is then cached for the
+zone's SOA minimum, which Cloudflare sets to **1800 s**, and every retry until it
+expires is answered from cache. The challenge clears itself once the entry ages out;
+the ACME order stays valid far longer, so nothing is lost by waiting.
+
+Deploying several services at once makes this visible — one certificate is issued in
+about 90 s and the rest stall, purely on which name won the race.
+
+**There are two caches, and pihole-FTL is the one that matters.** FTL keeps its own DNS
+cache in front of Unbound, so Unbound can hold the correct answer while FTL still serves
+the stale miss. Query both on the VIP holder to see which layer is stale:
+
+```sh
+dig +short TXT _acme-challenge.<name>.m6o.dev @127.0.0.1 -p 5335   # unbound
+dig +short TXT _acme-challenge.<name>.m6o.dev @127.0.0.1 -p 53     # pihole-FTL
+```
+
+`unbound-control flush` does not touch FTL's cache. `reloaddns` flushes it without
+restarting the DNS server, so it is cheap enough to reach for rather than waiting out
+the TTL:
+
+```sh
+ssh pihole-01 'sudo pihole reloaddns'
+```
+
+A successful challenge deletes its TXT record at Cloudflare, but the positive answer
+stays cached locally afterwards — so a name that resolves is not evidence the record
+still exists, and comparing two services' `_acme-challenge` lookups says more about
+cache state than about propagation. Query the authoritative nameserver from a host that
+can reach it (`dig ... @amber.ns.cloudflare.com` on a Pi-hole) to see the real record.
+
 ## Adding a New Service
 
 The wildcard DNS record covers all `*.m6o.dev` subdomains — no DNS changes needed. Just add an Ingress resource with the appropriate hostname and cert-manager annotation. See existing apps in `k3s/apps/` for examples.
