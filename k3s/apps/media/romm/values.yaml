@@ -38,6 +38,14 @@ app-template:
           env:
             MARIADB_DATABASE: romm
             MARIADB_USER: romm
+            # The entrypoint never runs mariadb-upgrade on its own, so without
+            # this a major bump starts the new server on system tables still in
+            # the old layout. It compares the tag against the datadir's
+            # mariadb_upgrade_info and is a no-op whenever the two agree, so it
+            # stays set permanently rather than being toggled around each bump.
+            # It also dumps the system tables to system_mysql_backup_*.sql.zst
+            # in the datadir before touching them.
+            MARIADB_AUTO_UPGRADE: "1"
             # Without this the sidecar logs in UTC while RomM logs local time,
             # which makes the two streams awkward to correlate.
             TZ: Europe/Stockholm
