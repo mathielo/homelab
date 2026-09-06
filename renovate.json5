@@ -209,6 +209,21 @@
       groupName: 'media-bots',
     },
     {
+      // The Mend-hosted app's Docker Hub tag cache periodically "invents"
+      // lakker/pulsarr 1.x versions that exist in no registry (see #87 and #107).
+      // Release tags are v-prefixed and the Docker tags are not, hence extractVersion.
+      description: 'Pulsarr: resolve versions from upstream releases, not Docker Hub',
+      matchDatasources: [
+        'docker',
+      ],
+      matchPackageNames: [
+        'lakker/pulsarr',
+      ],
+      overrideDatasource: 'github-releases',
+      overridePackageName: 'jamcalli/Pulsarr',
+      extractVersion: '^v(?<version>.*)$',
+    },
+    {
       // ytdl-sub is consumed only as the FROM base of our VA-API Dockerfile
       // (Alpine variant): 2026.06.12 (rarely .postN). Excludes ubuntu-*/latest.
       description: 'ytdl-sub date-versioned tags',
