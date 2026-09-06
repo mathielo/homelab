@@ -209,6 +209,19 @@
       groupName: 'media-bots',
     },
     {
+      // The Mend-hosted app's Docker Hub tag cache periodically "invents"
+      // lakker/pulsarr 1.1.6. That version does not really exist and it
+      // keeps popping up as a suggested update from Renovate (see #87 and #107).
+      description: 'Pulsarr: block the phantom 1.1.6 tag',
+      matchDatasources: [
+        'docker',
+      ],
+      matchPackageNames: [
+        'lakker/pulsarr',
+      ],
+      allowedVersions: '!/^1\\.1\\.6$/',
+    },
+    {
       // ytdl-sub is consumed only as the FROM base of our VA-API Dockerfile
       // (Alpine variant): 2026.06.12 (rarely .postN). Excludes ubuntu-*/latest.
       description: 'ytdl-sub date-versioned tags',
