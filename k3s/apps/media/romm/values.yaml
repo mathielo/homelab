@@ -34,7 +34,7 @@ app-template:
           restartPolicy: Always
           image:
             repository: mariadb
-            tag: "11.8.9"
+            tag: "12.3.3"
           env:
             MARIADB_DATABASE: romm
             MARIADB_USER: romm
