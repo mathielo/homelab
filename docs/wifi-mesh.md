@@ -29,11 +29,15 @@ ssh UGCMax 'ip neigh show | grep -i "<mac-suffix>"'
 
 Mesh children:
 
-| UDB         | MAC suffix  | Parent    | Link(s)                  |
-| ----------- | ----------- | --------- | ------------------------ |
-| Homelab     | `…1a:b5:f2` | U7 Pro XG | MLO: 5 ch36 **+** 6 ch37 |
-| Living Room | `…1a:b7:2e` | U7 Pro XG | 6 ch37                   |
-| G6 Balcony  | `…b4:7e:b9` | U7 Mesh   | 5 ch104                  |
+| UDB         | MAC suffix  | Parent    | Link(s)                       |
+| ----------- | ----------- | --------- | ----------------------------- |
+| Homelab     | `…1a:b5:f2` | U7 Pro XG | 6 ch37 (single link, MLO off) |
+| Living Room | `…1a:b7:2e` | U7 Pro XG | 5 ch36 (single link)          |
+| G6 Balcony  | `…b4:7e:b9` | U7 Mesh   | 5 ch104                       |
+
+**MLO is disabled** on the mesh WLAN — see [The MLD collapses onto one
+link](#the-mld-collapses-onto-one-link). `UDB Homelab` therefore reaches the XG over one
+6 GHz link at 320 MHz, which is the widest and quietest pipe in the building.
 
 A UDB's per-link MACs are its base MAC with the last octet incremented — e.g.
 `…b5:f4` is the 5 GHz link and `…b5:f5` the 6 GHz link of the same MLD. That is how
@@ -45,9 +49,10 @@ you tell which row in `wlanconfig` output belongs to which device.
 > home-address disclosure vector. Suffixes are enough to match runtime output. Keep
 > full MACs (and UI screenshots that show BSSIDs) out of this repo.
 
-`UDB Homelab` carries the k3s nodes, the UNAS-4 and the workstation, so its link is
-the one that matters for cluster throughput. See
-[`hardware.md`](hardware.md) for what hangs off each port.
+`UDB Homelab` carries the k3s nodes, the UNAS-4, pihole-01, Home Assistant and the
+workstation, so its link is the one that matters for cluster throughput. Devices on it
+switch locally at full speed; anything crossing a VLAN traverses the wireless uplink
+twice, which is why the NAS and the k3s nodes share VLAN 50.
 
 ### Why this layout
 
@@ -95,10 +100,10 @@ Link state and PHY rates:
 ssh -J UGCMax "$UNIFI_SSH_USER@$XG" 'wlanconfig mld0 list sta'
 ```
 
-## Three traps
+## Four traps
 
-All three of these made a working 6 GHz link look completely dead during the
-2026-08-05 investigation. Each cost real time.
+The first three made a working 6 GHz link look completely dead during the 2026-08-05
+investigation. Each cost real time.
 
 1. **The controller's `uplink` object shows only ONE link of an MLO pair.** It will
    report a device as "meshing on 5 GHz" while a second 6 GHz link is up and
@@ -114,6 +119,15 @@ All three of these made a working 6 GHz link look completely dead during the
    `IEs: 00`** (the primary shows `1000000b`). This is not a fault — association and
    IE state live on the primary link entry. Links were observed sitting at `STATE 3`
    while measurably forwarding 452 Mbit/s.
+
+4. **Per-link byte counters do not say which band carries the traffic.** Each end
+   collapses its accounting onto one link of the MLD, and the two ends pick different
+   ones: the AP books nearly all mesh receive on `vwireap11` (6 GHz) while `vwireap10`
+   sits at a hard zero, and the UDB books nearly all its transmit on `vwiresta0`
+   (5 GHz) while `vwiresta1` sits at zero. The reciprocal totals across the two
+   devices agree to within a few percent, so **the sum is trustworthy and the split is
+   not**. For which radio is actually loaded, use the AP's per-radio airtime
+   (`cu_self_tx` / `cu_self_rx`), which is an independent measurement.
 
 ## MLO children need a 6 GHz-capable parent
 

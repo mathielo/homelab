@@ -82,5 +82,11 @@ else uses DHCP.
 | UNVR-I              | UniFi NVR Instant  | 10.10.20.2 |
 | USW Flex 2.5G 8 PoE | UniFi Switch       | Dynamic    |
 | U7 Pro XG           | UniFi AP           | Dynamic    |
+| U7 Mesh             | UniFi AP           | Dynamic    |
 | UDB Homelab         | UniFi Dream Bridge | Dynamic    |
 | UDB Living Room     | UniFi Dream Bridge | Dynamic    |
+| UDB G6 Balcony      | UniFi PoE mesh     | Dynamic    |
+| AirWire             | UniFi AP           | Dynamic    |
+
+AirWire is powered on only for occasional ad-hoc use and is offline the rest of the
+time; that is its normal state.
