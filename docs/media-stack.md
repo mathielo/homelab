@@ -243,7 +243,7 @@ Then configure **Settings → Languages** and add **OpenSubtitles.com** under **
 
 ### Step 7: Plex
 
-> :bulb: Plex is pinned to `k3s-server` (M75q-1) via hostname nodeSelector for access to the Radeon Vega 10 GPU.
+> :bulb: Plex is pinned to `k3s-node-02` (M70q Gen 5) via hostname nodeSelector for its Intel i5-14500T iGPU (Quick Sync). The pin is required, not a preference — see `k3s/apps/media/plex/values.yaml`.
 
 Complete the setup wizard at `https://plex.m6o.dev`, then:
 
@@ -258,7 +258,7 @@ Complete the setup wizard at `https://plex.m6o.dev`, then:
 
 3. **Enable hardware transcoding** (requires Plex Pass):
    - Settings → Transcoder → check "Use hardware acceleration when available"
-   - The AMD Radeon Vega 10 GPU is passed through via `amd.com/gpu` resource request
+   - Intel Quick Sync is passed through via the `gpu.intel.com/i915` resource request
 
 4. **Turn off "Backup database"** — Settings → Manage → Scheduled Tasks.
    It writes a dated copy of both SQLite databases into

@@ -9,7 +9,7 @@
 #
 # Post-deploy:
 #   1. Open https://plex.m6o.dev and complete the setup wizard
-#   2. Add libraries: Movies → /media/library/movies, Shows → /media/library/shows
+#   2. Add libraries: Movies → /media/lib/movies, Shows → /media/lib/shows
 #   3. Enable hardware transcoding in Settings → Transcoder
 app-template:
   defaultPodOptions:
