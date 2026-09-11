@@ -17,9 +17,9 @@
 # The three backup jobs sit an hour apart because `concurrency` is per-job,
 # not global — jobs that overlap each open their own serialized NFS stream,
 # and together they outrun the soft mount's timeout budget and fail with EIO.
-# 01:00-03:00 is the quietest stretch on the NAS: SAB resumes at 22:00 and
-# drains its queue through roughly 00:30, and 03:00 onward starts climbing
-# again toward the 09:00-10:00 daytime peak.
+# 01:00-04:00 is the quietest stretch on the NAS: SAB resumes at 22:00 and
+# drains its queue through roughly 00:30, and the climb toward the 09:00-10:00
+# daytime peak only gets under way after that.
 apiVersion: longhorn.io/v1beta2
 kind: RecurringJob
 metadata:
@@ -40,8 +40,11 @@ metadata:
   namespace: longhorn-system
 spec:
   task: backup
-  cron: "0 1 * * *"
-  retain: 14 # 2 weeks
+  # Two passes a night: nothing retries a volume that lost its backup to a NAS
+  # stall, so the 04:00 pass is the retry. 04:00 is the only slot clear of
+  # snapshot-6h (00/06/12/18), weekly (Sun 02:00) and monthly (1st 03:00).
+  cron: "0 1,4 * * *"
+  retain: 28 # 2 weeks at two passes a night
   concurrency: 1 # serialize NFS writes — 1 GbE + low-RAM NAS chokes on parallel backup streams
   groups:
     - default

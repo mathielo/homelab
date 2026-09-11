@@ -10,11 +10,15 @@ defaultSettings:
   # The backup target needs to specify:
   # - vers=3 (NFS version 3)
   # - nolock (disable kernel-level locking)
-  # - retrans=5 (a soft mount returns EIO once timeo x retrans elapses; the largest
-  #   volumes write enough blocks to hit the default under NAS write pressure)
+  # - timeo/retrans size how long the `soft` mount tolerates an unresponsive NAS before
+  #   giving up. timeo is in DECISECONDS, so 600 is 60s — the Linux default for NFS over
+  #   TCP — and the budget grows by timeo per retry until retrans is spent. It has to
+  #   outlast a NAS write stall, which reaches ~3 min when a large delta saturates the
+  #   RAID 5 writethrough path; the EIO that follows fails that volume for the night,
+  #   because Longhorn does not retry it.
   # The other options are the defaults from Longhorn that get overwritten by the nfsOptions query string
   # See https://oneuptime.com/blog/post/2026-03-20-configure-longhorn-backup-target-nfs/view
-  backupTarget: "nfs://10.10.50.4:/var/nfs/shared/k3s?nfsOptions=vers=3,nolock,actimeo=1,soft,timeo=300,retry=2,retrans=5"
+  backupTarget: "nfs://10.10.50.4:/var/nfs/shared/k3s?nfsOptions=vers=3,nolock,actimeo=1,soft,timeo=600,retry=2,retrans=5"
 
 persistence:
   defaultClass: true

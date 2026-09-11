@@ -63,7 +63,7 @@ sudo mkdir -p /mnt/nvme/local/qbt-br /mnt/nvme/local/qbt-se && sudo chown 1000:1
 Target: the dedicated `k3s` NFS share on UNAS-4 (NFSv3 forced; UNAS only exports v3):
 
 ```
-nfs://10.10.50.4:/var/nfs/shared/k3s?nfsOptions=vers=3,nolock,actimeo=1,soft,timeo=300,retry=2,retrans=5
+nfs://10.10.50.4:/var/nfs/shared/k3s?nfsOptions=vers=3,nolock,actimeo=1,soft,timeo=600,retry=2,retrans=5
 ```
 
 Set in `ansible/k3s/files/longhorn.values.yaml`, patched onto the `default` BackupTarget CR by the Ansible playbook.
@@ -75,7 +75,7 @@ Recurring jobs are GitOps in `k3s/apps/longhorn/recurring-jobs.yaml` (Argo app `
 | Job              | Task     | Cron          | Fires (local)  | Retain | Window    |
 | ---------------- | -------- | ------------- | -------------- | ------ | --------- |
 | `snapshot-6h`    | snapshot | `0 */6 * * *` | every 6h       | 8      | ~2 days   |
-| `daily-backup`   | backup   | `0 1 * * *`   | 01:00          | 14     | 2 weeks   |
+| `daily-backup`   | backup   | `0 1,4 * * *` | 01:00 + 04:00  | 28     | 2 weeks   |
 | `weekly-backup`  | backup   | `0 2 * * 0`   | Sun 02:00      | 8      | ~2 months |
 | `monthly-backup` | backup   | `0 3 1 * *`   | 1st 03:00      | 6      | 6 months  |
 
@@ -198,14 +198,27 @@ ssh <node> 'df -h /mnt/nvme/longhorn'
 - `rpc.statd is not running` → `sudo systemctl start rpc-statd` (permanent fix in `install-k3s.yaml`)
 - `No such file or directory` → URL path must be the export root, not a subdirectory
 - `remote share not in 'host:dir' format` → URL needs the colon: `nfs://host:/path`
-- `failed to write data during saving blocks: close ...` → the `soft` mount hit its
-  timeout budget mid-write and returned EIO, failing one volume while the rest of the
-  run succeeds. Which volume loses is probabilistic — larger volumes hold the mount
-  longer and so fail more often, but small ones are not exempt. The driver is
-  concurrent NFS write pressure, so the levers are the schedule (keep backup jobs off
-  each other and out of SAB's 22:00–00:30 drain) and `retrans=5` on the backup target,
-  which widens the budget. `hard` would remove the limit entirely but risks an
-  unkillable D-state wedge on the NAS mount.
+- `failed to write data during saving blocks: close ...` / `mkdir ...` → the `soft`
+  mount spent its timeout budget waiting on an unresponsive NAS and returned EIO,
+  failing one volume while the rest of the run succeeds. Confirm on the node that held
+  the volume, in **local** time:
+
+  ```bash
+  ssh <node> 'sudo journalctl -k --since "<date> 00:50" | grep "10.10.50.4"'
+  ```
+
+  `not responding, timed out` is the mount giving up, and its timestamp matches the EIO
+  to the second. `still trying` is a `hard` mount (the `Media`/`ROMs` shares) retrying
+  forever and is unrelated. **No message at all** means the NAS answered and refused the
+  write — check btrfs on the NAS instead (`btrfs device stats`, `btrfs filesystem usage`,
+  `df`), not the mount options.
+
+  The budget is `timeo` plus one increment of `timeo` per retry until `retrans` is spent,
+  and `timeo` is in **deciseconds** — so the two levers are `timeo`/`retrans` on the
+  backup target and the size of the delta being written. The volume with the largest
+  delta loses because it holds the mount longest; Plex is an order of magnitude above
+  every other volume (~1.35 GiB a night against 10–60 MiB). `hard` would remove the
+  limit entirely but risks an unkillable D-state wedge on the NAS mount.
 
 **Silently skipped volumes** — a recurring-job pod reports `Completed` even when
 individual volumes inside it errored, and `longhorn_volume_last_backup_at` stays green
@@ -216,13 +229,14 @@ kubectl get backups.longhorn.io -n longhorn-system -o json \
   | jq -r '.items[]|select(.status.state=="Error")|"\(.metadata.creationTimestamp)\t\(.status.error[0:160])"'
 ```
 
-**An `Error` CR is not by itself a finding.** The job retries a failed volume inside
-the same run, so an error is usually followed minutes later by a successful backup of
-that volume — the data is safe and only the record remains. Longhorn keeps that record
-for `failed-backup-ttl` (1440m), so this list holds a full day of already-repaired
-failures. Compare each error against its volume's `status.lastBackupAt`: a newer
-success means recovered. This is a diagnosis step, run once an alert says a volume is
-actually behind; it is not a detector, which is why no alert is keyed on it.
+**Nothing retries a volume that failed** — the pod logs the error, moves on to the next
+volume and exits 0, so `backoffLimit` never fires and the volume simply has no backup from
+that pass; only the 04:00 pass gets it a second attempt. Longhorn keeps the `Error` record
+for `failed-backup-ttl` (1440m), so this list can still hold failures a later pass has
+superseded. Compare each error against its volume's `status.lastBackupAt`: a newer success
+means recovered, an older one means the volume is still behind. This is a diagnosis step,
+run once an alert says a volume is behind; it is not a detector, which is why no alert is
+keyed on it.
 
 **Editing a recurring job's cron backfills the missed run** — Longhorn patches the
 schedule of the existing CronJob rather than replacing it, so the k8s CronJob
@@ -235,7 +249,7 @@ the backupstore lock (`failed to acquire lock backupstore/volumes/...`). Expect 
 noisy run after any cron edit; the following night is back on schedule.
 
 A day's volume *count* can also match while the *set* differs, so diff consecutive
-days to name what was dropped. Bucket by **local** date: the jobs run 01:00 local,
+days to name what was dropped. Bucket by **local** date: the first pass runs 01:00 local,
 which is `23:00Z` the previous day, so a UTC bucket puts every nightly backup in the
 day before and makes the current day look empty.
 

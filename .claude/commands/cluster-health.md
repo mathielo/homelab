@@ -445,20 +445,20 @@ kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- wget
 The `select` drops the `longhorn-no-bkp` volumes: they have no backup timestamp, so
 `time()-0` renders as a six-figure age and sorts them above every real result.
 
-- **Age — the detector.** Against the schedule (`daily-backup` 01:00, `weekly-backup`
+- **Age — the detector.** Against the schedule (`daily-backup` 01:00 + 04:00, `weekly-backup`
   Sun 02:00, `monthly-backup` 1st 03:00, all local; `snapshot-6h`).
   `longhorn_volume_last_backup_at` is the newest *completed* backup, so it is the only
   Longhorn backup signal that both ignores repaired failures and clears itself.
   `LonghornVolumeBackupStale` (warning) covers 30h–3d, `LonghornVolumeBackupMissing`
   (critical) takes over past 3d, so §0 normally catches this first.
 - **Errors — why a volume is behind, not whether it is.** No alert is keyed on an
-  `Error` CR, and one is not a finding on its own: the job retries a failed volume
-  inside the same run, so most errors sit beside a successful backup of that volume
-  minutes later — the data is safe and only the record remains. Longhorn keeps that
-  record for `failed-backup-ttl` (1440m), so the list carries a full day of
-  already-repaired failures. Read it once the age check has flagged a volume, and
-  judge each error against that volume's `longhorn_volume_last_backup_at` — a newer
-  success means recovered.
+  `Error` CR. Nothing retries a volume that failed — the recurring-job pod logs the
+  error, moves on and exits 0, so the Job reports `Completed` and `backoffLimit` never
+  fires — but the 04:00 pass gets a second attempt, so an error can still sit beside a
+  later success. Longhorn keeps the record for `failed-backup-ttl` (1440m), so the list
+  carries a full day of them. Read it once the age check has flagged a volume, and judge
+  each error against that volume's `longhorn_volume_last_backup_at` — a newer success
+  means recovered, an older one means it is still behind.
 
   ```
   kubectl get backups.longhorn.io -n longhorn-system -o json \
@@ -466,20 +466,32 @@ The `select` drops the `longhorn-no-bkp` volumes: they have no backup timestamp,
   ```
 
   `failed to write data during saving blocks: close ...` means the backup target's
-  `soft` NFS mount hit its timeout budget mid-write and returned EIO. It scales with
-  volume size, so the **largest** volume fails while every other volume in the same
-  run succeeds — a partial failure that leaves the job `Completed`. `retrans=5` on the
-  target widens the budget (`ansible/k3s/files/longhorn.values.yaml`); `hard` would
-  remove the limit but risks an unkillable D-state wedge on the NAS mount. Full
-  failure mode in `docs/storage-longhorn.md` → "Silently skipped volumes".
+  `soft` NFS mount spent its timeout budget waiting on an unresponsive NAS and returned
+  EIO. It scales with the volume's **delta**, so the volume with the most churn fails
+  while every other volume in the same run succeeds — a partial failure that leaves the
+  job `Completed`. Plex is an order of magnitude above the rest (~1.35 GiB a night
+  against 10–60 MiB), so it is the expected casualty.
 
-  `retrans=5` widened the budget but did not remove the ceiling — the largest volume
-  still errors — so do not propose raising it again as a fix.
+  Always settle which side stalled before proposing anything, in **local** time:
+
+  ```bash
+  ssh <node> 'sudo journalctl -k --since "<date> 00:50" | grep "10.10.50.4"'
+  ```
+
+  `not responding, timed out` (timestamp matches the EIO to the second) is the mount
+  giving up → the levers are `timeo`/`retrans` and the delta size. `still trying` is a
+  `hard` mount and unrelated. No message at all means the NAS refused the write → check
+  `btrfs device stats` / `filesystem usage` / `df` on the NAS, not the mount options.
+
+  `retrans` alone is not the knob: the budget is `timeo` plus one increment of `timeo`
+  per retry, and `timeo` is in **deciseconds**, so raising `retrans` while `timeo` sits
+  below the Linux TCP default of 600 buys far less than it looks. Full failure mode in
+  `docs/storage-longhorn.md` → "Backup target errors".
 - **Gaps** — count *distinct volumes backed up per day* over the last week. A day
   whose count dips below its neighbours means specific volumes were skipped while the
   job still reported Completed, and the newest-backup timestamp stays green.
 
-  **Bucket by local date, not UTC.** The jobs run 01:00 local and the cluster is
+  **Bucket by local date, not UTC.** The first pass runs 01:00 local and the cluster is
   `+0200`, so every nightly backup carries a `23:00Z` timestamp belonging to the
   *previous* UTC day. Slicing `snapshotCreatedAt[0:10]` puts the whole run in the day
   before and makes the current day look empty — which reads as a total backup

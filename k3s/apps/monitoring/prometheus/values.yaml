@@ -280,9 +280,12 @@ prometheus:
             # failed Job lives until the next failure evicts it
             # (`failedJobsHistoryLimit: 1`). A rule keyed on either one therefore
             # describes a condition that has already passed and cannot resolve
-            # itself. The recurring job also retries a failed volume inside the
-            # same run, so an attempt failure is usually repaired minutes later
-            # and the record is all that survives.
+            # itself.
+            #
+            # Nothing retries a volume that failed: the recurring-job pod logs the
+            # error, moves on to the next volume and exits 0, so the k8s Job reports
+            # Complete and `backoffLimit` never fires. One EIO costs that volume
+            # every pass it was in, which is the gap this rule exists to catch.
             #
             # `longhorn_volume_last_backup_at` is the volume's `status.lastBackupAt`
             # — the newest *completed* backup. A successful retry moves it, a
@@ -292,9 +295,10 @@ prometheus:
             # Why a volume is behind is diagnosis, not detection, and the error
             # text exists only on the Backup CR: docs/storage-longhorn.md.
             #
-            # Dailies run 01:00 local, so 30h flags one missed run without firing
-            # during the window itself, and the warning stops at the 3d handover so
-            # a volume in trouble is reported at one severity rather than two.
+            # Dailies run 01:00 and 04:00 local, so 30h flags a volume that both
+            # passes missed without firing during the window itself, and the warning
+            # stops at the 3d handover so a volume in trouble is reported at one
+            # severity rather than two.
             #
             # `> 0` drops the volumes on longhorn-no-bkp, which never back up by
             # design and report a zero timestamp. It also hides a volume that has

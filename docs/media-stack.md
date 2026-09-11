@@ -260,7 +260,17 @@ Complete the setup wizard at `https://plex.m6o.dev`, then:
    - Settings → Transcoder → check "Use hardware acceleration when available"
    - The AMD Radeon Vega 10 GPU is passed through via `amd.com/gpu` resource request
 
-4. **Get API token** for Homepage widget:
+4. **Turn off "Backup database"** — Settings → Manage → Scheduled Tasks.
+   It writes a dated copy of both SQLite databases into
+   `Plug-in Support/Databases/` every 3 days and retains several, so ~1.3 GB of the
+   `plex-config-lh` volume is Plex backing itself up inside the volume Longhorn already
+   backs up nightly to 14 dailies / 8 weeklies / 6 monthlies. Each new copy is ~346 MB
+   of fresh blocks in that night's Longhorn delta, and the volume is the one that
+   actually stalls the NAS (see [`storage-longhorn.md`](storage-longhorn.md) →
+   "Backup target errors"). Delete the existing `*.db-YYYY-MM-DD` copies after
+   unchecking it.
+
+5. **Get API token** for Homepage widget:
    - In Plex web UI, open any media item, click "Get Info", check the URL for `X-Plex-Token=`
    - Update `HOMEPAGE_VAR_PLEX_TOKEN` in `k3s/apps/dashboard/homepage/values.sops.yaml`
 
