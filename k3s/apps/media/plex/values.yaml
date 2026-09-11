@@ -34,7 +34,7 @@ app-template:
         plex:
           image:
             repository: ghcr.io/hotio/plex
-            tag: release-1.43.3.10896-cb3ebc72d
+            tag: release-1.43.4.10903-e5521bd8c
           env:
             PUID: "1000"
             PGID: "1000"
