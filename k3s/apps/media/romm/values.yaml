@@ -124,7 +124,7 @@ app-template:
           resources:
             requests:
               cpu: 50m
-              memory: 512Mi
+              memory: 640Mi
             limits:
               # A scan hashes every file in the library over NFS, so the ceiling
               # is sized for the scan, not for idle browsing.

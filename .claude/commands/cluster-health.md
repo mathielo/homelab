@@ -72,13 +72,17 @@ PQ() { kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server 
 PQ 'avg_over_time(up[24h]) < 1' | jq -r '.data.result[]|"\(.metric.job)\t\(.metric.instance)\t\(.value[1])"'
 ```
 
-🟡 any target below 1.0. A target that scrapes *slowly* fails the same way: a
+🟡 any target below **0.99** — `< 1.0` flags one missed scrape in the window, which
+every run has and none of them mean anything. A target that scrapes *slowly* fails the
+same way: a
 `broken pipe` in an exporter's own log is Prometheus hanging up mid-response, and its
 usual cause is that exporter's CPU limit (§3), not the network.
 
-**Open monitoring gap** — nothing alerts on a failing scrape target, so a partially
-blind Prometheus waits for someone to run this check. Proposed but not applied:
-`PrometheusTargetScrapeFailing`, `avg_over_time(up[30m]) < 0.95` for 30m, warning.
+**Open monitoring gap** — `PrometheusTargetDown` (`up == 0` for 10m) covers a target
+that stays down, so only a *flapping* one is blind: intermittent misses never sustain
+ten minutes at zero, and a target losing a tenth of its scrapes alerts on nothing.
+Proposed but not applied: `PrometheusTargetScrapeFailing`,
+`avg_over_time(up[30m]) < 0.95` for 30m, warning.
 
 ## 1. Node metrics (structured, glanceable, comparable between runs)
 
@@ -499,7 +503,7 @@ The `select` drops the `longhorn-no-bkp` volumes: they have no backup timestamp,
 
   ```
   day() { kubectl get backups.longhorn.io -n longhorn-system -o json \
-    | jq -r '.items[]|"\(.status.snapshotCreatedAt)\t\(.status.volumeName)"' \
+    | jq -r '.items[]|select(.status.state=="Completed")|"\(.status.snapshotCreatedAt)\t\(.status.volumeName)"' \
     | while read -r ts vol; do [ "$(date -d "$ts" +%F)" = "$1" ] && echo "$vol"; done | sort -u; }
   for d in $(seq 7 -1 0); do d=$(date -d "$d days ago" +%F); echo "$d $(day $d | wc -l)"; done
   ```
@@ -517,7 +521,11 @@ Also watch longhorn-manager (§6) for the backup-target reconcile failing to rea
 NFS target. Two distinct messages, both retried forever:
 
 - `Failed to get backupInfo from remote backup target` — a backup *record* that
-  cannot be read; it names the volume it belongs to.
+  cannot be read; it names the volume it belongs to. An `Error`-state backup CR drives
+  this in a tight retry loop (hundreds of lines a day for one bad record), so match the
+  volume it names against the `Error` list below rather than reading the volume as
+  count evidence. It stops on its own when `failed-backup-ttl` (1440m) evicts the CR,
+  so a high count whose record is under a day old needs no action.
 - `Failed to get info from backup store` … `timeout executing: … system-backup list`
   — the 5-minute target reconcile timing out against the NAS. Volume backups can all
   succeed while this fails, so check it against the volume evidence above before
@@ -621,6 +629,11 @@ kubectl logs -n "$ns" "$pod" --all-containers --since="$W" --timestamps 2>/dev/n
   | grep '<message>' | sed -n '1p;$p' | cut -c1-30   # first and last occurrence
 ```
 
+`--timestamps` prints the node's **local** time with its `+02:00` offset, not UTC, so a
+stamp read against a `date -u` window lands two hours off and a burst from half an hour
+ago reads as one from the future. Judge currency with `--since` (relative, offset-proof)
+and use the absolute stamps only to place two events relative to *each other*.
+
 Pass a real pod name, never a `-l` selector: `kubectl logs -l` prints nothing and exits
 0 when nothing matches, so a guessed label yields a count of `0` that is
 indistinguishable from a burst that ended. Loki's labels are not the pods'
@@ -650,8 +663,11 @@ kubectl logs -n "$ns" "$pod" --all-containers --prefix --since="$1" 2>/dev/null 
   | grep -iE '\b(error|fatal|panic|warn(ing)?)\b|level=(error|warn)|"level":"(error|warn|fatal)"|[[:space:]]E[0-9]{4}[[:space:]]|\[(error|crit)\]' \
   | grep -ivE '"error":null|error=null|level=info|caller=metrics\.go|warnings\.go|is deprecated|"GET |"POST |HTTP/[12]' \
   | sed -E 's/[0-9]{4}-[0-9-]*T?[0-9:.]*Z?//g; s/\b[EWIF][0-9]{4} [0-9:.]+ +[0-9]+\b//g; s/[0-9]{2}:[0-9]{2}:[0-9]{2}//g; s/[0-9]+/N/g' \
-  | sort | uniq -c | sort -rn | head -10
+  | cut -c1-180 | sort | uniq -c | sort -rn | head -10
 ```
+
+`cut -c1-180` is load-bearing, not cosmetic: a failed `helm template` echoes its whole
+`--api-versions` list, so three such lines bury the section in thousands of characters.
 
 `uniq -c` ranks distinct messages by how often they repeat. **All four `sed`
 substitutions are load-bearing**: ISO stamps, klog (`W0827 11:31:11.275065       1`),
@@ -757,8 +773,11 @@ accept:
   query logs — verbose telemetry, not faults. coredns query logging is deliberately on
   and dominates every Loki count by tens of thousands per hour; rank it, then set it aside.
 - `loki-canary` `tail max duration limit exceeded` — canary recycling its tail.
-- k8s API deprecation `Warning:` lines (`v1 Endpoints is deprecated`) from
-  longhorn-manager/controllers — upstream chatter, not a cluster fault.
+- k8s API deprecation `Warning:` lines from longhorn-manager/controllers — upstream
+  chatter, not a cluster fault. Covers any of them, `v1 Endpoints is deprecated` and the
+  high-volume `metadata.finalizers: prefer a domain-qualified finalizer name` alike.
+- plex `## IGNORE THE ERROR MESSAGE:  ##` — the container's own startup banner, matched
+  by the word `ERROR`. Not an error.
 - gluetun (qbt/sabnzbd VPN sidecars) `WARN [dns] ... connection reset by peer` /
   `renewing dead connection` to Quad9 `:853` — transient DoT hiccups gluetun
   self-heals. Flag only if persistent or downloads are stalling.
@@ -799,11 +818,14 @@ run, and if one fires, it leaves this table and becomes a 🔴 finding.
 | 2026-08-19 | `DiskTemperatureHigh` firing on DAS drives `sda`/`sdb` | Enclosure airflow is at its practical limit; a lower steady temperature needs a physical rebuild | `DiskTemperatureCritical` (>60 °C) fires · `DasDiskLatencyImbalance` fires · any reallocated/pending sector appears · steady state exceeds ~58 °C |
 
 Baseline for that row (so drift is detectable rather than a fresh surprise), as of
-**2026-08-29**: steady **52/53 °C** (sda/sdb), 7d max **54/56 °C**, SMART otherwise
-clean — and `DiskTemperatureHigh` **not firing**, the enclosure having settled below
-its 58 °C threshold. (Previous baseline, 2026-08-28: steady 52/54 °C, 7d max 55/56 °C.)
-Quote the current numbers against that baseline in the one-liner — an accepted
-condition still gets measured.
+**2026-09-11**: steady **53/54 °C** (sda/sdb), 7d max **58/59 °C**, SMART otherwise
+clean (zero reallocated and pending sectors) — and `DiskTemperatureHigh` **not firing**,
+the 1 h average staying under its 58 °C threshold. (Previous baseline, 2026-08-29:
+steady 52/53 °C, 7d max 54/56 °C.) The peaks have drifted ~4 °C up while the steady
+state moved ~1 °C, putting sdb's 7d max within 1 °C of the >60 °C
+`DiskTemperatureCritical` re-open trigger: treat another peak rise as the trigger
+arriving, not as noise. Quote the current numbers against that baseline in the
+one-liner — an accepted condition still gets measured.
 
 The row stays despite the quiet alert: the drives still run 13–15 °C above Toshiba's
 40 °C recommendation, and the margin comes from ambient cooling, not a fix. **Retire it
