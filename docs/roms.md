@@ -180,8 +180,9 @@ Receive Only on `deck-saves` makes it a pure one-way save backup. Promote
    > unit files on every update, so a systemd Syncthing has to be reconfigured after
    > each one. The Flatpak lives in `/home` and survives.
 
-   The plugin proxies the GUI on `localhost:58384` and can start Syncthing with
-   Gamescope or at boot.
+   The plugin proxies the GUI on `localhost:58384`. Set **autostart to boot** and
+   **keep running on desktop** — either left at its default stops the save backup
+   whenever the Deck is not in Gamescope.
 
 4. **Deck-side folders** — mirror of the cluster side, with the types inverted.
    EmuDeck is installed to the internal SSD, so the SD card holds only the Steam
@@ -192,19 +193,19 @@ Receive Only on `deck-saves` makes it a pure one-way save backup. Promote
 | `roms`       | `/home/deck/Emulation/roms`  | Receive Only |
 | `deck-saves` | `/home/deck/Emulation/saves` | Send Only    |
 
-   EmuDeck pre-creates ~180 empty platform directories. Without the ignore patterns
-   below, the Deck announces all of them and the cluster's Send Only folder reports
-   several hundred permanent out-of-sync items. Neither **Revert Local Changes** on
-   the Deck nor **Override Changes** on the cluster is the fix — both resolve it by
-   deleting EmuDeck's scaffold.
+EmuDeck pre-creates ~180 empty platform directories. Without the ignore patterns
+below, the Deck announces all of them and the cluster's Send Only folder reports
+several hundred permanent out-of-sync items. Neither **Revert Local Changes** on
+the Deck nor **Override Changes** on the cluster is the fix — both resolve it by
+deleting EmuDeck's scaffold.
 
-   > Reinstalling or relocating EmuDeck recreates `Emulation/roms` and
-   > `Emulation/saves` from scratch, which drops Syncthing's `.stfolder` marker and
-   > stops both folders with `folder marker missing`. Recreate them and rescan:
-   >
-   > ```sh
-   > mkdir -p ~/Emulation/roms/.stfolder ~/Emulation/saves/.stfolder
-   > ```
+> Reinstalling or relocating EmuDeck recreates `Emulation/roms` and
+> `Emulation/saves` from scratch, which drops Syncthing's `.stfolder` marker and
+> stops both folders with `folder marker missing`. Recreate them and rescan:
+>
+> ```sh
+> mkdir -p ~/Emulation/roms/.stfolder ~/Emulation/saves/.stfolder
+> ```
 
 5. **Steam ROM Manager** — new ROMs are files, not Steam entries. Run SRM (desktop
    mode, or from gaming mode via the EmuDecky plugin) after a sync to add them as
@@ -267,3 +268,26 @@ library.
 > sits at ~50% forever. A restart does not clear it. Remove the folder in the GUI
 > and re-accept the share on the same path: files on disk and `.stignore` both
 > survive, and the counters rebuild from the rescan.
+
+### Saves behind symlinks
+
+EmuDeck does not give `~/Emulation/saves/<emulator>/` real directories. It fills them
+with **symlinks** into each emulator's own location, RetroArch included.
+
+Syncthing syncs the link, never its target, so `deck-saves` backs up nothing and still
+reports 100% in sync. Coverage is what `find ~/Emulation/saves -type f` returns; the
+gap is `find ~/Emulation/saves -type l`.
+
+The fix is to replace the link with a real directory. `retroarch.cfg` already points
+`savefile_directory` and `savestate_directory` at the EmuDeck path rather than at the
+Flatpak one, and the Flatpak holds `filesystems=host`, so the emulator writes into the
+synced folder with no further change:
+
+```sh
+cd ~/Emulation/saves/retroarch
+rm saves states
+mkdir -p saves states
+```
+
+Re-running EmuDeck restores the symlinks. Check with `find ~/Emulation/saves -type l`
+after every EmuDeck update, and treat a non-empty result as a broken backup.
