@@ -253,12 +253,21 @@ days to name what was dropped. Bucket by **local** date: the first pass runs 01:
 which is `23:00Z` the previous day, so a UTC bucket puts every nightly backup in the
 day before and makes the current day look empty.
 
+One fetch covers every day, so the count and the diff come from the same list. The
+`state=="Completed"` filter is what makes it a coverage count — without it an `Error`
+record counts as a backup and the dip it should reveal disappears.
+
 ```bash
-day() { kubectl get backups.longhorn.io -n longhorn-system -o json \
-  | jq -r '.items[]|"\(.status.snapshotCreatedAt)\t\(.status.volumeName)"' \
-  | while read -r ts vol; do [ "$(date -d "$ts" +%F)" = "$1" ] && echo "$vol"; done | sort -u; }
-comm -23 <(day "$(date -d yesterday +%F)") <(day "$(date +%F)")
+B=$(kubectl get backups.longhorn.io -n longhorn-system -o json \
+  | jq -r '.items[]|select(.status.state=="Completed")|"\(.status.snapshotCreatedAt)\t\(.status.volumeName)"' \
+  | while read -r ts vol; do echo "$(date -d "$ts" +%F) $vol"; done | sort -u)
+echo "$B" | awk '{print $1}' | uniq -c | tail -9      # distinct volumes per local day
+comm -13 <(echo "$B"|awk -v d="$(date -d '2 days ago' +%F)" '$1==d{print $2}') \
+         <(echo "$B"|awk -v d="$(date -d yesterday  +%F)" '$1==d{print $2}')
 ```
+
+`tail -9` bounds it to the recent dailies: weekly and monthly backups are retained for
+months, so the unbounded list is mostly single-digit historical days.
 
 **Prometheus `longhorn` targets refused on :9500** — the chart's
 `networkPolicies.restrictInternalTraffic` (default `true` since 1.12.1, and gated

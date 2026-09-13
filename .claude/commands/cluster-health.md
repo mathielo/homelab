@@ -11,87 +11,93 @@ report. Log scan window: `$1` (default `1h` if empty).
 `exec` of read commands, and read-only `ssh` OS inspection. No `apply`/`edit`/`patch`/
 `scale`, no writes through any app's API, nothing changed on a node.
 
-The one thing this check may write is the **repo working tree**, and only two things
-in it, both behind §3's clean-tree gate:
+The only thing this check may write is the **repo working tree**, and only two things in
+it, both behind §3's clean-tree gate: **`resources:` requests/limits** in `values.yaml`
+(§3) and **this file** (skill feedback). Never `git add`/`commit`/`push`.
 
-- **resource requests and limits** in `values.yaml` (§3), and
-- **this file** — the §8 skill-feedback edits, applied rather than merely proposed.
-
-Both are proposing a change as code, which is how every change here is made; neither
-touches the running cluster. Never `git add`/`commit`/`push`.
-
-Run the checks below (batch independent commands in parallel), then **interpret**
-the results — don't just dump raw output. Apply judgment: separate real problems
-from known-benign noise. The standing goal is a **warning-free environment**, so
-actively hunt warnings and, for each, decide whether it's fixable or must be
-accepted (see §8).
+Batch independent commands in parallel, then **interpret** the results — don't dump raw
+output. Separate real problems from known-benign noise. The standing goal is a
+**warning-free environment**, so actively hunt warnings and, for each, decide whether
+it's fixable or must be accepted (§8).
 
 ## 0. Firing alerts (start here)
 
-The cluster's Prometheus alert rules (defined in
-`k3s/apps/monitoring/prometheus/values.yaml` — node/disk/PVC, Longhorn, SMART
-temperature & health, ingress, cert expiry, Pi-hole HA) are the authoritative
-statement of what "unhealthy" means here, so read it before hand-rolling any
-threshold below:
+The alert rules in `k3s/apps/monitoring/prometheus/values.yaml` (node/disk/PVC, Longhorn,
+SMART, ingress, cert expiry, Pi-hole HA) are the authoritative statement of what
+"unhealthy" means here — read it before hand-rolling any threshold below. Retention is
+**15d**, so "normal or new?" is answerable rather than speculative.
+
+Two helpers, used by every section below. `wget` chokes on `{` and `"` in a GET query
+string, so always POST:
 
 ```
-kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- \
-  wget -qO- 'localhost:9090/api/v1/query?query=ALERTS' \
-  | jq -r '.data.result[]|"\(.metric.alertstate)\t\(.metric.severity)\t\(.metric.alertname)\t\(.metric.node // .metric.pod // .metric.device // .metric.persistentvolumeclaim // "-")"' | sort -u
+PQ()  { kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- wget -qO- \
+        --post-data="query=$(printf %s "$1" | jq -sRr @uri)" localhost:9090/api/v1/query; }
+PQR() { kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- wget -qO- \
+        --post-data="query=$(printf %s "$1" | jq -sRr @uri)&start=$(date -d "${2:-7 days ago}" +%s)&end=$(date +%s)&step=${3:-3600}" \
+        localhost:9090/api/v1/query_range; }
+L='\(.metric.pvc // .metric.device // .metric.pod // .metric.node // "-")'
 ```
 
-Every **firing** alert goes into the §8 table — a report that says 🟢 while an
+**Firing now** — every one goes into the §8 table; a report that says 🟢 while an
 *unassessed* alert is firing is wrong. `pending` ones are leads worth naming.
 
-An alert listed in §8's **standing accepted conditions** is the exception: it is
-already assessed, so it does not force the verdict down. Report it on one line
-(`🟢 healthy — 1 standing: DAS disk temps`) and move on. Re-litigating the same
-accepted alert every run is the noise this check exists to remove — but do check its
-**re-open trigger**, which is the whole point of writing one down.
-
-This section also keeps the skill honest, in both directions:
-
-- **A firing alert that no §1–§7 check would have caught** = a blind spot in this
-  file. Name it and propose the check.
-- **A threshold in this file with no matching alert rule** = a gap in monitoring;
-  this check only runs when the user runs it, an alert rule runs always. Propose the
-  rule for `prometheus/values.yaml`. Once the user applies one, replace the proposal
-  here with a one-line reference — a rule that ships should not also live here as YAML.
-
-Prometheus also answers questions this sweep otherwise guesses at — SMART drive
-temperatures (`smartctl_device_temperature`), CPU throttling, memory peaks. Retention
-is **15d**, so any "is this normal or new?" question is answerable, not speculative.
-
-**Scrape health — the monitoring system's own blind spots.** An alert cannot fire on
-a target Prometheus failed to scrape, so check the scrapers before trusting anything
-below. Note `wget` chokes on `{` and `"` in a GET query string, so POST the query:
-
 ```
-PQ() { kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- \
-  wget -qO- --post-data="query=$(printf %s "$1" | jq -sRr @uri)" 'localhost:9090/api/v1/query'; }
-PQ 'avg_over_time(up[24h]) < 1' | jq -r '.data.result[]|"\(.metric.job)\t\(.metric.instance)\t\(.value[1])"'
+PQ 'ALERTS' | jq -r ".data.result[]|\"\(.metric.alertstate)\t\(.metric.severity)\t\(.metric.alertname)\t$L\"" | sort -u
 ```
 
-🟡 any target below **0.99** — `< 1.0` flags one missed scrape in the window, which
-every run has and none of them mean anything. A target that scrapes *slowly* fails the
-same way: a
-`broken pipe` in an exporter's own log is Prometheus hanging up mid-response, and its
-usual cause is that exporter's CPU limit (§3), not the network.
+**Fired since the last run** — the instant vector shows only this second, and the
+interesting failures self-resolve between runs: a volume that missed two nights of
+backups, or a disk that crossed its temperature threshold for two hours, reads as clean
+by the time anyone looks. `ALERTS` is a recorded series, so its history answers what the
+instant query cannot:
 
-**Open monitoring gap** — `PrometheusTargetDown` (`up == 0` for 10m) covers a target
-that stays down, so only a *flapping* one is blind: intermittent misses never sustain
-ten minutes at zero, and a target losing a tenth of its scrapes alerts on nothing.
-Proposed but not applied: `PrometheusTargetScrapeFailing`,
-`avg_over_time(up[30m]) < 0.95` for 30m, warning.
+```
+PQR 'ALERTS{alertstate="firing"}' | jq -r ".data.result[]|\"\(.metric.alertname)\t\(.metric.severity)\t$L\tfirst=\(.values[0][0]|tonumber|strftime(\"%m-%d %H:%M\"))\tlast=\(.values[-1][0]|tonumber|strftime(\"%m-%d %H:%M\"))\t\(.values|length)h\"" | sort
+```
 
-## 1. Node metrics (structured, glanceable, comparable between runs)
+Report these separately from the live ones — an alert that fired and cleared is history,
+not a current fault — but they are the evidence §1–§7 are mostly blind to, and they are
+what evaluates a standing condition's re-open trigger. A repeat across separate days is a
+pattern: say how many times.
 
-`kubectl top nodes` gives CPU/mem from metrics-server, but pressure has more
-angles. SSH each node read-only and gather load, CPU busy, iowait, block I/O,
-memory, and per-mount disk usage. Discover the node list from `kubectl` rather than
-naming them — node names are the SSH host names, and a hardcoded list goes stale the
-day a node is added. `iostat`/`mpstat` are NOT installed — use `vmstat`/`free`/`/proc`
-(they are):
+An alert in §8's **standing accepted conditions** is already assessed and does not force
+the verdict down. Give it one line (`🟢 healthy — 1 standing: DAS disk temps`) and move
+on; re-litigating it every run is the noise this check exists to remove. Do still evaluate
+its **re-open trigger**.
+
+This section also keeps the skill honest, both ways:
+
+- **A firing alert no §1–§7 check would have caught** = a blind spot here. Name it,
+  propose the check.
+- **A threshold here with no matching alert rule** = a monitoring gap; this check runs
+  when the user runs it, a rule runs always. Propose it for `prometheus/values.yaml`, and
+  once applied replace the proposal with a one-line reference — a rule that ships should
+  not also live here as YAML.
+
+**Scrape health** — an alert cannot fire on a target Prometheus failed to scrape:
+
+```
+PQ 'avg_over_time(up[24h]) < 0.99' | jq -r '.data.result[]|"\(.metric.job)\t\(.metric.instance)\t\(.value[1])"'
+```
+
+🟡 any hit. The bound is **0.99**, not `< 1.0`: one missed scrape in 24h happens on every
+run and means nothing. A target that scrapes *slowly* fails the same way — a `broken pipe`
+in an exporter's own log is Prometheus hanging up mid-response, usually that exporter's
+CPU limit (§3), not the network.
+
+**Open monitoring gap** — `PrometheusTargetDown` (`up == 0` for 10m) covers a target that
+stays down, so only a *flapping* one is blind. Proposed, not applied:
+`PrometheusTargetScrapeFailing`, `avg_over_time(up[30m]) < 0.95` for 30m, warning.
+
+## 1. Node OS metrics
+
+One read-only SSH pass per node collects everything the OS knows — load, CPU, PSI,
+D-state, NFS mounts, the pending-reboot marker, per-mount usage. **Keep it to this one
+pass**: extra round-trips cost every run and buy nothing, and on a node with a wedged NFS
+mount a second probe is actively harmful (below). Discover nodes from `kubectl` — node
+names are the SSH host names, and a hardcoded list goes stale the day one is added.
+`iostat`/`mpstat` are NOT installed; `vmstat`/`free`/`/proc` are:
 
 ```
 for h in $(kubectl get nodes -o name | cut -d/ -f2); do echo "### $h"; ssh -o ConnectTimeout=5 "$h" \
@@ -100,106 +106,111 @@ for h in $(kubectl get nodes -o name | cut -d/ -f2); do echo "### $h"; ssh -o Co
    bi=$(echo $v|awk "{print \$9}"); bo=$(echo $v|awk "{print \$10}");
    mem=$(free -m|awk "/^Mem:/{printf \"%d/%dMi (%d%%)\",\$3,\$2,\$3*100/\$2}");
    echo "cores=$cores load=[$load] cpu_busy=$((usr+sys))% iowait=${wa}% blk_in=${bi} blk_out=${bo} mem=$mem";
+   echo "psi_cpu=$(awk "/some/{print \$3}" /proc/pressure/cpu) psi_io=$(awk "/some/{print \$3}" /proc/pressure/io) psi_mem=$(awk "/some/{print \$3}" /proc/pressure/memory)";
+   echo "dstate=$(ps -eo stat= | grep -c "^D") up=$(awk "{print int(\$1/86400)}" /proc/uptime)d";
+   grep " nfs " /proc/mounts | awk "{print \$2}" | grep -v kubelet;
+   test -e /var/run/reboot-required.pkgs && echo "reboot_pending=$(tr "\n" " " < /var/run/reboot-required.pkgs)" || echo "reboot_pending=none";
    df -h -x tmpfs -x devtmpfs -x overlay -x efivarfs --output=target,size,used,pcent | tail -n +2 | grep -vE "/boot/efi"'; echo; done
 ```
 
-Render **two tables** so runs can be eyeballed side by side. Lead **every row**
-with a **Status** column — 🟢 ok / 🟡 warning / 🔴 critical / ⚪ by-design (looked
-at, but the threshold doesn't apply here) — so the state of each node/mount is
-scannable at a glance (a row's status = its worst breached metric):
+Render **two tables** so runs can be eyeballed side by side, every row led by a **Status**
+column (🟢 ok / 🟡 warning / 🔴 critical / ⚪ by-design) = its worst breached metric:
 
-- **Compute** — one row per node: `Status | Cores | Load 1/5/15 | Load÷core | CPU busy% | iowait% | Blk I/O in/out | Mem`.
+- **Compute**, one row per node: `Status | Cores | Load 1/5/15 | Load÷core | CPU busy% | iowait% | Blk I/O in/out | Mem`.
   `Load÷core` (load15 ÷ cores) is the real saturation signal, not raw load.
-- **Disk** — one row per mount (`Status | Mount | Size | Used | Use%`) for `/`,
-  `/boot`, `/mnt/nvme/longhorn`, and the node-specific `/mnt/ssd/local`,
-  `/mnt/nvme/local`, `/mnt/r0` per docs/hardware.md. **`/mnt/r0` (k3s-node-02)
-  is intentionally kept near full — that's its designed usage. Always render it
-  ⚪ regardless of Use%; never 🟡/🔴 and never carry it to the §8 warnings sweep.**
+- **Disk**, one row per mount returned: `Status | Mount | Size | Used | Use%`. Mounts vary
+  per node (`docs/hardware.md`) — report what `df` returned, don't expect a fixed set.
 
-Then a second read-only pass for the things `df` and `load` cannot show — stalled
-mounts and real saturation:
+Thresholds **mirror the alert rules** deliberately, so the check and the always-on rule
+say one thing. Change one, change both:
 
-```
-for h in $(kubectl get nodes -o name | cut -d/ -f2); do echo "### $h"; ssh -o ConnectTimeout=5 "$h" \
-  'echo "psi_cpu=$(awk "/some/{print \$3}" /proc/pressure/cpu) psi_io=$(awk "/some/{print \$3}" /proc/pressure/io) psi_mem=$(awk "/some/{print \$3}" /proc/pressure/memory)";
-   echo "dstate_procs=$(ps -eo stat= | grep -c "^D")";
-   grep " nfs " /proc/mounts | awk "{print \$2}" | grep -v kubelet'; done
-```
+| Metric         | 🟡        | 🔴                                | Alert rule                              |
+| -------------- | --------- | --------------------------------- | --------------------------------------- |
+| `Load÷core`    | >1.0      | >2.0                              | — (none; see k3s-server caveat)         |
+| `CPU busy`     | >85%      | —                                 | `NodeHighCPU` (>85%, 15m)               |
+| `Mem`          | >85%      | —                                 | `NodeHighMemory` (>85%, 5m)             |
+| `iowait`       | >20%      | —                                 | —                                       |
+| `PSI io`       | avg60 >20 | —                                 | —                                       |
+| `dstate_procs` | —         | >0 *persisting across a resample* | —                                       |
+| Disk use       | ≥85%      | ≥90%                              | `NodeDiskPressure` / `NodeDiskCritical` |
 
+- **`/mnt/r0` (k3s-node-02) is always ⚪** — never 🟡/🔴, never carried to §8. It is a bulk
+  media array whose working state is full; the disk rules exclude it by
+  `mountpoint!="/mnt/r0"` for the same reason.
 - **PSI over load** — `/proc/pressure/*` `avg60` is the honest saturation signal.
-  **k3s-server's load average lies**: it spikes to 10–20 with CPU idle, zero iowait
-  and flat PSI (thread-churn artifact). On that node, judge by PSI and `CPU busy`,
-  and never open a §8 warning on `Load÷core` alone. On node-02 the load is real.
-- **`dstate_procs` > 0 with `/mnt/nas/media` present** — *possibly* the
-  wedged-`hard`-NFS-mount failure mode. Uninterruptible processes survive `kill -9`;
-  symptoms are node-wide slowness and high iowait, not one sick pod. The fix is at
-  the NAS/mount end, not in k8s.
+  **k3s-server's load average lies**: it spikes to 10–20 with CPU idle, zero iowait and
+  flat PSI (thread-churn artifact). There, judge by PSI and `CPU busy`, and never open a
+  §8 warning on `Load÷core` alone. On node-02 the load is real.
+- **`/` trends high** on every node (containerd image cache in `/var/lib/k3s/agent`). Note
+  ≥85%, but kubelet image-GC self-prunes at 85%/80% (`ansible/k3s/install-k3s.yaml`), so
+  high-but-stable is not a finding; `NodeRootDiskFillingUp` catches a real trend.
 
-  **A single D-state process is not a wedge.** node-02 does continuous heavy DAS I/O,
-  so a proc sitting in `D` for one sampling instant is ordinary disk wait and is the
-  common case, not the failure. Resample before judging — only a D-state set that
-  *persists* across samples is 🔴; one that clears is 🟢 and must not reach §8:
+**Wedged `hard` NFS mount** — `dstate_procs` > 0 with `/mnt/nas/media` present is
+*possibly* this. Uninterruptible processes survive `kill -9`; symptoms are node-wide
+slowness and high iowait, not one sick pod, and the fix is at the NAS/mount end, not in
+k8s. Two rules before calling it:
+
+- **The `df` above is the canary.** If it returned usage for `/mnt/nas/media` the mount is
+  alive and the D-state is local I/O. Once a wedge *is* suspected do **not** `ls`, `df` or
+  `stat` the mount to confirm — the re-probe hangs the check too; `/proc/mounts` and PSI
+  are enough.
+- **A single D-state process is not a wedge.** node-02 does continuous heavy DAS I/O, so a
+  proc in `D` for one instant is ordinary disk wait — the common case. Only a set that
+  *persists* across a resample is 🔴:
 
   ```
   ssh <node> 'ps -eo pid,stat,wchan:30,comm --no-headers | awk "\$2 ~ /^D/"; sleep 3;
     echo ---; ps -eo pid,stat,wchan:30,comm --no-headers | awk "\$2 ~ /^D/"'
   ```
 
-  **The §1 `df` above is the wedge canary — read it, don't repeat it.** That first
-  pass already touches every NFS mount, so a wedge shows up there as a `df` that
-  hangs instead of returning. If it *did* return usage numbers for `/mnt/nas/media`,
-  the mount is alive and the D-state is local I/O. Once a wedge is suspected, do
-  **not** `ls`, `df` or `stat` the mount again to confirm — the re-probe hangs the
-  check too; `/proc/mounts` and PSI are enough.
+**Pending kernel reboot** — the nodes install security updates unattended but never reboot
+themselves, because an unattended reboot tears Longhorn volumes off mid-write (§5); the
+reboot is deferred to `make shutdown` / `make startup`. Nothing in `kubectl` shows it and
+no alert covers it, so the marker file in the pass above is its only coverage.
 
-Flag with thresholds (these are warnings — carry to §8):
-`Load÷core` 🟡 >1.0 / 🔴 >2.0 sustained (⚪ on k3s-server, see above) ·
-`PSI io avg60` 🟡 >20 · `dstate_procs` 🔴 >0 *and persisting across a resample* ·
-`CPU busy` 🟡 >85% · `iowait` 🟡 >20% ·
-`Mem` 🟡 >90% · `Disk` 🟡 ≥85% / 🔴 ≥90% (except `/mnt/r0` — always ⚪, see
-above). The 40 GiB `/` partitions trend high (containerd image cache in
-`/var/lib/k3s/agent`); note ≥85% but know kubelet image-GC self-prunes at the
-high threshold (85%, set in `ansible/k3s/install-k3s.yaml`).
+A pending kernel is **routine maintenance, not a fault** — never 🔴, and it does not count
+against warning-free. Ubuntu ships a new kernel roughly every two weeks, so a node is
+almost always one behind; the nodes sit on the isolated Servers VLAN with nothing publicly
+exposed, so the fixes are mostly local privilege escalation, reachable only from code
+already running on the node. The cost of waiting grows slowly; a `make shutdown` /
+`make startup` cycle is real work. Judge by **uptime**, not by the marker's age — every new
+kernel appends to the marker, so its mtime resets every two weeks and never looks old:
+
+- ⚪ kernel pending, `up` < 60d — one summary line (`⚪ kernel reboot pending on 3 nodes,
+  up 16d`); batch it into the next planned rack maintenance.
+- 🟡 kernel pending, `up` ≥ 60d — about four kernel releases of fixes not running; propose
+  scheduling the cycle.
+
+Report it as scheduled work with the quiesced-reboot command; never suggest rebooting a
+node in place.
 
 ## 2. Node conditions & pods
 
 - `kubectl get nodes -o wide`; flag any `*Pressure=True` or not `Ready`.
-- `kubectl get pods -A`; flag anything not `Running`/`Completed`
-  (CrashLoopBackOff, Pending, Error, OOMKilled, ImagePullBackOff).
-- **Restarts:** list containers with `lastState.terminated.finishedAt` in the
-  last ~24h (`kubectl get pods -A -o json | jq`). Old restart counts that all
-  trace to a single past timestamp = a prior planned reboot, **not** churn — say
-  so rather than alarming. Only recent/repeating restarts matter. Note the
-  `reason` — an **OOMKilled** terminated-state feeds §3 (real mem-limit pressure).
-- **Pending kernel reboot:** the k3s nodes install security updates unattended but
-  never reboot themselves — an unattended reboot tears Longhorn volumes off
-  mid-write (§5), so the reboot is deferred to `make shutdown` / `make startup`.
-  That safety costs visibility: a node can sit for weeks on a superseded kernel and
-  nothing in `kubectl` shows it, so read the marker file directly.
+- `kubectl get pods -A`; flag anything not `Running`/`Completed` (CrashLoopBackOff,
+  Pending, Error, OOMKilled, ImagePullBackOff).
+- **Restarts:** containers with `lastState.terminated.finishedAt` in the last ~24h
+  (`kubectl get pods -A -o json | jq`). Old restart counts all tracing to one past
+  timestamp = a prior planned reboot, **not** churn — say so rather than alarming. Note
+  the `reason`: an **OOMKilled** terminated-state feeds §3.
+- **Pods much younger than their node** mean something deployed recently. A fresh
+  ReplicaSet hash plus a fresh image pull across `cert-manager`/`argocd`/`monitoring` is
+  an **Ansible or Helm run in flight**, not a fault — and every app it touched will show
+  startup churn in §6. Establish this *before* triaging logs, or the run reads as a
+  cluster-wide incident:
+  `kubectl get pods -A --sort-by=.metadata.creationTimestamp | tail -20`.
 
-  ```
-  for h in $(kubectl get nodes -o name | cut -d/ -f2); do printf '%-14s %s\n' "$h" \
-    "$(ssh $h 'test -e /var/run/reboot-required.pkgs && tr "\n" " " < /var/run/reboot-required.pkgs || echo none')"; done
-  ```
+**Silent failures** — `Running` with `0 restarts` is not proof of health. Three modes here
+present as a perfectly green pod (a wedged NFS mount is a fourth, caught in §1):
 
-  Hosts come from `kubectl`, as in §1. 🟡 once a node has been pending more than a
-  week; 🔴 when the pending set includes `linux-image-*` **and** the booted kernel is
-  behind the newest installed one (`ssh $h 'uname -r; ls -1 /boot/vmlinuz-*'`),
-  because the security fix that prompted the update is not actually running. Report
-  it as scheduled work with the quiesced-reboot command — never suggest rebooting the
-  node in place.
-
-**Silent failures** — `Running` and `0 restarts` is not proof of health. Three known
-modes here present as a perfectly green pod, so check for them explicitly:
-
-- ***arr s6 self-restart bind loop*** — the in-app Restart button orphans the process
-  and s6 respawns a doomed instance every ~4.5 s **forever**. Pod stays `1/1 Running`,
-  restarts `0`, `/ping` returns 200; only ~0.7 cores of CPU and a flood of identical
-  log lines give it away. Any *arr sitting at high steady CPU with a repeating startup
-  line in §6 is this. Fix: `kubectl rollout restart` (never the UI Restart button).
-- **gluetun port-forward drop** (`qbt-*`) — ProtonVPN forwarded ports **never
-  auto-recover** once dropped, and the container reports healthy throughout. Compare
-  gluetun's forwarded port against what qBittorrent is actually listening on:
+- ***arr s6 self-restart bind loop*** — the in-app Restart button orphans the process and
+  s6 respawns a doomed instance every ~4.5 s **forever**. Pod stays `1/1 Running`,
+  restarts `0`, `/ping` returns 200; only ~0.7 cores of CPU and a flood of identical log
+  lines give it away. Any *arr at high steady CPU with a repeating startup line in §6 is
+  this. Fix: `kubectl rollout restart` (never the UI Restart button).
+- **gluetun port-forward drop** (`qbt-*`) — ProtonVPN forwarded ports **never auto-recover**
+  once dropped, and the container reports healthy throughout. Compare gluetun's forwarded
+  port against what qBittorrent is listening on:
 
   ```
   for q in qbt-se qbt-br qbt-mam; do echo -n "$q "; \
@@ -209,25 +220,21 @@ modes here present as a perfectly green pod, so check for them explicitly:
 
   Read the **file**, not the control API: gluetun ≥3.40 requires auth on `:8000`, so
   `wget localhost:8000/v1/...` exits 6 rather than answering. A mismatch is 🟡 fixable
-  (`vpn-port-healer` handles rotation, but confirm it acted).
-
-  `gluetun`, `vpn-port-healer` and `cleanup-stale-lock` are **native sidecars**
-  (initContainers with `restartPolicy: Always`). `kubectl exec -c <name>` reaches them,
-  but anything reading `.spec.containers[]` does not — see §3.
-- **Wedged NFS mount** — surfaces as slow pods on one node, not as a pod condition.
-  Caught in §1, not here.
-- **Shared-uplink bounce** — a restart burst timestamped within one minute across
-  *unrelated* namespaces, with `NodeNotReady` for most of the cluster, is the nodes
-  losing the network, not apps failing. The nodes do not reboot, so uptime and the
-  reboot marker read normal; `ssh <node> 'sudo dmesg -T | grep -i "link is"'` and UDB
-  Homelab's uptime confirm it. It cuts every Longhorn replica mid-write, so check §5's
-  `AutoSalvaged` events and confirm the volumes came back before closing it.
+  (`vpn-port-healer` handles rotation — confirm it acted). `gluetun`, `vpn-port-healer`
+  and `cleanup-stale-lock` are **native sidecars** (initContainers with
+  `restartPolicy: Always`): `kubectl exec -c <name>` reaches them, anything reading
+  `.spec.containers[]` does not (§3).
+- **Shared-uplink bounce** — a restart burst inside one minute across *unrelated*
+  namespaces, with `NodeNotReady` for most of the cluster, is the nodes losing the network,
+  not apps failing. They don't reboot, so uptime and the reboot marker read normal;
+  `ssh <node> 'sudo dmesg -T | grep -i "link is"'` and UDB Homelab's uptime confirm it. It
+  cuts every Longhorn replica mid-write — check §5's `AutoSalvaged` events and confirm the
+  volumes came back before closing it.
 
 ## 3. Resource right-sizing (requests/limits balance)
 
-**First, the node view.** Per-container ratios say nothing about whether a node can
-survive its own pods all peaking at once — the question that actually matters when
-raising a limit:
+**First, the node view** — per-container ratios say nothing about whether a node survives
+its own pods all peaking at once, which is the question when raising a limit:
 
 ```
 for n in $(kubectl get nodes -o name | cut -d/ -f2); do echo -n "$n: "; \
@@ -236,27 +243,13 @@ for n in $(kubectl get nodes -o name | cut -d/ -f2); do echo -n "$n: "; \
 
 Report a **per-node allocation table** (`Status | Node | RAM | Requests | Limits % |
 Verdict`). Requests are the scheduler's contract and must stay under 100%. Limits
-routinely exceed 100% — that is normal overcommit — but the *ratio* is the blast
-radius: node-02 runs deep in RAM overcommit, and a handful of containers peaking
-together will OOM something. Read the live number from the command above and state it
-before proposing any limit increase, and prefer raising a **request**
-(scheduling truth) over a **limit** (ceiling) on a node already deep in overcommit.
+routinely exceed 100% — normal overcommit — but the *ratio* is the blast radius: node-02
+runs deep in RAM overcommit, and a handful of containers peaking together will OOM
+something. Read the live number before proposing any limit increase, and on a node already
+deep in overcommit prefer raising a **request** (scheduling truth) over a **limit**.
 
-Then the per-container view: catch containers that are **starved** (near their limit,
-or using more than they request) or **bloated** (reserving far more than they ever
-touch). Two data sources, joined per `namespace/pod/container`:
-
-- **Live usage** (metrics-server snapshot — millicores + MiB):
-  `kubectl top pods -A --containers --no-headers`
-- **Configured requests/limits** — `(.spec.containers[], .spec.initContainers[]?)`,
-  because `.spec.containers[]` alone drops every native sidecar (`gluetun`,
-  `vpn-port-healer`, `cleanup-stale-lock`), and `kubectl top --containers` omits them
-  too. Their usage is only visible through the Prometheus queries below, so check
-  sidecar throttling there rather than trusting the join to list them:
-  `kubectl get pods -A -o json | jq -r '.items[]|.metadata.namespace as $ns|.metadata.name as $p|(.spec.containers[], .spec.initContainers[]?)|[$ns+"/"+$p+"/"+.name,(.resources.requests.cpu//"-"),(.resources.limits.cpu//"-"),(.resources.requests.memory//"-"),(.resources.limits.memory//"-")]|@tsv'`
-
-Join them (awk on the `ns/pod/container` key, no temp files) and, per container,
-reason about `mem %R = use/request`, `mem %L = use/limit`, and `cpu %R = use/request`:
+Then the per-container view, joining live usage against configured values on the
+`ns/pod/container` key:
 
 ```
 awk -F'\t' 'NR==FNR{r[$1]=$2" "$3" "$4" "$5; next} ($1 in r){print $1"\t"$2"\t"$3"\t"r[$1]}' \
@@ -265,125 +258,104 @@ awk -F'\t' 'NR==FNR{r[$1]=$2" "$3" "$4" "$5; next} ($1 in r){print $1"\t"$2"\t"$
 ```
 (columns: `key  cpu_use  mem_use  cpu_req cpu_lim mem_req mem_lim`)
 
-Verdicts — surface only containers worth attention (don't dump all ~60). Present a
-table `Status | ns/pod/container | CPU use/req | Mem use/req/lim | mem %R | mem %L | Verdict`:
+`(.spec.containers[], .spec.initContainers[]?)` is required because `.spec.containers[]`
+alone drops every native sidecar — and `kubectl top --containers` omits them anyway, so
+the join will not list them. Their usage is visible only through the Prometheus queries
+below; check sidecar throttling there.
 
-- 🔴 **Memory near limit** — `mem %L ≥ 90%`, or any container with an **OOMKilled**
-  history (from §2). Real OOM risk → **raise the mem limit**. OOMKilled is the
-  definitive signal; a high snapshot alone is only a lead.
-- 🟡 **Under-requested memory** — `mem %R > 100%` (using more than it reserves).
-  The scheduler under-counts it and it's first to be evicted under node pressure
-  → **bump the mem request** toward real steady usage. Judge on the 7d **median**
-  (`quantile_over_time(0.5, …)`), never the snapshot: a request sized for steady usage
-  is meant to be exceeded during a burst, and `sabnzbd` after its drain window or
-  `prometheus-server` mid-compaction both read as under-requested when they are not.
-- 🟡 **Under-requested CPU** — `cpu %R` persistently ≫ 100% on a latency-sensitive
-  service (not a batch/burst job) → nudge the CPU request up.
-- 🟡 **Over-provisioned (waste)** — `mem %R < 20%` **and** `cpu %R < 10%` on a
-  steady service → it hoards schedulable capacity it never uses; propose trimming
-  the request (esp. CPU: a 500m request idling at 5m). An optimization, not a
-  fault — list it, don't count it against warning-free.
-- ⚪ **No requests/limits set** — note containers missing a mem request (unbounded
-  scheduling) or mem limit (can starve neighbours); tiny sidecars may be
-  intentionally unset — judge, don't blanket-flag.
+Surface only containers worth attention (don't dump all ~60), as
+`Status | ns/pod/container | CPU use/req | Mem use/req/lim | mem %R | mem %L | Verdict`:
 
-**Do NOT flag as over-provisioned** the workloads whose high ceilings are
-**deliberate burst headroom** (the limit is a spike ceiling, not steady demand):
-`qbt-*` main + `gluetun` sidecars, `plex`, `sabnzbd`, and any container whose
-values.yaml comment marks the size as intentional. Over-provisioning flags target
-steady low-usage services (arr apps, small web UIs) with fat requests.
+- 🔴 **Memory near limit** — `mem %L ≥ 90%`, or any **OOMKilled** history (§2, and
+  `PodOOMKilled` in §0) → **raise the mem limit**. OOMKilled is definitive; a high
+  snapshot alone is only a lead.
+- 🟡 **Under-requested memory** — `mem %R > 100%`: the scheduler under-counts it and it is
+  first evicted under node pressure → **bump the mem request** toward steady usage. Judge
+  on the 7d **median** (`quantile_over_time(0.5, …)`), never the snapshot — a request
+  sized for steady usage is *meant* to be exceeded during a burst, and `sabnzbd` after its
+  drain window or `prometheus-server` mid-compaction both read as under-requested when
+  they are not.
+- 🟡 **Under-requested CPU** — `cpu %R` persistently ≫ 100% on a latency-sensitive service
+  (not a batch/burst job) → nudge the CPU request up.
+- 🟡 **Over-provisioned (waste)** — `mem %R < 20%` **and** `cpu %R < 10%` on a steady
+  service: it hoards schedulable capacity (esp. CPU — a 500m request idling at 5m). An
+  optimization, not a fault; list it, don't count it against warning-free.
+- ⚪ **No requests/limits set** — note a missing mem request (unbounded scheduling) or mem
+  limit (can starve neighbours); tiny sidecars may be intentionally unset — judge.
 
-**Never size off the snapshot.** `kubectl top` is one instant; a limit set from it is
-a guess. Prometheus holds 15d — use the **7d peak**, which is the number the limit
-actually has to clear:
+**Do NOT flag as over-provisioned** workloads whose high ceilings are deliberate burst
+headroom: `qbt-*` main + `gluetun` sidecars, `plex`, `sabnzbd`, and anything whose
+values.yaml comment marks the size as intentional. Over-provisioning flags target steady
+low-usage services (arr apps, small web UIs) with fat requests.
+
+### Sizing evidence
+
+**Never size off the snapshot** — `kubectl top` is one instant. The evidence differs per
+resource.
+
+**Memory**: `request ≈ steady`, `limit ≈ 7d peak + headroom`.
 
 ```
-kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- wget -qO- \
-  'localhost:9090/api/v1/query?query=topk(20,max_over_time(container_memory_working_set_bytes{container!=""}[7d])/1024/1024)' \
+PQ 'topk(20,max_over_time(container_memory_working_set_bytes{container!=""}[7d])/1024/1024)' \
   | jq -r '.data.result[]|"\(.metric.namespace)/\(.metric.pod)/\(.metric.container)\t\(.value[1]|tonumber|floor)Mi"'
 ```
 
-**`container_memory_working_set_bytes` over-reports for I/O-heavy containers.** The
-working set counts active page cache, so anything streaming large files — `qbt-*`,
-`sabnzbd`, `plex` — grows to fill whatever limit it is given without ever being at
-risk: the kernel reclaims that cache under pressure instead of OOMing. Before calling
-any container near-limit, cross-check RSS, which is the part that actually cannot be
-reclaimed:
+`container_memory_working_set_bytes` **over-reports for I/O-heavy containers**: it counts
+active page cache, so anything streaming large files (`qbt-*`, `sabnzbd`, `plex`) grows to
+fill whatever limit it is given without ever being at risk — the kernel reclaims that
+cache instead of OOMing. Cross-check RSS, the part that cannot be reclaimed:
+`PQ 'max_over_time(container_memory_rss{container="main",pod=~"<pod>.*"}[7d])/1024/1024'`.
+A large working-set/RSS gap is page cache, not pressure — 🟢, no limit change. `qbt-se/main`
+is the standing example: working set near its 8Gi limit, RSS around 1Gi, so the working
+set alone produces a false 🔴 every run.
+
+**CPU**: `request ≈ steady`; the **limit** comes from the throttle ratio, not any peak.
+Raise it until throttling stops mattering — a CPU limit is a burst ceiling, and
+overshooting costs nothing because CPU is compressible and unused ceiling is never
+reserved.
 
 ```
-  'localhost:9090/api/v1/query?query=max_over_time(container_memory_rss{container="main",pod=~"<pod>.*"}[7d])/1024/1024'
-```
-
-A large working-set/RSS gap means page cache, not pressure — 🟢, and no limit change.
-`qbt-se/main` is the standing example: its working set sits near its 8Gi limit while
-RSS stays around 1.2Gi, so reading the working set alone produces a false 🔴 every run.
-
-CPU pressure has an equivalent, and it beats `cpu %R` as evidence — throttling is the
-symptom a CPU limit actually causes:
-
-```
-  'localhost:9090/api/v1/query?query=topk(10,rate(container_cpu_cfs_throttled_periods_total{container!=""}[6h])
+PQ 'topk(10,rate(container_cpu_cfs_throttled_periods_total{container!=""}[6h])
      / rate(container_cpu_cfs_periods_total{container!=""}[6h]))'
 ```
 
-Use the **ratio**, not the raw rate: throttled periods as a fraction of all periods is
-comparable across containers, where a bare rate is not. Anything above ~15 % is real.
+Use the **ratio**, not the raw rate — throttled periods as a fraction of all periods is
+comparable across containers. Above ~15% is real. Two traps:
 
-**A 7d peak cannot corroborate a CPU limit.** Bursty containers — exporters, gRPC
-servers, anything doing per-scrape work — show a 5m-rate peak of 2–5m while throttling
-20–60 % of periods, because the burst is far shorter than the sampling window. Sizing
-those off the peak reads them as 60× over-provisioned when they are in fact starved.
-For CPU the throttle ratio *is* the evidence; the 7d-peak requirement below applies to
-**memory**, where the working set is a level rather than a spike.
+- **A 7d peak cannot corroborate a CPU limit.** Bursty containers (exporters, gRPC
+  servers, per-scrape work) show a 5m-rate peak of 2–5m while throttling 20–60%, because
+  the burst is far shorter than the sampling window; sizing off the peak reads them as 60×
+  over-provisioned when they are starved. For CPU the throttle ratio *is* the evidence.
+- **A container younger than the window reads as throttled.** A `[6h]` rate over a pod two
+  minutes old is almost all its own startup and ranks at 20–25% with nothing wrong. Check
+  pod age (§2) before believing a top-`k` entry, and use `PQR` on that one container to
+  confirm a steady pattern rather than a single spike.
 
-Quote **snapshot _and_ 7d peak** in the table so the gap between them is visible (a
-container idling at 200 Mi that peaked at 8 Gi is not over-provisioned), and name the
-exact `values.yaml` and number. Sizing rule, split by resource because the evidence
-differs:
-
-- **Memory** — `request ≈ steady`, `limit ≈ 7d peak + headroom`.
-- **CPU** — `request ≈ steady`; the **limit** comes from the throttle ratio, not from
-  any peak. Raise it until throttling stops mattering; a CPU limit is a burst ceiling
-  and overshooting it costs nothing, because CPU is compressible and unused ceiling is
-  never reserved.
-
-Carry 🔴 near-limit and 🟡 under-request rows into the §8 sweep as 🔧 fixable; keep
-over-provisioning as a separate optimization note.
+Quote **snapshot _and_ history** so the gap is visible (a container idling at 200 Mi that
+peaked at 8 Gi is not over-provisioned), and name the exact `values.yaml` and number.
+Carry 🔴 near-limit and 🟡 under-request into §8 as 🔧 fixable; keep over-provisioning as
+a separate optimization note.
 
 ### Applying the sizing changes
 
-**Gate first — a clean working tree is the precondition:**
+**Gate first:** `git -C <repo> status --porcelain`. Empty → edit the `values.yaml` files
+with the numbers from the table. Non-empty → **change nothing**; report the proposal as a
+diff and say which paths are dirty, so the sizing edits land as a reviewable standalone
+diff instead of tangling with work in progress. What may be applied is narrow:
 
-```
-git -C <repo> status --porcelain
-```
-
-**Empty output → edit the `values.yaml` files directly** with the numbers from the
-table. Non-empty → **change nothing**; report the proposal as a diff to apply by hand
-and say which paths are dirty. The gate exists so the sizing edits land as a
-reviewable standalone diff instead of tangling with work already in progress.
-
-What may be applied this way is deliberately narrow:
-
-- **Only `resources:` requests and limits.** Never images, replicas, probes, args, or
-  anything else surfaced by the run.
-- **Only numbers corroborated by history**, never by the `kubectl top` snapshot alone
-  — the 7d peak for memory, the throttle ratio for CPU. No history, no edit.
-  **An `OOMKilled` is itself that history, and outranks the peak.** The kill is a
-  sub-second spike, so a 30s-scrape working set never records it: expect the 7d peak
-  to sit *well under* the limit on exactly the container that was killed, and raise
-  the limit anyway. Never read a low peak as evidence the OOMKill was spurious.
-- **No explanatory comments in the YAML.** Set the value and nothing else; the
-  reasoning belongs in the report, where it is read once, not in the file, where it
-  becomes stale verbosity. A sizing diff should be one changed line per number.
+- **Only `resources:` requests and limits** — never images, replicas, probes or args.
+- **Only numbers corroborated by history** (7d peak for memory, throttle ratio for CPU).
+  No history, no edit. **An `OOMKilled` is itself that history and outranks the peak**:
+  the kill is a sub-second spike a 30s-scrape working set never records, so expect the 7d
+  peak to sit *well under* the limit on exactly the container that was killed, and raise
+  it anyway. Never read a low peak as evidence the OOMKill was spurious.
+- **No explanatory comments in the YAML** — one changed line per number; the reasoning
+  belongs in the report.
 - **Never on a node already deep in limit overcommit** without saying so — raise the
-  **request** there, and flag the limit increase for the user to decide.
+  request there and flag the limit increase for the user to decide.
 
-After editing, run `git -C <repo> diff` and put it in the report: the run must show
-exactly what it changed. Then stop. **Do not `git add`, commit, push, or apply
-anything to the cluster** — Argo syncs from the repo, the user reviews and commits,
-per the repo's GitOps and git-ownership policies. An applied edit is still a
-*proposal*, one that happens to already be written down.
+Then put `git -C <repo> diff` in the report and stop: Argo syncs from the repo, the user
+reviews and commits. An applied edit is still a *proposal*, one already written down.
 
 ## 4. ArgoCD
 
@@ -392,24 +364,30 @@ not `Synced` + `Healthy`.
 
 ## 5. Longhorn (treat as critical — history of unclean-shutdown DB corruption)
 
-Volume `robustness`/`state` (flag non-`healthy`/non-`attached`); confirm the
-recurring `backup`/`snapshot` **job** pods reached `Completed`. Match the
-timestamped job pods only (`grep -E 'daily-backup-|weekly-backup-|monthly-backup-|snapshot-[0-9]'`)
-— NOT the always-`Running` `csi-snapshotter` controller pods. All four schedules
-produce pods; a regex covering only two silently reports on half the backup system.
+```
+kubectl get volumes.longhorn.io -n longhorn-system -o json | jq -r '.items[]
+  | select(.status.state!="attached" or .status.robustness!="healthy")
+  | "\(.status.kubernetesStatus.pvcName // .metadata.name)\t\(.status.state)\t\(.status.robustness)"'
+```
 
-**This job-pod check is the only coverage of a run that failed outright** — no alert
-watches it. `kube_job_failed` only exists once a Job carries a `Failed` condition
-(`backoffLimit: 3` exhausted), and `failedJobsHistoryLimit: 1` then keeps that Job
-until the *next* failure evicts it, so a rule on it would fire permanently for a run
-that has long since been superseded. A wholesale failure still reaches §0 as backup
-age within ~6h; this check is what closes the gap in between.
+Read fields by name, never by column position — `kubectl get` gained a `DATA ENGINE`
+column, so `awk '$2'` on its table output tests the wrong field and reports every volume
+as broken.
 
-**`robustness: healthy` does not mean the data is intact.** Longhorn reports on the
-block device; it replicates a corrupted filesystem just as faithfully as a good one,
-so a volume whose ext4 was destroyed by an unclean detach still shows
-`attached`/`healthy` with every replica `Running`. The damage surfaces one layer up,
-as a pod that never starts:
+Then confirm the recurring `backup`/`snapshot` **job** pods reached `Completed`, matching
+the timestamped job pods only
+(`grep -E 'daily-backup-|weekly-backup-|monthly-backup-|snapshot-[0-9]'`) — NOT the
+always-`Running` `csi-snapshotter` controllers. All four schedules produce pods; a regex
+covering two silently reports on half the backup system. **This is the only coverage of a
+run that failed outright**: `kube_job_failed` needs `backoffLimit: 3` exhausted, and
+`failedJobsHistoryLimit: 1` would then pin that alert to a long-superseded run, so no rule
+exists. A wholesale failure still reaches §0 as backup age within ~6h; this closes the gap
+in between.
+
+**`robustness: healthy` does not mean the data is intact.** Longhorn reports on the block
+device and replicates a corrupted filesystem as faithfully as a good one, so a volume
+whose ext4 was destroyed by an unclean detach still shows `attached`/`healthy` with every
+replica `Running`. The damage surfaces one layer up, as a pod that never starts:
 
 ```
 LIVE=$(kubectl get pods -A -o json | jq -c '[.items[]|.metadata.namespace+"/"+.metadata.name]')
@@ -421,123 +399,106 @@ kubectl get events -A --field-selector reason=FailedMount -o json \
   | "\($p)\t\(.message)"' | grep -i fsck
 ```
 
-Both filters are load-bearing, and **the time bound alone is not enough**: an event
-stays retained after its pod is gone and keeps its recent timestamp, so a volume
-repaired ten minutes ago still reports a `FailedMount` inside any sane window. The
-`$live` join is what distinguishes a resolved incident from a current one — a hit
-naming a pod that no longer exists is history, not a finding.
+The `$live` join is as load-bearing as the time bound: an event stays retained after its
+pod is gone and keeps its recent timestamp, so a volume repaired ten minutes ago still
+reports a `FailedMount` inside any sane window.
 
-Any `UNEXPECTED INCONSISTENCY; RUN fsck MANUALLY` for a **current** pod is 🔴 regardless
-of what the volume list says, and it is not self-healing — replica rebuild copies the damage.
-Recovery is `e2fsck` on the attached-but-unmounted device
-(`docs/storage-longhorn.md` → "Corrupted volume"). Because it takes a mount to notice,
-this can stay latent for days: a `FailedMount` naming files whose mtimes predate the
-last reboot means the corruption is older than the reboot that exposed it, and the
-snapshots from that window carry it too — say so, so nobody restores onto the same damage.
+Any `UNEXPECTED INCONSISTENCY; RUN fsck MANUALLY` for a **current** pod is 🔴 regardless of
+the volume list, and does not self-heal — replica rebuild copies the damage. Recovery:
+`docs/storage-longhorn.md` → "Corrupted volume". Because it takes a mount to notice, this
+stays latent for days: a `FailedMount` naming files whose mtimes predate the last reboot
+means the corruption is older than the reboot that exposed it, and the snapshots from that
+window carry it too — say so, so nobody restores onto the same damage.
 
-A `Completed` job pod only proves the job ran. An individual volume can fail inside a
-job that still reports success, so check the **volumes**. Age is the detector; the
-other two views explain a volume it has already flagged, and neither is a finding on
-its own:
+### Backup coverage
+
+A `Completed` job pod only proves the job ran; a volume can fail inside a job that reports
+success. **Age is the detector**, against the schedule (`daily-backup` 01:00 + 04:00,
+`weekly-backup` Sun 02:00, `monthly-backup` 1st 03:00, all local; `snapshot-6h`):
 
 ```
-kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- wget -qO- \
-  'localhost:9090/api/v1/query?query=(time()-longhorn_volume_last_backup_at)/3600' \
+PQ '(time()-longhorn_volume_last_backup_at)/3600' \
   | jq -r '.data.result[]|select((.value[1]|tonumber) < 100000)|"\(.metric.pvc_namespace)/\(.metric.pvc)\t\((.value[1]|tonumber)|floor)h"' | sort -k2 -rn
 ```
 
-The `select` drops the `longhorn-no-bkp` volumes: they have no backup timestamp, so
-`time()-0` renders as a six-figure age and sorts them above every real result.
+The `select` drops the `longhorn-no-bkp` volumes (below): with no backup timestamp,
+`time()-0` renders as a six-figure age and sorts above every real result.
+`longhorn_volume_last_backup_at` is the newest *completed* backup — the only Longhorn
+backup signal that both ignores repaired failures and clears itself.
+`LonghornVolumeBackupStale` (30h–3d) and `LonghornVolumeBackupMissing` (>3d) cover it, so
+§0 catches a current gap first, and §0's **alert history** catches the ones already
+self-healed, which is most of them.
 
-- **Age — the detector.** Against the schedule (`daily-backup` 01:00 + 04:00, `weekly-backup`
-  Sun 02:00, `monthly-backup` 1st 03:00, all local; `snapshot-6h`).
-  `longhorn_volume_last_backup_at` is the newest *completed* backup, so it is the only
-  Longhorn backup signal that both ignores repaired failures and clears itself.
-  `LonghornVolumeBackupStale` (warning) covers 30h–3d, `LonghornVolumeBackupMissing`
-  (critical) takes over past 3d, so §0 normally catches this first.
-- **Errors — why a volume is behind, not whether it is.** No alert is keyed on an
-  `Error` CR. Nothing retries a volume that failed — the recurring-job pod logs the
-  error, moves on and exits 0, so the Job reports `Completed` and `backoffLimit` never
-  fires — but the 04:00 pass gets a second attempt, so an error can still sit beside a
-  later success. Longhorn keeps the record for `failed-backup-ttl` (1440m), so the list
-  carries a full day of them. Read it once the age check has flagged a volume, and judge
-  each error against that volume's `longhorn_volume_last_backup_at` — a newer success
-  means recovered, an older one means it is still behind.
+**Gaps** — distinct volumes backed up per day. A day dipping below its neighbours means
+volumes were skipped while the job reported `Completed` and the newest-backup timestamp
+stayed green. A one-night miss recovers at ~25h, just under the 30h
+`LonghornVolumeBackupStale` threshold, so nothing alerts.
 
-  ```
-  kubectl get backups.longhorn.io -n longhorn-system -o json \
-    | jq -r '.items[]|select(.status.state=="Error")|"\(.metadata.creationTimestamp)\t\(.status.error[0:160])"'
-  ```
+Bucket by **local** date: the first pass runs 01:00 local at `+0200`, so every nightly
+backup carries a `23:00Z` timestamp belonging to the *previous* UTC day — slicing
+`snapshotCreatedAt[0:10]` puts the whole run in the day before and makes today look empty,
+which reads as a total backup failure when nothing is wrong. One query covers both the
+count and the diff; do not re-fetch per day:
 
-  `failed to write data during saving blocks: close ...` means the backup target's
-  `soft` NFS mount spent its timeout budget waiting on an unresponsive NAS and returned
-  EIO. It scales with the volume's **delta**, so the volume with the most churn fails
-  while every other volume in the same run succeeds — a partial failure that leaves the
-  job `Completed`. Plex is an order of magnitude above the rest (~1.35 GiB a night
-  against 10–60 MiB), so it is the expected casualty.
+```
+B=$(kubectl get backups.longhorn.io -n longhorn-system -o json \
+  | jq -r '.items[]|select(.status.state=="Completed")|"\(.status.snapshotCreatedAt)\t\(.status.volumeName)"' \
+  | while read -r ts vol; do echo "$(date -d "$ts" +%F) $vol"; done | sort -u)
+echo "$B" | awk '{print $1}' | uniq -c | tail -9      # distinct volumes per local day
+comm -13 <(echo "$B"|awk -v d="$(date -d '2 days ago' +%F)" '$1==d{print $2}') \
+         <(echo "$B"|awk -v d="$(date -d yesterday  +%F)" '$1==d{print $2}')   # what a dip dropped
+```
 
-  Always settle which side stalled before proposing anything, in **local** time:
+`tail -9` is the point: weekly and monthly backups are retained for months, so the
+unbounded list is mostly single-digit historical days that make the recent dailies
+unreadable. Map a named volume back to its PVC with
+`kubectl get volumes.longhorn.io -n longhorn-system <vol> -o jsonpath='{.status.kubernetesStatus.pvcName}'`.
+A count that *matches* its neighbour is not proof the same volumes ran — the set can change
+while the size holds, which is why the diff is a separate step.
 
-  ```bash
-  ssh <node> 'sudo journalctl -k --since "<date> 00:50" | grep "10.10.50.4"'
-  ```
+**Why a volume is behind** (not whether it is) — read only once age or the gap count has
+flagged one. No alert is keyed on an `Error` CR, nothing retries a failed volume, and
+Longhorn keeps each record for `failed-backup-ttl` (1440m), so the list holds a day of them
+and an error can sit beside a later success:
 
-  `not responding, timed out` (timestamp matches the EIO to the second) is the mount
-  giving up → the levers are `timeo`/`retrans` and the delta size. `still trying` is a
-  `hard` mount and unrelated. No message at all means the NAS refused the write → check
-  `btrfs device stats` / `filesystem usage` / `df` on the NAS, not the mount options.
+```
+kubectl get backups.longhorn.io -n longhorn-system -o json \
+  | jq -r '.items[]|select(.status.state=="Error")|"\(.metadata.creationTimestamp)\t\(.status.error[0:160])"'
+```
 
-  `retrans` alone is not the knob: the budget is `timeo` plus one increment of `timeo`
-  per retry, and `timeo` is in **deciseconds**, so raising `retrans` while `timeo` sits
-  below the Linux TCP default of 600 buys far less than it looks. Full failure mode in
-  `docs/storage-longhorn.md` → "Backup target errors".
-- **Gaps** — count *distinct volumes backed up per day* over the last week. A day
-  whose count dips below its neighbours means specific volumes were skipped while the
-  job still reported Completed, and the newest-backup timestamp stays green.
+Judge each error against that volume's `longhorn_volume_last_backup_at` — a newer success
+means recovered, an older one means still behind. The failure modes and fixes are in
+`docs/storage-longhorn.md` → "Backup target errors"; the volume with the largest delta is
+the expected casualty of an NFS stall, reliably `plex-config`.
 
-  **Bucket by local date, not UTC.** The first pass runs 01:00 local and the cluster is
-  `+0200`, so every nightly backup carries a `23:00Z` timestamp belonging to the
-  *previous* UTC day. Slicing `snapshotCreatedAt[0:10]` puts the whole run in the day
-  before and makes the current day look empty — which reads as a total backup
-  failure when nothing is wrong.
+Also watch longhorn-manager (§6) for the backup-target reconcile failing to read the NFS
+target. Two messages, both retried forever:
 
-  ```
-  day() { kubectl get backups.longhorn.io -n longhorn-system -o json \
-    | jq -r '.items[]|select(.status.state=="Completed")|"\(.status.snapshotCreatedAt)\t\(.status.volumeName)"' \
-    | while read -r ts vol; do [ "$(date -d "$ts" +%F)" = "$1" ] && echo "$vol"; done | sort -u; }
-  for d in $(seq 7 -1 0); do d=$(date -d "$d days ago" +%F); echo "$d $(day $d | wc -l)"; done
-  ```
+- `Failed to get backupInfo from remote backup target` — a backup *record* that cannot be
+  read; it names its volume. An `Error`-state CR drives this in a tight retry loop
+  (hundreds of lines a day for one bad record), so match the named volume against the
+  `Error` list rather than reading the volume as count evidence. It stops when
+  `failed-backup-ttl` evicts the CR, so a high count whose record is under a day old needs
+  no action.
+- `Failed to get info from backup store` … `timeout executing: … system-backup list` — the
+  5-minute target reconcile timing out against the NAS. Volume backups can all succeed
+  while this fails, so check the volume evidence first. A cluster of these inside a
+  **single hour** with no `Error`-state backups is a transient NAS stall — accept it;
+  recurrence across separate hours is not.
 
-  A count that *matches* its neighbour is not proof the same volumes ran — the set can
-  change while the size holds. Diff two days to name what was dropped, then map the
-  volume back to its PVC:
+**Volumes on the `longhorn-no-bkp` StorageClass have no backups _by design_** — disposable
+monitoring data, deliberately excluded. Render them ⚪; flagging them as missing-backup is
+a **false positive**. Enumerate rather than trusting a written list:
 
-  ```
-  comm -23 <(day "$(date -d yesterday +%F)") <(day "$(date +%F)")
-  kubectl get volumes.longhorn.io -n longhorn-system <vol> -o jsonpath='{.status.kubernetesStatus.pvcName}'
-  ```
+```
+kubectl get pv -o json | jq -r '.items[]|select(.spec.storageClassName=="longhorn-no-bkp")|"\(.spec.claimRef.namespace)/\(.spec.claimRef.name)"'
+```
 
-Also watch longhorn-manager (§6) for the backup-target reconcile failing to read the
-NFS target. Two distinct messages, both retried forever:
+### Stuck volume expansion — `attached`/`healthy` hides it completely
 
-- `Failed to get backupInfo from remote backup target` — a backup *record* that
-  cannot be read; it names the volume it belongs to. An `Error`-state backup CR drives
-  this in a tight retry loop (hundreds of lines a day for one bad record), so match the
-  volume it names against the `Error` list below rather than reading the volume as
-  count evidence. It stops on its own when `failed-backup-ttl` (1440m) evicts the CR,
-  so a high count whose record is under a day old needs no action.
-- `Failed to get info from backup store` … `timeout executing: … system-backup list`
-  — the 5-minute target reconcile timing out against the NAS. Volume backups can all
-  succeed while this fails, so check it against the volume evidence above before
-  calling it a backup failure. A cluster of these inside a **single hour**, with no
-  `Error`-state backups, is a transient NAS stall — accept it; recurrence across
-  separate hours is not.
-
-**Stuck volume expansion — `attached`/`healthy` hides it completely.** A PVC whose
-size was raised in git can land half-expanded: Longhorn grows the block device, the
-*engine* never finishes, and the filesystem inside stays at the old size. Every signal
-§5 checks so far stays green — `state: attached`, `robustness: healthy`, backups
-current — while `external-resizer` retries forever. Check the claim, not the volume:
+A PVC whose size was raised in git can land half-expanded: Longhorn grows the block device,
+the *engine* never finishes, the filesystem inside stays at the old size. Every signal
+above stays green while `external-resizer` retries forever. Check the claim, not the volume:
 
 ```
 kubectl get pvc -A -o json | jq -r '.items[]
@@ -547,10 +508,13 @@ kubectl get volumes.longhorn.io -n longhorn-system -o json \
   | jq -r '.items[]|select(.status.expansionRequired)|"\(.metadata.name)\tspec=\(.spec.size)\texpansionRequired"'
 ```
 
-Both queries only see an expansion that is **still in flight**. The moment it completes
-— including when a reboot completes it as a side effect — they go clean and the incident
-leaves no trace in any object's status. The `VolumeResizeFailed` event is the only
-record that it happened at all, so read it too:
+🔴 on any hit. Confirm with the engine's `spec.volumeSize` vs `status.currentSize` (equal =
+done; different with `EngineMonitor` logging `Starting engine expansion` on a loop = stuck)
+and the real filesystem size via `kubectl exec -n <ns> deploy/<app> -- df -h <mountpath>`.
+
+Both queries see only an expansion **still in flight** — the moment it completes (a reboot
+completes one as a side effect) they go clean and the incident leaves no trace in any
+object's status. The `VolumeResizeFailed` event is the only record it happened:
 
 ```
 kubectl get events -A --field-selector reason=VolumeResizeFailed -o json | jq -r '.items[]
@@ -558,51 +522,23 @@ kubectl get events -A --field-selector reason=VolumeResizeFailed -o json | jq -r
 ```
 
 A hit whose `last` is inside the window but whose PVC now reads `spec == status` is a
-**resolved** expansion — report it as such, not as a live 🔴, and say what completed it.
-A rack reboot resolves one incidentally, by detaching the volume.
+**resolved** expansion — report it as such, not a live 🔴, and say what completed it.
 
-🔴 on any hit of the two live queries. Confirm by comparing the engine's `spec.volumeSize` against its
-`status.currentSize` (equal = done; different with `EngineMonitor` logging
-`Starting engine expansion` on a loop = stuck), and read the real filesystem size with
-`kubectl exec -n <ns> deploy/<app> -- df -h <mountpath>`.
+The fix is a quiesce cycle, and the two details that decide whether it works (suspend the
+root App-of-Apps *first*; wait on the volume reaching `state: detached`, not on the pod
+being deleted) are in `docs/pvc-maintenance.md` → "When it gets stuck". Never
+`kubectl patch` the PVC or edit the Longhorn volume to paper over it.
 
-Online expansion is what fails; the engine completes it once the volume is **detached**.
-So the fix is a quiesce cycle — but two details decide whether it works, and getting
-either wrong looks like the fix simply doing nothing:
-
-- **Suspend the root App-of-Apps *first*.** `media-apps` reverts `syncPolicy` patches
-  on its children, so suspending only the per-service app lets the child be re-enabled
-  and the Deployment scaled straight back to 1 — the pod returns within seconds.
-  See `docs/pvc-maintenance.md` → "Two-tier ArgoCD app structure".
-- **Wait on the Longhorn volume reaching `state: detached`, not on the pod being
-  deleted.** Pod deletion is not detachment; a pod that comes back before the volume
-  detaches leaves the engine on the same stale instance-manager and nothing changes.
-
-Re-enable in reverse: per-service app first, root **last**. Never `kubectl patch` the
-PVC or edit the Longhorn volume to paper over it.
-
-**Open monitoring gap** — a stuck expansion is silent between runs of this check.
-Proposed but not applied: `LonghornVolumeExpansionStuck`, comparing
-`longhorn_volume_capacity_bytes` against `longhorn_volume_actual_size_bytes` on an
-attached volume for 30m; verify the metric names against `/api/v1/label/__name__/values`
-first. The `kubectl get pvc` query above is the authoritative check for an expansion
-still in flight, and the `VolumeResizeFailed` event for one that has since resolved.
-
-**Volumes on the `longhorn-no-bkp` StorageClass have no backups _by design_** — they
-hold disposable monitoring data and were deliberately excluded. Render them ⚪;
-flagging them as missing-backup is a **false positive**, not a finding. Enumerate
-them rather than trusting a written list, which goes stale as volumes come and go:
-
-```
-kubectl get pv -o json | jq -r '.items[]|select(.spec.storageClassName=="longhorn-no-bkp")|"\(.spec.claimRef.namespace)/\(.spec.claimRef.name)"'
-```
+**Open monitoring gap** — a stuck expansion is silent between runs. Proposed, not applied:
+`LonghornVolumeExpansionStuck`, comparing `longhorn_volume_capacity_bytes` against
+`longhorn_volume_actual_size_bytes` on an attached volume for 30m; verify the metric names
+against `/api/v1/label/__name__/values` first.
 
 ## 6. Log scan (window `$1`) — every app, with frequency
 
-**Pass 1 — the sweep.** One Loki query covers *every* namespace, so a new or renamed
-app cannot fall off the list, and it returns a **count per app**, which is what §8's
-Frequency column needs. Coverage is every namespace — `dashboard`, `tools`,
-`metallb-system` and `kube-system` included, not just the app-heavy ones.
+**Pass 1 — the sweep.** One Loki query covers *every* namespace (`dashboard`, `tools`,
+`metallb-system`, `kube-system` included), so a new or renamed app cannot fall off the
+list, and returns the **count per app** that §8's Frequency column needs:
 
 ```
 W=${1:-1h}
@@ -612,50 +548,50 @@ kubectl exec -n monitoring deploy/grafana -c grafana -- wget -qO- http://loki:31
   | jq -r '.data.result[]|"\(.value[1])\t\(.metric.namespace)/\(.metric.app)"' | sort -rn
 ```
 
-The two `!=` filters mirror Pass 2's exclusions. Without them the count is inflated by
-structured-log lines whose *success* payload contains the word — `"error":null` — and
-an app is ranked near the top of the sweep with nothing wrong with it, then drills down
-to zero lines. Any exclusion added to Pass 2 belongs here too, or the ranking lies.
+The two `!=` filters mirror Pass 2's exclusions. Without them structured-log lines whose
+*success* payload contains the word (`"error":null`) inflate the count, and an app ranks
+near the top with nothing wrong, then drills down to zero. Any exclusion added to Pass 2
+belongs here too, or the ranking lies.
 
-**Establish currency before triaging.** A count is a total over the window and says
-nothing about *when*. After a node reboot — or any restart — the drill-down fills with
-startup churn that was over in seconds, and it looks identical to a fault that has been
-running all day. Re-run the app's dominant message over a short trailing window; if the
-recent count is zero, it is history:
+**Establish currency before triaging.** A count is a total over the window and says nothing
+about *when*; after a restart the drill-down fills with startup churn that was over in
+seconds and looks identical to a fault running all day. Re-run the dominant message over a
+short trailing window — zero recent means history:
 
 ```
 kubectl logs -n "$ns" "$pod" --all-containers --since=20m 2>/dev/null | grep -c '<message>'
-kubectl logs -n "$ns" "$pod" --all-containers --since="$W" --timestamps 2>/dev/null \
-  | grep '<message>' | sed -n '1p;$p' | cut -c1-30   # first and last occurrence
 ```
 
-`--timestamps` prints the node's **local** time with its `+02:00` offset, not UTC, so a
-stamp read against a `date -u` window lands two hours off and a burst from half an hour
-ago reads as one from the future. Judge currency with `--since` (relative, offset-proof)
-and use the absolute stamps only to place two events relative to *each other*.
+Three ways this step goes wrong:
 
-Pass a real pod name, never a `-l` selector: `kubectl logs -l` prints nothing and exits
-0 when nothing matches, so a guessed label yields a count of `0` that is
-indistinguishable from a burst that ended. Loki's labels are not the pods'
-(`app=longhorn` in Loki is `app=longhorn-manager` on the pod) — when unsure, bucket
-Pass 1's query by `[1h]` instead, which answers *when* without needing a selector.
+- **`--timestamps` prints the node's local time** (`+02:00`), not UTC, so a stamp read
+  against a `date -u` window lands two hours off and a burst from half an hour ago reads as
+  from the future. klog's own `E0912 05:39` prefix on the *same line* is UTC — the two
+  disagree by design. Judge currency with `--since`, which is relative and offset-proof;
+  use absolute stamps only to place two events relative to each other.
+- **`kubectl logs` cannot see a replaced pod.** Loki's count covers the window; the live
+  pod may be minutes old. A Loki count of 40 that drills down to 0 lines usually means the
+  lines belong to a pod that no longer exists — check pod age (§2) and read the history
+  from Loki, not `--previous`, which reaches only one generation back.
+- **Never pass a `-l` selector.** `kubectl logs -l` prints nothing and exits 0 when nothing
+  matches, so a guessed label yields a `0` indistinguishable from a burst that ended.
+  Loki's labels are not the pods' (`app=longhorn` in Loki is `app=longhorn-manager` on the
+  pod) — when unsure, bucket Pass 1's query by `[1h]`, which answers *when* without a
+  selector.
 
-Do this for every burst before writing it into §8 — the §8 Frequency column should read
-"3 311, all inside the reboot minute" or "60/h, ongoing", never a bare total.
+The §8 Frequency column should read "3 311, all inside the restart minute" or "60/h,
+ongoing", never a bare total.
 
 **Every app with a non-zero count gets triaged — including the ones whose count looks
-"normal".** A steady 60/h of the same benign line is still noise worth fixing at the
-source (log level, probe interval, a stale config the app is complaining about). The
-goal is a **quiet** log, not merely a fault-free one: noise is what hides the one line
-that matters. Work down the list by count.
+"normal".** A steady 60/h of the same benign line is noise worth fixing at the source (log
+level, probe interval, a stale config the app is complaining about). The goal is a **quiet**
+log, not merely a fault-free one: noise is what hides the one line that matters. Work down
+by count.
 
-**Pass 2 — the drill-down.** For each app that surfaced, read the actual lines,
-ranked by repetition.
-
-The workstation shell is **zsh**, which does not word-split unquoted parameters.
-Iterate `ns pod` pairs with `printf '%s\n' … | while read -r ns pfx`, never
-`for t in "ns app"; do set -- $t`, which yields an empty `$2` and fails silently —
-producing empty drill-down sections that look like clean apps.
+**Pass 2 — the drill-down.** The workstation shell is **zsh**, which does not word-split
+unquoted parameters: iterate `ns pod` pairs with `printf '%s\n' … | while read -r ns pfx`,
+never `for t in "ns app"; do set -- $t`, which yields an empty `$2` and fails silently,
+producing empty sections that look like clean apps.
 
 ```
 kubectl logs -n "$ns" "$pod" --all-containers --prefix --since="$1" 2>/dev/null \
@@ -666,28 +602,25 @@ kubectl logs -n "$ns" "$pod" --all-containers --prefix --since="$1" 2>/dev/null 
   | cut -c1-180 | sort | uniq -c | sort -rn | head -10
 ```
 
-`cut -c1-180` is load-bearing, not cosmetic: a failed `helm template` echoes its whole
-`--api-versions` list, so three such lines bury the section in thousands of characters.
+Every transform is load-bearing. The four `sed` substitutions (ISO stamps, klog
+`W0827 11:31:11.275065       1`, bare `HH:MM:SS`, and the blanket `[0-9]+`→`N` for IPs,
+ports, durations, IDs) are what let `uniq -c` rank anything — any format left un-normalized
+makes every line unique and returns a column of `1`s. `cut -c1-180` keeps a failed
+`helm template`, which echoes its entire `--api-versions` list, from burying the section in
+thousands of characters. Both cost readability, the right trade for a ranking pass — read
+raw lines for the one message that matters. A message seen once and one seen 4 000 times
+need different responses, so the count must survive into §8.
 
-`uniq -c` ranks distinct messages by how often they repeat. **All four `sed`
-substitutions are load-bearing**: ISO stamps, klog (`W0827 11:31:11.275065       1`),
-bare `HH:MM:SS`, and the blanket `[0-9]+`→`N` for IPs, ports, durations and IDs. Any
-format left un-normalized makes every line unique and `uniq -c` returns a column of
-`1`s. It costs some readability, which is the right trade for a ranking pass — read the
-raw lines for the one message that matters. A message seen once and one seen 4 000
-times need different responses, so the count must survive into §8.
+Match on **log-severity markers**, not bare substrings (`fail` matches the `failed_only`
+query param in nginx access logs; `error` matches `"error":null`).
 
-Match on **log-severity markers**, not bare substrings (`fail` matches the
-`failed_only` query param in nginx access logs; `error` matches `"error":null`).
-
-If Loki is down, fall back to Pass 2 across every namespace from `kubectl get ns`
-(not a hardcoded list) and say in the report that the sweep ran degraded.
+If Loki is down, fall back to Pass 2 across every namespace from `kubectl get ns` (not a
+hardcoded list) and say in the report that the sweep ran degraded.
 
 ## 7. Pi-hole HA (dual resolver + VIP)
 
-Pi-hole runs active/standby on `pihole-01` (`.51`/`::51`, normal master) and
-`pihole-02` (`.52`/`::52`), sharing keepalived VIPs `10.10.53.53` / `::53`. SSH
-both (read-only) and confirm a healthy one-master / one-backup state:
+Active/standby on `pihole-01` (`.51`/`::51`, normal master) and `pihole-02` (`.52`/`::52`),
+sharing keepalived VIPs `10.10.53.53` / `::53`:
 
 ```
 for h in pihole-01 pihole-02; do echo "### $h"; ssh -o ConnectTimeout=5 "$h" '
@@ -699,42 +632,38 @@ for h in pihole-01 pihole-02; do echo "### $h"; ssh -o ConnectTimeout=5 "$h" '
   echo "nebula-sync=$(systemctl is-active nebula-sync 2>/dev/null)"'; echo; done
 ```
 
-Flag (carry breaches to §8). Healthy = exactly one node holds each VIP, both FTL
-answering, and `nebula-sync` active on pihole-01 only (inactive/not-found on
-pihole-02 is correct):
+Healthy = exactly one node holds each VIP, both FTL answering, `nebula-sync` active on
+pihole-01 only (inactive/not-found on pihole-02 is correct). Flag (carry to §8):
 
 - 🔴 **No master** — neither node holds a VIP: DNS is down network-wide.
 - 🔴 **Split-brain** — both hold the same VIP: IP conflict.
-- 🔴 **FTL not answering** on a node whose process is `active` — the wedged-FTL
-  failure mode (often after a heavy nebula-sync); `sudo systemctl restart pihole-FTL` there.
-- 🟡 **Failover active** — pihole-02 holds the VIP (pihole-01 is normally master):
-  pihole-01 or its FTL is down; investigate why it didn't preempt back.
-- 🟡 **v4/v6 split** — the two VIPs sit on different nodes (the sync group should
-  keep them together).
+- 🔴 **FTL not answering** on a node whose process is `active` — the wedged-FTL mode (often
+  after a heavy nebula-sync); `sudo systemctl restart pihole-FTL` there.
+- 🟡 **Failover active** — pihole-02 holds the VIP: pihole-01 or its FTL is down;
+  investigate why it didn't preempt back.
+- 🟡 **v4/v6 split** — the VIPs sit on different nodes (the sync group should keep them
+  together).
 - 🟡 **nebula-sync** not `active` on pihole-01, or its last run failed
   (`journalctl -u nebula-sync -n 20`): replica config drifts.
 
 ## 8. Warnings sweep & assessment (the headline section)
 
-Aim: warning-free. Aggregate **every** warning from all sources — the firing
-Prometheus alerts from §0, the k8s warning events **bounded to the window**, the
-WARN/ERROR log lines from §6 **with their counts**, the metric-threshold breaches
-from §1, the silent failures from §2, the near-limit / under-request rows from §3,
-and the Pi-hole HA breaches from §7 — then assess each one.
+Aim: warning-free. Aggregate **every** warning — §0's firing alerts plus the ones that
+fired and cleared, the k8s warning events **bounded to the window**, §6's log lines **with
+counts**, §1's threshold breaches, §2's silent failures, §3's near-limit / under-request
+rows, §7's Pi-hole breaches — then assess each one.
 
-Events must be time-filtered explicitly. `kubectl get events` returns the full
-retained history, and events from the `events.k8s.io` API carry `lastTimestamp: null`
-(the timestamp lives in `eventTime`), so sorting or filtering on `lastTimestamp`
-silently keeps them. Unfiltered, an 11-day-old `ImageGCFailed` and a cordon-storm of
-`FailedScheduling` from the last rack maintenance both read as current problems.
-
-**For a repeating event, `eventTime` is the *first* observation, not the last** — the
-last lives in `.series.lastObservedTime`. Filtering on `eventTime` therefore fails in
-both directions: it collapses a long-running burst to a single line at the wrong
-instant, and it drops an event that is *still firing* whenever the series began before
-the window. Order the coalesce last-first, and read the span, not a point: a large
-`count` between a first and last that differ by hours is one past incident, while the
-same count whose last observation is minutes old is live.
+Events must be time-filtered explicitly, and on the right field. `kubectl get events`
+returns the full retained history; events from the `events.k8s.io` API carry
+`lastTimestamp: null` (the timestamp lives in `eventTime`), so filtering on `lastTimestamp`
+silently keeps them — unfiltered, an 11-day-old `ImageGCFailed` and a cordon-storm of
+`FailedScheduling` from the last rack maintenance both read as current. And for a repeating
+event **`eventTime` is the *first* observation**, the last living in
+`.series.lastObservedTime`, so filtering on `eventTime` fails both ways: it collapses a
+long burst to one line at the wrong instant, and drops an event still firing whenever the
+series began before the window. Coalesce last-first, and read the span, not a point — a
+large `count` whose first and last differ by hours is one past incident; the same count
+with a last observation minutes old is live.
 
 ```
 kubectl get events -A --field-selector type=Warning -o json | jq -r --arg t "$(date -u -d '12 hours ago' +%Y-%m-%dT%H:%M:%SZ)" '
@@ -744,207 +673,175 @@ kubectl get events -A --field-selector type=Warning -o json | jq -r --arg t "$(d
   | "\($last)\t\(.reason)\t\(.involvedObject.namespace)/\(.involvedObject.name)\t\(.count // .series.count // 1)x\tsince=\($first)\t\(.message[0:100])"' | sort
 ```
 
-(substitute the run's window for `12 hours ago`.) Present a table:
+(substitute the run's window for `12 hours ago`.) Present `Source | Warning | Frequency |
+Assessment`, where Assessment is **🔧 fixable** (give the concrete GitOps fix), **✅ accept**
+(known-benign; say why), or **⚪ standing** (already accepted with an exit trigger — one
+summary line, not a row).
 
-`Source | Warning | Frequency | Assessment`
+Fill **Frequency** from §6's counts, not impressions — "60/h" and "1 in the window" get
+different verdicts. **High-volume benign noise is itself a 🔧 finding**: propose the
+log-level or config change that quiets it rather than growing the accept-list forever. A
+line earns ✅ accept only when it is both benign *and* unfixable upstream.
 
-where Assessment is one of: **🔧 fixable** (give the concrete GitOps fix to propose),
-**✅ accept** (known-benign; say why), or **⚪ standing** (a real condition already
-accepted with an exit trigger — see below; it gets one summary line, not a row).
+### Known-benign — drop these before reporting
 
-Fill **Frequency** from the §6 counts, not impressions — "60/h" and "1 in the window"
-get different verdicts. **High-volume benign noise is itself a 🔧 finding**: propose
-the log-level or config change that quiets it, rather than growing the accept-list
-forever. A line only earns ✅ accept when it is both benign *and* unfixable upstream.
-
-Drop the known-benign lines below before reporting — they're already assessed as
-accept:
-
-- nginx `upstream timed out` on `/api/events?stream=` / IRC SSE — an open
-  autobrr/UI browser tab hitting the 60s read-timeout, not a fault.
+- nginx `upstream timed out` on `/api/events?stream=` / IRC SSE — an open autobrr/UI
+  browser tab hitting the 60s read-timeout.
 - autobrr `debug` filter "rejected"/rate-limit lines — working as intended.
-- nginx access-log lines (HTTP requests with 2xx/3xx status) — not errors; they
-  also contain apikeys, so never echo them into the report. **This generalizes: never
-  echo secret material into the report.** Container env (`*_VAR_*`, `*_KEY`, `*_TOKEN`,
-  `*_PASSWORD`) holds live credentials in plaintext, so when a config check needs one,
-  grep for that single variable instead of dumping the block:
-  `kubectl -n <ns> get deploy <d> -o jsonpath='{...}' | grep ALLOWED_HOSTS`.
+- nginx access-log lines (2xx/3xx) — not errors, and they contain apikeys. **Generalizes:
+  never echo secret material into the report.** Container env (`*_VAR_*`, `*_KEY`,
+  `*_TOKEN`, `*_PASSWORD`) holds live credentials in plaintext, so when a config check
+  needs one, grep for that single variable instead of dumping the block.
 - loki query-stats (`caller=metrics.go`, `level=info`) and coredns `[INFO]`/`[WARNING]`
-  query logs — verbose telemetry, not faults. coredns query logging is deliberately on
-  and dominates every Loki count by tens of thousands per hour; rank it, then set it aside.
+  query logs — telemetry, not faults. coredns query logging is deliberately on and
+  dominates every Loki count by tens of thousands per hour; rank it, then set it aside.
 - `loki-canary` `tail max duration limit exceeded` — canary recycling its tail.
 - k8s API deprecation `Warning:` lines from longhorn-manager/controllers — upstream
-  chatter, not a cluster fault. Covers any of them, `v1 Endpoints is deprecated` and the
-  high-volume `metadata.finalizers: prefer a domain-qualified finalizer name` alike.
-- plex `## IGNORE THE ERROR MESSAGE:  ##` — the container's own startup banner, matched
-  by the word `ERROR`. Not an error.
+  chatter. Covers `v1 Endpoints is deprecated` and the high-volume
+  `metadata.finalizers: prefer a domain-qualified finalizer name` alike.
+- plex `## IGNORE THE ERROR MESSAGE:  ##` — the container's own startup banner, matched by
+  the word `ERROR`.
 - gluetun (qbt/sabnzbd VPN sidecars) `WARN [dns] ... connection reset by peer` /
-  `renewing dead connection` to Quad9 `:853` — transient DoT hiccups gluetun
-  self-heals. Flag only if persistent or downloads are stalling.
-- `csi-snapshotter` `could not find the requested resource (...VolumeSnapshot*)`
-  — k8s external-snapshotter CRDs aren't installed; Longhorn backups use their
-  own path and are unaffected.
-- **qui** orphan-scan runs showing `failed` on `qbt-br` — cosmetic: qui has no
-  `/local` mount and br always has active downloads, and qui marks any run with walk
-  errors and zero orphans as failed. Not fixable via Ignore Paths; never mount
-  `/local` into qui.
-- **Startup churn in the minute after a node restart** — every rack cycle reproduces
-  the same set, in volume: cert-manager `ACME client for issuer not initialised`,
-  longhorn-manager `mismatching disks`, the CSI sidecars' `dial unix /csi/csi.sock:
-  connect: connection refused`, promtail readiness-probe timeouts, and qui `instance is
-  in backoff period` — each a controller reconciling ahead of its dependency. All
-  self-clear. **Accepted only when confined to the restart window**: establish that with
-  §6's currency check, and confirm the end state with `kubectl get clusterissuer` +
-  `kubectl get certificates -A` (all `Ready=True`) and `kubectl get nodes.longhorn.io
-  -n longhorn-system` (every disk `Ready`/`Schedulable`). The same message still
-  arriving 20 minutes later is a real finding.
-- **pulsarr** `ERROR: [WATCHLIST_WORKFLOW] Failed to fetch RSS feed` (≈0.7% of
-  polls) — Pulsarr polls the Plex watchlist RSS (`rss.plex.tv`, S3-backed) every
-  ~10 s with a hardcoded 30 s timeout; occasional Plex-side latency trips it.
-  The endpoint is reachable from the pod and the 120-min full reconciliation (a
-  separate path) always succeeds, so nothing is missed. Timeout + ERROR severity
-  are hardcoded upstream — not config-fixable; **accept**. Only escalate if full
+  `renewing dead connection` to Quad9 `:853` — transient DoT hiccups it self-heals. Flag
+  only if persistent or downloads are stalling.
+- `csi-snapshotter` `could not find the requested resource (...VolumeSnapshot*)` — those
+  CRDs aren't installed; Longhorn backups use their own path.
+- **qui** orphan-scan `failed` on `qbt-br` — cosmetic: qui has no `/local` mount and br
+  always has active downloads, and qui marks any run with walk errors and zero orphans as
+  failed. Not fixable via Ignore Paths; never mount `/local` into qui.
+- **pulsarr** `ERROR: [WATCHLIST_WORKFLOW] Failed to fetch RSS feed` (≈0.7% of polls) — it
+  polls `rss.plex.tv` every ~10 s with a hardcoded 30 s timeout and occasional Plex-side
+  latency trips it; the 120-min full reconciliation is a separate path and always succeeds,
+  so nothing is missed. Timeout and severity are hardcoded upstream. Escalate only if full
   reconciliation also starts failing.
+- **Startup churn in the minute after a restart** — a node reboot *or* a control-plane
+  component redeploy (an Ansible/Helm run reinstalling cert-manager or argocd reproduces it
+  identically). Always the same set: cert-manager `ACME client for issuer not initialised`,
+  longhorn-manager `mismatching disks`, the CSI sidecars' `dial unix /csi/csi.sock:
+  connect: connection refused`, promtail readiness-probe timeouts, qui `instance is in
+  backoff period` — each a controller reconciling ahead of its dependency, all
+  self-clearing. **Accepted only when confined to the restart window**: establish that with
+  §6's currency check, and confirm the end state with `kubectl get clusterissuer` +
+  `kubectl get certificates -A` (all `Ready=True`) and `kubectl get nodes.longhorn.io -n
+  longhorn-system` (every disk `Ready`/`Schedulable`). The same message 20 minutes later is
+  a real finding.
 
 ### Standing accepted conditions
 
-Separate from the benign log lines above: **real** conditions, knowingly accepted for
-now, each with an explicit trigger that ends the acceptance. Report them as a
-one-line summary, not as fresh findings — but evaluate every re-open trigger on every
-run, and if one fires, it leaves this table and becomes a 🔴 finding.
+**Real** conditions knowingly accepted for now, each with an explicit trigger that ends the
+acceptance. One summary line, not a fresh finding — but evaluate every re-open trigger
+every run, and if one fires the row becomes a 🔴 finding.
 
 | Since      | Condition                                              | Why accepted                                                                                     | Re-open when                                                                                                                                      |
 | ---------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 2026-08-19 | `DiskTemperatureHigh` firing on DAS drives `sda`/`sdb` | Enclosure airflow is at its practical limit; a lower steady temperature needs a physical rebuild | `DiskTemperatureCritical` (>60 °C) fires · `DasDiskLatencyImbalance` fires · any reallocated/pending sector appears · steady state exceeds ~58 °C |
 
-Baseline for that row (so drift is detectable rather than a fresh surprise), as of
-**2026-09-11**: steady **53/54 °C** (sda/sdb), 7d max **58/59 °C**, SMART otherwise
-clean (zero reallocated and pending sectors) — and `DiskTemperatureHigh` **not firing**,
-the 1 h average staying under its 58 °C threshold. (Previous baseline, 2026-08-29:
-steady 52/53 °C, 7d max 54/56 °C.) The peaks have drifted ~4 °C up while the steady
-state moved ~1 °C, putting sdb's 7d max within 1 °C of the >60 °C
-`DiskTemperatureCritical` re-open trigger: treat another peak rise as the trigger
-arriving, not as noise. Quote the current numbers against that baseline in the
-one-liner — an accepted condition still gets measured.
+Baseline as of **2026-09-11**: steady **53/54 °C** (sda/sdb), 7d max **58/59 °C**, zero
+reallocated and pending sectors. The alert is a 1 h average above **58 °C**, so peaks clip
+it for an hour or two at a time and it reads clear on most runs — judge it from §0's alert
+*history*, not the instant vector, or the row looks retired when it is not. Quote current
+numbers against this baseline (an accepted condition still gets measured) and treat a
+further rise in the **peaks** as `DiskTemperatureCritical` arriving, since sdb's 7d max is
+within 1 °C of it.
 
-The row stays despite the quiet alert: the drives still run 13–15 °C above Toshiba's
-40 °C recommendation, and the margin comes from ambient cooling, not a fix. **Retire it
-only after a full warm-week holds under 58 °C.** `DiskTemperatureHigh` fires on a 1 h
-average above **58 °C** — deliberately the same number as this row's re-open trigger, so
-the alert and the acceptance say one thing; retiring the row orphans that rationale.
+The row stays despite the quiet alert: the drives run 13–15 °C above Toshiba's 40 °C
+recommendation and the margin comes from ambient cooling, not a fix. **Retire it only after
+a full warm-week holds under 58 °C.** The alert threshold is deliberately the same 58 °C as
+the re-open trigger, so the two say one thing.
 
-Adding a row here is a deliberate act: it needs the re-open trigger and the baseline,
-otherwise it is not an acceptance, it is a blind spot.
+Adding a row here needs both the re-open trigger and the baseline, or it is not an
+acceptance but a blind spot. Permanent by-design exemptions (`/mnt/r0` full, k3s-server's
+phantom load) belong inline as ⚪ in their own section — this table is only for conditions
+meant to end.
 
-Permanent by-design exemptions — `/mnt/r0` running near full, k3s-server's phantom
-load — belong inline as ⚪ in their own section, not here. This table is only for
-conditions that are meant to end.
-
-Surface anything that survives this filter (e.g. repeated `x509`/auth failures,
-OOMKills, real `panic`, a *new* app erroring, a disk crossing 90%).
+Surface anything that survives this filter (repeated `x509`/auth failures, OOMKills, real
+`panic`, a *new* app erroring, a disk crossing 90%).
 
 ## Output
 
-Use the 🟢 / 🟡 / 🔴 traffic-light system everywhere state is reported (verdict,
-table rows, per-area lines) so status is scannable at a glance — plus ⚪ for
-by-design rows that are deliberately exempt from their threshold (e.g.
-`/mnt/r0`). Use ⚠️ inline when calling out a specific warning in prose.
+Use 🟢 / 🟡 / 🔴 everywhere state is reported, ⚪ for by-design rows exempt from their
+threshold, ⚠️ inline when calling out a warning in prose.
 
-1. One-line **verdict** (🟢 healthy / 🟡 N warnings / 🔴 issues) — it can never be
-   🟢 while an unassessed Prometheus alert from §0 is firing. Standing accepted
-   conditions ride along in the same line: `🟢 healthy — 1 standing (DAS temps 52/54 °C)`.
-2. **Firing alerts** from §0, if any: alert name, target, severity — with the
-   standing ones grouped and labelled ⚪, so what's *new* stands out from what's known.
-3. The two **node-metrics tables** from §1 (the glanceable part), each row led by
-   its 🟢/🟡/🔴 Status column, plus the **per-node allocation table** from §3.
-4. Short **per-area** lines (pods / ArgoCD / Longhorn) each prefixed with a
-   🟢/🟡/🔴 marker.
-5. The **per-app log table** from §6 — every app with a non-zero count, its count,
-   and the top repeated message. This is the section that catches slow rot.
-6. The **resource right-sizing table** from §3 — 🔴 near-limit and 🟡
-   under-request rows first (with snapshot, 7d peak, the exact `values.yaml` and the
-   suggested number), then any over-provisioned trims as optimizations. Skip the
-   section only if nothing is off in either direction (say so in one line).
-   State the working-tree gate either way: the `git diff` of what was applied, or
-   which paths were dirty and therefore left untouched.
-7. The **Warnings & assessment** table from §8 — the focus. For 🔧 fixable ones,
-   propose the change as code/commands and **don't apply it to the cluster** — per
-   repo policy all changes are GitOps/IaC and the user runs them. The two exceptions
-   are the repo-only writes named in the preamble: §3's `resources:` numbers and this
-   file's own §8 edits, both behind the clean-tree gate.
-8. **Skill feedback** — close every run with what this run taught the check itself:
-   a false positive to accept-list, a manual command the sweep should have run, a
-   miss a section should have caught, or a threshold that deserves a Prometheus rule.
-   "Nothing to change" is a valid answer; an empty section every run is not.
-
-   **Most findings do not belong in this file.** A run surfaces plenty that is worth
-   saying and not worth persisting: what a metric read today, which incident a burst
-   traced back to, why a number was chosen, what got ruled out. That belongs in the
-   report, discussed in the session. Only write here what **changes how a future run
-   behaves** — a check it would otherwise not run, a false positive it would otherwise
-   re-derive, a threshold, a failure mode with a named fix, a command that was wrong.
-   Everything else is bloat that makes the rest less trustworthy. Specifically, keep out:
-
-   - **This run's measurements.** Dates and readings age into lies. The exception is a
-     standing condition's baseline, which exists to be compared against.
-   - **Narrated history** — "X did not work", "this used to be Y", "verified the hard
-     way". State what *is*, and what to do. If a ruled-out fix would otherwise be
-     re-proposed, one clause saying so is the whole entry.
-   - **Illustrative examples**, unless the example is the recurring false positive
-     itself and naming it saves the next run the investigation.
-   - **Decisions still being weighed.** Bring those to the user in the report. Once
-     decided, what lands here is the resulting rule or check, not the deliberation.
-
-   **Apply the edit under the same gate as §3's sizing.** Clean tree at the start of
-   the run → edit this file directly and show the `git diff`. Dirty → propose the diff
-   and change nothing. The same narrow rules apply: only this file, never `git
-   add`/`commit`/`push`, and the user reviews. A finding that stays a proposal is one
-   the next run re-derives from scratch.
-
-   **Then sweep this whole file before finishing — every run, not just the ones that
-   changed it.** This file grows by accretion: each run bolts on a finding, and
-   nothing removes anything. Left alone it drifts into a document that contradicts
-   itself and is too long to trust. Read it end to end and fix:
-
-   - **Contradiction** — two passages that cannot both be followed. The newest one is
-     usually right and the older one usually needs *scoping*, not deletion (a rule
-     that held universally may now hold only for memory, or only for cluster state).
-   - **Duplication** — the same guidance stated in two sections. Keep it where it is
-     acted on and leave a cross-reference at the other, never a second copy that will
-     drift.
-   - **Staleness** — a literal that reality has moved past: a grep string the logs no
-     longer emit, a regex that misses a job that now exists, a hardcoded percentage,
-     a path or filename that was renamed. Every literal in this file is a claim about
-     the cluster; verify the ones this run touched and correct what has drifted.
-   - **Hardcoded lists** — node names, namespaces, apps, volumes enumerated by hand.
-     Replace with the discovery query. This file tells its own §2 to do this; the
-     rule applies to the file itself.
-   - **Expired notes** — anything carrying a date or a re-evaluate-by. Act on it when
-     due, and *delete* it once acted on. A dated note left past its date is worse
-     than no note: it reads as current.
-   - **Bloat** — anything failing the test above: a measurement, a narrated incident,
-     an example carrying no rule, a proposal already applied or already declined. Cut
-     it and keep whatever rule it was carrying.
-   - **Ambiguity** — a threshold with no unit, a verdict with no owning section, an
-     instruction whose subject is unclear on a cold read.
-
-   Report what the sweep changed, and say **"swept, nothing to tidy"** when it found
-   nothing — silence is indistinguishable from not looking.
-
-   **Repetition is itself a finding.** This file is the check's only memory, so
-   anything worth knowing next run has to be written into it:
-
-   - A warning assessed **✅ accept for the same reason more than twice** → promote it
-     to a standing accepted condition (with a re-open trigger) or to the benign-lines
-     list, so later runs stop re-deriving it.
-   - A **🔧 fixable that keeps reappearing unfixed** → say how many runs it has
-     survived and treat that as escalation, not as a fresh finding each time. Either
-     it is harder than it looked (write down why) or it deserves an alert rule so it
-     stops depending on someone running this check.
-   - A standing condition whose **numbers drifted** past its baseline → re-open it,
-     even if its alert is one already being accepted.
-   - Something that fires **every single run and is always fine** → the threshold is
-     wrong, not the cluster. Propose the corrected threshold, here or in
-     `prometheus/values.yaml`.
+1. One-line **verdict** (🟢 healthy / 🟡 N warnings / 🔴 issues) — never 🟢 while an
+   unassessed §0 alert is firing. Standing conditions ride the same line:
+   `🟢 healthy — 1 standing (DAS temps 53/54 °C)`.
+2. **Alerts** from §0: firing now (name, target, severity), then a short separate list of
+   what fired and cleared since the last run, standing ones grouped and labelled ⚪.
+3. §1's two **node tables**, each row led by its Status column, plus §3's **per-node
+   allocation table**.
+4. Short **per-area** lines (pods / ArgoCD / Longhorn), each marker-prefixed.
+5. §6's **per-app log table** — every app with a non-zero count, its count, the top
+   repeated message. This is the section that catches slow rot.
+6. §3's **right-sizing table** — 🔴 near-limit and 🟡 under-request first (snapshot,
+   history, exact `values.yaml` and suggested number), then over-provisioned trims as
+   optimizations. Skip it only if nothing is off either way (say so in one line). State the
+   working-tree gate either way: the `git diff` of what was applied, or which paths were
+   dirty and therefore left untouched.
+7. §8's **Warnings & assessment** table — the focus. Propose 🔧 fixables as code/commands
+   and **don't apply them to the cluster**; the only exceptions are the repo-only writes
+   named in the preamble.
+8. **Skill feedback** — below.
 
 If everything is green, say so plainly — don't invent work.
+
+## Skill feedback (close every run with this)
+
+Close with what this run taught the check itself: a false positive to accept-list, a manual
+command the sweep should have run, a miss a section should have caught, a threshold that
+deserves a Prometheus rule. "Nothing to change" is valid; an empty section every run is
+not. **Apply the edit under §3's gate** — clean tree at the start of the run → edit this
+file and show the `git diff`; dirty → propose the diff and change nothing. A finding left
+as a proposal is one the next run re-derives.
+
+**Most findings do not belong in this file.** Write here only what **changes how a future
+run behaves**: a check it would otherwise not run, a false positive it would otherwise
+re-derive, a threshold, a failure mode with a named fix, a command that was wrong. Keep out
+**this run's measurements** (readings age into lies — the exception is a standing
+condition's baseline, which exists to be compared against), **narrated history** ("X did
+not work", "this used to be Y" — state what *is*; one clause is enough to stop a ruled-out
+fix being re-proposed), **illustrative examples** that are not themselves the recurring
+false positive, and **decisions still being weighed** (bring those to the user; what lands
+here is the resulting rule). Everything else belongs in the report, said once.
+
+A durable finding that is *not* a change to this check — a real threshold, a failure mode,
+a recovery procedure — belongs in `docs/`. Keeping the explanation there and the detector
+here is what stops this file becoming a second copy of `docs/storage-longhorn.md`.
+
+**Then sweep this whole file — every run, not just the ones that changed it.** It grows by
+accretion: each run bolts on a finding and nothing removes anything. Read it end to end and
+fix:
+
+- **Contradiction** — two passages that cannot both be followed, including a threshold here
+  that disagrees with its alert rule. The newest is usually right and the older usually
+  needs *scoping*, not deletion.
+- **Duplication** — the same guidance in two sections, or a passage restating a `docs/`
+  page. Keep it where it is acted on, cross-reference from the other.
+- **Staleness** — a literal reality has moved past: a grep string the logs no longer emit,
+  a regex missing a job that now exists, a hardcoded percentage, a renamed path, a
+  `kubectl` column that shifted. Every literal here is a claim about the cluster; verify the
+  ones this run touched.
+- **Hardcoded lists** — nodes, namespaces, apps, volumes enumerated by hand. Replace with
+  the discovery query.
+- **Expired notes** — anything with a date or a re-evaluate-by. Act when due, then *delete*
+  it; a dated note left past its date reads as current.
+- **Cost** — a command making N round-trips where one would do (per-node SSH passes,
+  per-day `kubectl` calls). Every run pays it.
+- **Bloat** — a measurement, a narrated incident, an example carrying no rule, a proposal
+  already applied or declined. Cut it, keep the rule.
+- **Ambiguity** — a threshold with no unit, a verdict with no owning section, an instruction
+  whose subject is unclear on a cold read.
+
+Report what the sweep changed, and say **"swept, nothing to tidy"** when it found nothing —
+silence is indistinguishable from not looking.
+
+**Repetition is itself a finding.** This file is the check's only memory:
+
+- A warning assessed **✅ accept for the same reason more than twice** → promote it to a
+  standing accepted condition (with a re-open trigger) or to the benign-lines list.
+- A **🔧 fixable that keeps reappearing unfixed** → say how many runs it has survived and
+  treat that as escalation, not a fresh finding. Either it is harder than it looked (write
+  down why) or it deserves an alert rule so it stops depending on this check.
+- A standing condition whose **numbers drifted** past its baseline → re-open it, even if its
+  alert is one already being accepted.
+- Something that fires **every run and is always fine** → the threshold is wrong, not the
+  cluster. Propose the corrected threshold, here or in `prometheus/values.yaml`.

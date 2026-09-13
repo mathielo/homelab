@@ -48,7 +48,7 @@ app-template:
               cpu: 100m
               memory: 512Mi
             limits:
-              cpu: 4000m
+              cpu: 6000m
               memory: 6Gi
               # Intel Quick Sync hardware transcoding (i5-14500T on k3s-node-02).
               # Requires Plex Pass + enabling "Use hardware acceleration" in
