@@ -1,0 +1,63 @@
+# Core Keeper runs in Steam Datagram Relay mode: SERVER_PORT is unset, so the
+# server only dials out to Steam's relay network and players join by Game ID —
+# there is no Service or LoadBalancer IP. GAME_ID comes from the `core-keeper`
+# secret, populated by values.sops.yaml; anyone holding it can join.
+app-template:
+  defaultPodOptions:
+    nodeSelector:
+      kubernetes.io/hostname: k3s-node-01
+    securityContext:
+      # Image user `steam` is 1000:1000. Running as it directly skips the
+      # entrypoint's usermod + recursive chown; fsGroup makes the volumes writable.
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+
+  controllers:
+    main:
+      # RWO world PVC requires the old pod to fully release before the new one
+      # mounts it.
+      strategy: Recreate
+      pod:
+        # On SIGTERM the entrypoint signals the server and waits for it to exit;
+        # upstream sizes that window at 2 minutes.
+        terminationGracePeriodSeconds: 120
+
+      containers:
+        app:
+          image:
+            repository: escaping/core-keeper-dedicated
+            tag: "v2.8.1"
+          env:
+            WORLD_MODE: "1" # Hard
+            MAX_PLAYERS: "2"
+            TZ: Europe/Stockholm
+          envFrom:
+            - secretRef:
+                identifier: core-keeper # GAME_ID
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+
+  secrets:
+    core-keeper:
+      enabled: true
+      # stringData (GAME_ID) supplied by values.sops.yaml
+      stringData: {}
+
+  persistence:
+    # World saves and ServerConfig.json.
+    data:
+      existingClaim: core-keeper-data-lh
+      globalMounts:
+        - path: /home/steam/core-keeper-data
+    # Server binaries. SteamCMD validates and updates them on every start, so a
+    # restart is a game update and the ~180 MiB download is re-fetched each time.
+    server:
+      type: emptyDir
+      globalMounts:
+        - path: /home/steam/core-keeper-dedicated

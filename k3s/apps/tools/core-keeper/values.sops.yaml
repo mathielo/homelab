@@ -1,0 +1,29 @@
+app-template:
+    secrets:
+        core-keeper:
+            stringData:
+                GAME_ID: ENC[AES256_GCM,data:ljTHiDVsQe3M0hzKn3lkJ7aOwjSDeOU/evLHkg==,iv:q6+LRuXXQ3IP6CJl98DP5yn3ayCyYOa3p5PDGumxVXk=,tag:Z+zLUJgEIUd1EIrpU4zNKQ==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBKa1NhVUlTb2FSN2NVS3Vs
+            R01zM2J2cE9VNEk2NThtV1BhSXlkbDg2cTBzCmU5MG5BU3NaSWRwOWlpYk5LL0FN
+            OUhxNDZIOEhUYU1GamFqVkJ1ek1Fb2sKLS0tIFBtUUlkSElCdVZOa3VBcnRoUlNh
+            Sk53TkdZMU01M21mTng3cGdYL0kxNFUKk/Q7l3dpApGVU/CnCOd1Q/tlbVIjtvRk
+            Z9w/yNbw97EMsVTnrS1tDJE+5KAR7CcchTMS446MyFqBb2BRjuq4Bg==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1gyywmz5ypukdr265ltj45s3vtnckyvd7qn5ddr8qepj8ktdzsers20cz6t
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBFV3dZRE1TN2plT1VWOGtp
+            d2V6R3AxSGtzcklzaHlSK0xWQS90MGJBR2hBCnFwUmNxT2dNTG1JMlNMdVNyWkRt
+            YjVWMzFuL1E3WTRVM2NDdGs2dEF2Z0EKLS0tIDBwOWFCT0xhcDVkRUVJOVBSSncr
+            NDhaVGJqSjU0VlIyMUluN2RKclB6SW8KMMWJk1BfHPEL/TV6wzC7EjHruk+o4AQl
+            9OVY2Hqng4G9ASX2dxefLIQEbG9ppEunIVVsB3LQrHEc08qJua17+A==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1kt5aynyagn4t6v4epgl95ls9gpskq49f07j2v797g99zhje8teussmnytu
+    lastmodified: "2026-09-13T13:44:09Z"
+    mac: ENC[AES256_GCM,data:rrNmzz32Jqtt6qCkbwnq9wZCtKKLn3blWheTyuFB/5R0xpj25o4AZEvCp3vlG3LSEyPn3k3v7Yyn/WcnsjpH32WyLjiRiU+0XGnrjM+nxEmSa95VK5M+TAOLx60n//vIGNwsY5qD6nyJ7zMvmbrNAEK7gOl/J7BmGqWGIQcRbBY=,iv:6nN65tIOKjKlgoiZCbjlGutlMDM5Ke9MzUCkw2mQkD4=,tag:KKEXL3V/zYMqrR3pB2o3BA==,type:str]
+    unencrypted_suffix: _unencrypted
+    version: 3.13.0
