@@ -3,6 +3,7 @@ app-template:
         core-keeper:
             stringData:
                 GAME_ID: ENC[AES256_GCM,data:ljTHiDVsQe3M0hzKn3lkJ7aOwjSDeOU/evLHkg==,iv:q6+LRuXXQ3IP6CJl98DP5yn3ayCyYOa3p5PDGumxVXk=,tag:Z+zLUJgEIUd1EIrpU4zNKQ==,type:str]
+                PASSWORD: ENC[AES256_GCM,data:sUdsVw==,iv:2//Jf5IPF/9cYPnBppe8+889jahxJtNjFdXBZKeLATM=,tag:f5dmdDy3LJUrR0ltv25fQw==,type:str]
 sops:
     age:
         - enc: |
@@ -23,7 +24,7 @@ sops:
             9OVY2Hqng4G9ASX2dxefLIQEbG9ppEunIVVsB3LQrHEc08qJua17+A==
             -----END AGE ENCRYPTED FILE-----
           recipient: age1kt5aynyagn4t6v4epgl95ls9gpskq49f07j2v797g99zhje8teussmnytu
-    lastmodified: "2026-09-13T13:44:09Z"
-    mac: ENC[AES256_GCM,data:rrNmzz32Jqtt6qCkbwnq9wZCtKKLn3blWheTyuFB/5R0xpj25o4AZEvCp3vlG3LSEyPn3k3v7Yyn/WcnsjpH32WyLjiRiU+0XGnrjM+nxEmSa95VK5M+TAOLx60n//vIGNwsY5qD6nyJ7zMvmbrNAEK7gOl/J7BmGqWGIQcRbBY=,iv:6nN65tIOKjKlgoiZCbjlGutlMDM5Ke9MzUCkw2mQkD4=,tag:KKEXL3V/zYMqrR3pB2o3BA==,type:str]
+    lastmodified: "2026-09-14T05:02:39Z"
+    mac: ENC[AES256_GCM,data:B6654o2L/+aQHB7ZqI10hmLr/9bxAyWu/fpWbR0beLoK3ItzwqdSncburBTziaGQ3v2q/AMjkHNqqLCjRgEqHLPfynotcGGWAmCwmV6z5UHYykkTnPZWaWb6wt40WwU0wIJPUfC93YOAuSxBpAvoKpENe2+iXqibjL7MjrgGqe4=,iv:l414lB9OI6RsBotlHZV/s4RcC+Dg9RStGWeEysV8/NE=,tag:wyVvw/sM3OcGKMCRy3mH+Q==,type:str]
     unencrypted_suffix: _unencrypted
     version: 3.13.0

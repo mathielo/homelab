@@ -1,11 +1,12 @@
-# Core Keeper runs in Steam Datagram Relay mode: SERVER_PORT is unset, so the
-# server only dials out to Steam's relay network and players join by Game ID —
-# there is no Service or LoadBalancer IP. GAME_ID comes from the `core-keeper`
-# secret, populated by values.sops.yaml; anyone holding it can join.
+# Steam players join by Game ID over Steam's relay network. SERVER_PORT also
+# enables direct connections, reachable on the LAN at 10.10.50.10:27015 (UDP
+# hostPort, hence the pin to k3s-server) with PASSWORD — the Game ID works in
+# both modes. GAME_ID and PASSWORD come from the `core-keeper` secret, populated
+# by values.sops.yaml.
 app-template:
   defaultPodOptions:
     nodeSelector:
-      kubernetes.io/hostname: k3s-node-01
+      kubernetes.io/hostname: k3s-server
     securityContext:
       # Image user `steam` is 1000:1000. Running as it directly skips the
       # entrypoint's usermod + recursive chown; fsGroup makes the volumes writable.
@@ -31,10 +32,16 @@ app-template:
           env:
             WORLD_MODE: "1" # Hard
             MAX_PLAYERS: "2"
+            SERVER_PORT: "27015"
             TZ: Europe/Stockholm
           envFrom:
             - secretRef:
-                identifier: core-keeper # GAME_ID
+                identifier: core-keeper # GAME_ID + PASSWORD
+          ports:
+            - name: game
+              containerPort: 27015
+              hostPort: 27015
+              protocol: UDP
           resources:
             requests:
               cpu: 500m
@@ -46,7 +53,7 @@ app-template:
   secrets:
     core-keeper:
       enabled: true
-      # stringData (GAME_ID) supplied by values.sops.yaml
+      # stringData (GAME_ID, PASSWORD) supplied by values.sops.yaml
       stringData: {}
 
   persistence:
