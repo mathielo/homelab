@@ -103,16 +103,21 @@ Assistant, and the workstation) behind **one wireless link** to the U7 Pro XG. T
 link is the first suspect for any slowness anywhere, and it is the thing this check
 exists to measure.
 
-### 2a. Is the MLO pair actually up?
+### 2a. Is the link the expected one?
 
 ```
-ssh -J UGCMax "$USER@$XG" 'wlanconfig mld0 list sta'
+ssh -J UGCMax "$USER@$XG" 'wlanconfig mld0 list sta; wlanconfig vwireap11 list sta'
 ```
 
-For each mesh child read `CHAN`, `TXRATE`/`RXRATE`, `RSSI`, `ASSOCTIME`, `MLO`,
-`Num Partner links`. `UDB Homelab` should show **two links in one MLD** — 5 GHz
-EHT80 and 6 GHz EHT320 — with `ASSOCTIME` matching the UDB's uptime. An `ASSOCTIME`
-far shorter than uptime means the link has re-associated: correlate with §7.
+MLO is off (§9 standing conditions), so `mld0` answers `Error received: -19` — that error
+is the confirmation it is still off — and `UDB Homelab` is a plain station on `vwireap11`:
+`CHAN 37`, `IEEE80211_MODE_11BEA_EHT320`. Read `TXRATE`/`RXRATE`, `RSSI` and `ASSOCTIME`
+against the UDB's `/proc/uptime`; an `ASSOCTIME` far shorter than uptime means the link
+re-associated — correlate with §7.
+
+**If `mld0` lists stations, MLO is back on** — a re-open trigger — and the rest of this
+subsection applies: `UDB Homelab` then shows **two links in one MLD** (5 GHz EHT80 and
+6 GHz EHT320); read `MLO` and `Num Partner links` as well.
 
 Four traps make a healthy link look broken; they are documented in
 [`docs/wifi-mesh.md`](../../docs/wifi-mesh.md#four-traps). Read them before judging
@@ -227,47 +232,58 @@ alarm.** Two derived figures are the real signals:
   filling a channel is fine; someone else's is not. 🟡 above 20%, 🔴 above 40%.
 - **Retry rate** = `tx_retries / tx_packets`. 🟡 above 20%, 🔴 above 30%. The
   known-good loaded baseline is 10.5% on 5 GHz and 15.0% on 6 GHz.
-  ⚠️ `unifi_get_device_radio` has been observed returning `tx_packets: 0`–`1` for a radio
-  measurably carrying 400 Mbit/s, which makes this check silently divide by ~zero. When
-  `tx_packets` is implausibly small, fall back to the matching `vap_table` entry's
-  `tx_retries` / `tx_total` from `unifi_list_devices` — or say retries were unmeasurable.
-  Never report 0%.
+  ⚠️ **The controller's retry counters exclude the mesh VAPs.** Both
+  `unifi_get_device_radio` and the raw `vap_table` count client SSIDs only, so a radio
+  carrying the whole backhaul reports a few thousand frames (or `0`–`1`), and the ratio
+  describes whichever client shares it. For the backhaul, read the mesh VAP on the AP
+  twice and divide the deltas:
+
+  ```
+  ssh -J UGCMax "$U@$XG" 'apstats -v -i vwireap11 | grep -E "^(Tx Data Packets|Retries) "'
+  ```
+
+  Use the controller figures only for client radios, and say "unmeasurable" rather than
+  dividing by a near-zero `tx_packets`. Never report 0%.
 
 **Normalise airtime as Mbit/s per %self-CU** — measured mesh throughput (§2b) divided by
 `cu_self_tx + cu_self_rx`. This is the number that makes airtime _comparable_: raw CU
 says a channel is busy, efficiency says what it is buying. It is also how to size a
 proposed change before making it — divide the same traffic by a wider channel's
 efficiency to get the CU it would cost there, and how much any one station contributes
-by dividing its own measured rate by the figure. Expect roughly **4.5–4.7 Mbit/s per
-%CU at 80 MHz** and **8–9 at 320 MHz**; a band change is worth about a 2× airtime
-saving, and a station moving tens of kbit/s is worth nothing measurable however bad its
-RSSI looks. Do this arithmetic before proposing to move anything — it separates the
-levers that matter from the ones that merely feel productive.
+by dividing its own measured rate by the figure. Expect roughly **4.4–4.7 Mbit/s per
+%CU at 80 MHz** and **8–9 at 320 MHz**. A client station on the same radio adds its own
+airtime to self-CU, so the figure reads somewhat low while `num_sta` shows one active. A
+band change is worth about a 2× airtime saving, and a station moving tens of kbit/s is
+worth nothing measurable however bad its RSSI looks. Do this arithmetic before proposing
+to move anything — it separates the levers that matter from the ones that merely feel
+productive.
 
 **Band balance is the check that catches the slow-choke.** The 6 GHz radio (ch37 @
 320 MHz) is the widest, quietest pipe in the building and the only one the U7 Mesh
 cannot contend with.
 
-**Do not assume the XG's ch36 carries the flat's clients — check `num_sta` first.** Every
-5 GHz client here associates to the U7 Mesh on ch104; since the Balcony was re-homed,
-ch36 has carried mesh backhaul _only_. So "move clients off 5 GHz" is not a lever on this
-network — there are none to move, and the mesh link is the entire load on that radio.
+**The XG's ch36 carries no mesh backhaul.** `UDB Homelab` meshes on 6 GHz only and the
+Balcony meshes on the U7 Mesh's ch104, so ch36 is a client radio — phones, laptops and the
+Steam Deck roam onto it — and its CU never touches the rack's uplink. The 5 GHz channel
+that does carry backhaul is **ch104**, shared by the Balcony's link and most of the flat's
+5 GHz clients.
 
-Report both radios' CU side by side and call out the imbalance — 🟡 when 5 GHz CU exceeds
-6 GHz CU by more than 25 points under non-trivial load, and **🔴 whenever the normalised
-efficiency lands at the narrow band's figure** (~4.4 rather than ~8–9 Mbit/s per %self-CU),
-whatever raw CU reads. Efficiency catches the collapse at any load; a CU-gap threshold
-only catches it at full tilt, which is how the 2026-09-09 run nearly missed it.
+Report both radios' CU side by side and call out the imbalance — 🟡 when MLO is on and
+5 GHz CU exceeds 6 GHz CU by more than 25 points under non-trivial load, and **🔴 whenever
+the normalised efficiency lands at the narrow band's figure** (~4.4 rather than ~8–9
+Mbit/s per %self-CU), whatever raw CU reads. Efficiency catches the collapse at any load;
+a CU-gap threshold only catches it at full tilt, which is how the 2026-09-09 run nearly
+missed it.
 
 Do **not** try to confirm the split from the mesh VAP byte counters (§2a, trap 4).
 Per-radio airtime is an independent measurement and is the one to trust.
 
-**Weak clients on the mesh channel are an airtime tax.** A station at a poor RSSI
+**Weak clients on a mesh channel are an airtime tax.** A station at a poor RSSI
 transmits at low MCS and holds the channel far longer than its byte count suggests, so
-it steals airtime from the backhaul sharing that radio. List the 5 GHz clients with
-their signal and flag any on the mesh's channel below **−78 dBm** — worst when it is
-something that transmits _continuously_, such as a recording camera. The lever is
-moving that device to the other AP or the other band, not touching the mesh:
+it steals airtime from the backhaul sharing that radio. List the clients on the mesh
+channels (the XG's ch37 and the U7 Mesh's ch104) and flag any below **−78 dBm** — worst
+when it is something that transmits _continuously_, such as a recording camera. The
+lever is moving that device to the other AP or the other band, not touching the mesh:
 
 ```
 unifi_execute unifi_list_clients {"filter_type": "all", "limit": 60}
@@ -307,18 +323,18 @@ Two things decide whether to fire one:
 - **The trigger is per-AP, not per-radio.** There is no band parameter, so scanning the
   U7 Pro XG scans all three of its radios — including the 6 GHz one carrying the whole
   rack's uplink. You cannot scan ch36 alone.
-- **It does not drop the mesh child on this hardware.** The XG completed a full
-  three-band scan at 04:20 on 2026-09-09 — `spectrum_table_time` 1788915600 / 635 / 672,
-  all three bands inside ~72 s — and `UDB Homelab`'s `ASSOCTIME` still matched its full
-  8 d uptime when read three hours later, so the link never re-associated. The tool's own
-  description allows for exactly this: some APs have a dedicated scanning radio. This one
-  behaves as though it does.
+- **It does not drop the mesh child on this hardware.** Verified on 2026-09-09 and
+  2026-09-15: a full three-band XG scan finishes in ~70 s, and `UDB Homelab`'s
+  `ASSOCTIME` runs straight through it. The tool's own description allows for this: some
+  APs have a dedicated scanning radio, and this one behaves as though it does.
 
-Results take up to 5–10 minutes; poll `unifi_get_rf_scan_results` until
-`spectrum_scanning` reads false. Two situations still call for restraint: don't trigger a
-scan *while* measuring a live throughput fault — it perturbs the airtime you are trying to
-read — and don't fire one when the cached table is already fresh enough to answer the
-question. Otherwise, a stale table is a reason to scan, not a reason to hedge.
+Poll `unifi_get_rf_scan_results` until every radio's `spectrum_table_time` is newer than
+the trigger — usually within two minutes, allow ten. **The cached table is the
+controller's nightly scan at ~01:00 UTC**, so a daytime read is hours old by
+construction. Two situations still call for restraint: don't trigger a scan *while*
+measuring a live throughput fault — it perturbs the airtime you are trying to read — and
+don't fire one when the cached table is already fresh enough to answer the question.
+Otherwise, a stale table is a reason to scan, not a reason to hedge.
 
 Reading it correctly:
 
@@ -327,7 +343,9 @@ Reading it correctly:
 - **`utilization` is airtime on that channel**, ours included.
 - The two together are the whole point: **high utilization with interference at the
   noise floor means the channel is full of our own traffic, and no channel change will
-  help** — the only levers are moving load off that radio or making it more efficient.
+  help** — on 6 GHz that includes any secondary 20 MHz row inside ch37's own 320 MHz
+  block, which can read up to 100% at `-96`. The only levers are moving load off that
+  radio or making it more efficient.
   High utilization _with_ a strong interferer is the opposite case, and there a channel
   move is the fix.
 - An AP scanning the band it is _operating_ in will report its own transmissions as
@@ -364,6 +382,9 @@ For every up port: `speed`, `full_duplex`, `rx_errors`, `tx_errors`, `rx_dropped
   own NIC is the limit, so report the observation and let the user judge; do not diff
   against a stored table of expected speeds. A `NEGOTIATED_LOW_UPLINK_PORT_SPEED`
   event (§7) is the controller reaching the same conclusion.
+  Whether the endpoint's NIC is the limit is one read on that host:
+  `ethtool <iface> | grep -A4 'Supported link modes'` (the UNAS-4's sysfs `speed` file
+  errors; `ethtool` works).
 - **Error and drop counters are lifetime totals** — a large absolute number on a port
   with months of uptime says nothing. Sample twice ~60 s apart and report the _rate_;
   only a counter that is still moving is a finding.
@@ -407,8 +428,10 @@ unifi_execute unifi_get_gateway_stats {"duration": "hourly"}
   set is exactly `{AirWire}`; if it is, the subsystem status is ⚪ by-design. If any
   other device is offline, or the subsystems are non-`ok` with everything online, it
   is a real finding.
-- **Gateway load** — `cpu_usage`, `mem_pct`, `load_avg_1` from the device list.
-  🟡 CPU above 70% sustained or memory above 85%.
+- **Gateway load** — `mem_pct` and `load_avg_1` from the device list; judge CPU from the
+  hourly `cpu` in `unifi_get_gateway_stats`, because the device list's `cpu_usage` is a
+  point sample that bursts past 80% inside hours averaging 20–40%. 🟡 CPU above 70%
+  sustained or memory above 85%.
 - **WAN** — `wan1_up`, the negotiated WAN port speed, and the rx/tx rates. The WAN
   port is 1 GbE, so it, not the mesh, is the ceiling for internet-sourced traffic.
 - **ISP quality** — `ISP_PACKET_LOSS`, `ISP_HIGH_LATENCY`, `NETWORK_WAN_FAILED*`,
@@ -431,27 +454,33 @@ unifi_execute unifi_get_gateway_stats {"duration": "hourly"}
 
 ```
 unifi_execute unifi_list_alarms
+unifi_execute unifi_list_events {"within_hours": <window>, "limit": 100, "severities": ["HIGH", "VERY_HIGH"]}
+unifi_execute unifi_list_events {"within_hours": <window>, "limit": 100, "categories": ["UNIFI_DEVICES", "UNIFI_ETHERNET_PORTS", "INTERNET_AND_WAN", "POWER", "SOFTWARE_UPDATES", "VPN", "AUDIT", "UNKNOWN"]}
 unifi_execute unifi_list_events {"within_hours": <window>, "limit": 200}
 ```
 
 Any **active alarm** is a finding by definition and goes straight to §9.
 
-⚠️ **`limit: 200` overflows the tool output budget** — the result is written to a file
-instead, and the raw feed is too large to read back inline. Aggregate it from that
-file rather than re-querying with a smaller limit:
+**The unfiltered feed covers hours, not the window.** `SECURITY` (the firewall blocks on
+the accept-list below) and `CLIENT_DEVICES` (connect/roam churn) fill a 200-event page in
+about half a day. The two filtered calls leave both out and return the whole window in a
+few KB — they are what answers "did X happen". For the table's keys that can land in
+those two
+(`ROGUE_*`, `NETWORK_LOOP_*`, `CLIENT_LINK_FLAP_WIRED`, `CLIENT_WIFI_SCORE_*`), run one
+exact `event_type` query each through `unifi_batch`; an empty result is trustworthy
+(`DEVICE_UNREACHABLE` returns its event as a positive control). An invalid `event_type`
+returns the full enum in the error.
+
+The unfiltered page is for ranking churn only. ⚠️ **`limit: 200` overflows the tool
+output budget** — the result is written to a file; aggregate from it rather than
+re-querying:
 
 ```
 grep -oP '"key":\s*"\K[A-Z_0-9]+' "$F" | sort | uniq -c | sort -rn
 ```
 
-**And check what window the 200 events actually cover** (`"time"` is epoch ms). This
-network generates enough connect/disconnect churn that 200 events is well under a day,
-so a `within_hours: 24` request silently returns far less. Report the covered span, not
-the requested one — and never conclude "no X in 24h" from a truncated feed.
-
-`unifi_list_events` takes an exact `event_type` enum key — an invalid one returns the
-full list of accepted values in the error, which is the fastest way to find the right
-key. Use `unifi_get_event_types` for what has actually been observed recently.
+Report the span those 200 actually cover (`"time"` is epoch ms), not the requested
+window, and never conclude "no X" from it.
 
 `unifi_get_anomalies` is a second, independent feed worth one call — it is where
 `AP_HIGH_UTILISATION`, `USER_DNS_TIMEOUT` and `USER_HIGH_TCP_LATENCY` land, and a burst of
@@ -478,7 +507,7 @@ almost never is. Then check these explicitly, because they are quiet and importa
 | `POE_BUDGET_EXCEEDED*`, `POE_PORT_BUDGET_EXCEEDED*`              | Two APs and two Pi-class devices draw PoE from one switch                           |
 | `MAC_TABLE_APPROACHING`, `MAC_TABLE_FULL`, `PORT_*_STORM`        | Forwarding-plane trouble that looks like generic slowness                           |
 | `FIRMWARE_UPDATE_AVAILABLE*`, `BULK_FIRMWARE_UPDATE_AVAILABLE`   | Cross-check against §5                                                              |
-| `AFC_*`                                                          | 6 GHz standard power depends on AFC; a failure quietly drops the mesh band's budget |
+| `AFC_*`                                                          | XG 6 GHz is LPI (raw `radio_table`: `afc_done: 0`); an AFC event means it moved     |
 | `CLIENT_WIFI_SCORE_HAS_DROPPED*`                                 | The controller's own view of a degrading client                                     |
 
 ## 8. Protect subsystem
@@ -493,6 +522,13 @@ protect_execute protect_list_cameras
 Flag any camera not `CONNECTED`, and note which are wireless — a wireless camera
 degrading is an early symptom of the same airtime pressure §3 measures. Cross-check
 the NVR's own console version in §5.
+
+**Every camera belongs on VLAN 20.** Wireless cameras join the shared SSID and reach
+Protect only through a per-client **Virtual Network Override**; a camera without one
+lands on VLAN 10 Trusted, outside the Protect segment and with Trusted's reach into
+Servers, and its stream is routed through the gateway to the NVR. Check that every
+camera's `ip` in the §3 client list is `10.10.20.x` — anything else is a 🔧: set that
+client's override to `VLAN 20 - Protect`.
 
 ## 9. Warnings sweep & assessment (the headline output)
 
@@ -537,10 +573,11 @@ have fixed it since the last run, and telling them otherwise is worse than silen
   (expect `fallback: false`) before reopening. If these events return, the plugin config
   was reset — re-apply rather than re-investigating.
 - **`Dev UGC Max was blocked from accessing 8.8.8.8 / 1.1.1.1 by the Block DoH -
-Internal Firewall Policy`** — 165 events in 14 h on the 2026-09-09 run, the single
-  largest contributor to the feed. `Dev UGC Max` is out-of-scope dev equipment on the
-  Homelab bridge, and the block is the DNS-leak policy working on a device that probes
-  hardcoded DoH resolvers. Not the Home Assistant case above (that one was fixed at
+Internal Firewall Policy`** — every ~5 min (~290 a day), the single largest
+  contributor to the feed and the reason an unfiltered page covers hours (§7).
+  `Dev UGC Max` is out-of-scope dev equipment on the Homelab bridge, and the block is
+  the DNS-leak policy working on a device that probes hardcoded DoH resolvers. Not the
+  Home Assistant case above (that one was fixed at
   source). Count it and move on; there is nothing to fix on our side.
 - **k3s-node-01 shown at `10.10.50.3`** in the controller's client list — that is the
   MetalLB VIP, L2-announced from whichever node currently holds it, so the controller
@@ -548,7 +585,12 @@ Internal Firewall Policy`** — 165 events in 14 h on the 2026-09-09 run, the si
 - **The secondary MLO link reporting `STATE 3` with blank `HTCAPS` and `IEs: 00`** —
   association state lives on the primary link. Documented trap 3.
 - **Mesh VAP per-link byte counters reading zero in one direction** — the MLO
-  accounting artifact, on both the AP and the UDB. Only the sum is real.
+  accounting artifact, on both the AP and the UDB. Only the sum is real. With MLO off,
+  `vwireap10` / `vwiresta0` read zero because no 5 GHz mesh link exists.
+- **`AP_HIGH_UTILISATION` on the U7 Pro XG through loaded hours** — fires every 5 min
+  while the backhaul is busy. It is ch37's own backhaul airtime, which the standing
+  conditions already accept as the cost of the work. It is a finding only when §3 shows
+  that radio's external airtime or efficiency breaching.
 
 ### Standing accepted conditions
 
@@ -558,7 +600,7 @@ leaves this table and becomes a 🔴 finding.
 
 | Since      | Condition                                                                                            | Why accepted                                                                                                                                                                                                                                              | Re-open when                                                                                                                                                                                                                 |
 | ---------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-09-08 | Whole rack + workstation behind one wireless mesh link (`UDB Homelab`)                               | No cable runs are possible in the apartment; this is the architecture, not a defect                                                                                                                                                                       | Mesh falls **short of** the child NIC by more than 8% under load (a surplus never counts — §2b) · the link drops to a single MLO link · mesh downstream stays pinned flat while measured demand exceeds it                   |
+| 2026-09-08 | Whole rack + workstation behind one wireless mesh link (`UDB Homelab`)                               | No cable runs are possible in the apartment; this is the architecture, not a defect                                                                                                                                                                       | Mesh falls **short of** the child NIC by more than 8% under load (a surplus never counts — §2b) · mesh downstream stays pinned flat while measured demand exceeds it                                                         |
 | 2026-09-09 | **MLO disabled** on the mesh WLAN; `UDB Homelab` runs a single-link 6 GHz backhaul on ch37 @ 320 MHz | With MLO on, the MLD associated both links and ran ~100% of traffic over the 80 MHz link for 8 days — a silent 2× loss. The controller exposes no link-selection control, so disabling MLO is the only deterministic fix. Reported to Ubiquiti 2026-09-09 | MLO is re-enabled (a firmware update restoring defaults would do it) · normalised efficiency drops to ~4.4 Mbit/s per %self-CU, meaning traffic is back on an 80 MHz link · a second mesh child needs MLO for its own uplink |
 
 Baselines for those rows (quote current numbers against them — an accepted condition
@@ -571,8 +613,8 @@ only so a quiet run has something to compare against.
 | Fault — MLO on, collapsed onto ch36          | 404 Mbit/s | 33 Mbit/s  | +1.6% down · −4.0% up | **4.43**   | **95 (93)**    | 7 (7)          |
 | Reference — 6 GHz single link, 2026-08-28    | 526 Mbit/s | 157 Mbit/s | 0.9% down             | 8.9        | 20             | 82             |
 
-`UDB Homelab` uplink is now a **single 6 GHz link**: ch37 EHT320, −66 dBm, 1153–1729 Mbps,
-no MLD (`wlanconfig mld0 list sta` returns `-19`). External airtime on ch37 is 1%.
+`UDB Homelab` uplink is a **single 6 GHz link** (§2a): ch37 EHT320, −65 to −66 dBm,
+1080–1729 Mbps. External airtime on ch37 is 1–5%.
 
 **Efficiency is the row that matters.** 8.5 Mbit/s per %self-CU is a 320 MHz link doing its
 job; 4.4 is the same traffic squeezed onto 80 MHz. High CU on ch37 is the cost of the work,
@@ -598,13 +640,13 @@ Use 🟢 / 🟡 / 🔴 everywhere state is reported, plus ⚪ for by-design rows
 deliberately exempt. Use ⚠️ inline when calling out a specific warning in prose.
 
 1. One-line **verdict** (🟢 healthy / 🟡 N warnings / 🔴 issues), with standing
-   conditions riding along: `🟢 healthy — 2 standing (mesh SPOF, 6 GHz idle)`. It can
+   conditions riding along: `🟢 healthy — 2 standing (mesh SPOF, MLO off)`. It can
    never be 🟢 while an unassessed alarm is active.
 2. **Topology map** — the current tree (gateway → switch → APs → mesh children →
    wired clients), with any §1 drift marked. This is the section that makes the rest
    readable; render it even when nothing drifted.
-3. **Mesh table** — per direction: measured throughput, child NIC, divergence, MLO
-   link states and PHY rates, and **the offered load it was measured under**. If the
+3. **Mesh table** — per direction: measured throughput, child NIC, divergence, link
+   state and PHY rates, and **the offered load it was measured under**. If the
    network was idle, say so here, not in a footnote.
 4. **Radio table** — one row per radio: `Status | AP | Band | Ch/Width | CU | External | Retries | Stations`.
 5. **Wired line** — anything linked slower than both ends support, or any error

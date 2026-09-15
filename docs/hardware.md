@@ -84,7 +84,6 @@ else uses DHCP.
 | U7 Pro XG           | UniFi AP           | Dynamic    |
 | U7 Mesh             | UniFi AP           | Dynamic    |
 | UDB Homelab         | UniFi Dream Bridge | Dynamic    |
-| UDB Living Room     | UniFi Dream Bridge | Dynamic    |
 | UDB G6 Balcony      | UniFi PoE mesh     | Dynamic    |
 | AirWire             | UniFi AP           | Dynamic    |
 

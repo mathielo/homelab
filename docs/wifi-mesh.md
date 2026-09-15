@@ -1,7 +1,7 @@
 # WiFi & Mesh Backhaul
 
 The apartment has no in-wall ethernet and no cross-room cable runs are possible, so
-three UniFi Dream Bridge switches (UDBs) reach the network over **wireless mesh
+two UniFi Dream Bridge switches (UDBs) reach the network over **wireless mesh
 backhaul**. Every byte between the k3s cluster / NAS and the rest of the world
 crosses one of those mesh links — which makes this layer the first suspect for any
 "X is slow" report.
@@ -29,11 +29,10 @@ ssh UGCMax 'ip neigh show | grep -i "<mac-suffix>"'
 
 Mesh children:
 
-| UDB         | MAC suffix  | Parent    | Link(s)                       |
-| ----------- | ----------- | --------- | ----------------------------- |
-| Homelab     | `…1a:b5:f2` | U7 Pro XG | 6 ch37 (single link, MLO off) |
-| Living Room | `…1a:b7:2e` | U7 Pro XG | 5 ch36 (single link)          |
-| G6 Balcony  | `…b4:7e:b9` | U7 Mesh   | 5 ch104                       |
+| UDB        | MAC suffix  | Parent    | Link(s)                       |
+| ---------- | ----------- | --------- | ----------------------------- |
+| Homelab    | `…1a:b5:f2` | U7 Pro XG | 6 ch37 (single link, MLO off) |
+| G6 Balcony | `…b4:7e:b9` | U7 Mesh   | 5 ch104                       |
 
 **MLO is disabled** on the mesh WLAN — see [The MLD collapses onto one
 link](#the-mld-collapses-onto-one-link). `UDB Homelab` therefore reaches the XG over one
@@ -132,7 +131,7 @@ investigation. Each cost real time.
 ## MLO children need a 6 GHz-capable parent
 
 A WiFi 7 MLO UDB **cannot** be pinned to a parent that lacks a 6 GHz radio, even
-though the UI offers it. Pinning `UDB Living Room` to the U7 Mesh failed
+though the UI offers it. Pinning an MLO UDB to the U7 Mesh failed
 reproducibly: it associated cleanly (`WPA: authorized`), then ~8 s later the AP
 logged `Receive UBNT_ROAM from <XG 6 GHz mesh BSSID>` and issued `immed disassoc`.
 
