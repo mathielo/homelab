@@ -1,7 +1,7 @@
 ---
-description: Health sweep of the UniFi network (topology drift, mesh backhaul, AP airtime, wired path, consoles/firmware, WAN, events) — never changes network config (an RF scan is the one permitted device action); may apply its own skill-feedback edits to this file
+description: Health sweep of the UniFi network (topology drift, mesh backhaul, AP airtime, wired path, consoles/firmware, WAN, events) — never changes network config (an RF scan and a one-shot iperf3 test are the permitted device actions); may apply its own skill-feedback edits to this file
 argument-hint: "[event window, e.g. 24h, 7d — default 24h]"
-allowed-tools: mcp__plugin_unifi-network_unifi-network__unifi_execute, mcp__plugin_unifi-network_unifi-network__unifi_tool_index, mcp__plugin_unifi-network_unifi-network__unifi_batch, mcp__plugin_unifi-network_unifi-network__unifi_batch_status, mcp__plugin_unifi-protect_unifi-protect__protect_execute, mcp__plugin_unifi-protect_unifi-protect__protect_tool_index, Bash(ssh:*), Bash(kubectl get:*), Bash(kubectl exec:*), Bash(ping:*), Bash(git status:*), Bash(git diff:*), Bash(jq:*), Bash(python3:*), Bash(grep:*), Bash(sed:*), Bash(awk:*), Bash(echo:*), Bash(printf:*), Bash(date:*), Bash(sort:*), Bash(uniq:*), Bash(head:*), Bash(tail:*), Bash(cut:*), Bash(wc:*), Bash(for:*), Read, Edit
+allowed-tools: mcp__plugin_unifi-network_unifi-network__unifi_execute, mcp__plugin_unifi-network_unifi-network__unifi_tool_index, mcp__plugin_unifi-network_unifi-network__unifi_batch, mcp__plugin_unifi-network_unifi-network__unifi_batch_status, mcp__plugin_unifi-protect_unifi-protect__protect_execute, mcp__plugin_unifi-protect_unifi-protect__protect_tool_index, Bash(ssh:*), Bash(kubectl get:*), Bash(kubectl exec:*), Bash(ping:*), Bash(iperf3:*), Bash(git status:*), Bash(git diff:*), Bash(jq:*), Bash(python3:*), Bash(grep:*), Bash(sed:*), Bash(awk:*), Bash(echo:*), Bash(printf:*), Bash(date:*), Bash(sort:*), Bash(uniq:*), Bash(head:*), Bash(tail:*), Bash(cut:*), Bash(wc:*), Bash(for:*), Read, Edit
 ---
 
 Run an on-demand health check of the UniFi network and give me a structured report.
@@ -17,10 +17,14 @@ no writes to UniFi through any path: no reboot/provision/adopt/upgrade/rename/lo
 block/forget, no config change on a console over SSH. SSH is for reading counters and
 versions. Propose every change as something the user applies in the UI or as code.
 
-The one exception is **`unifi_trigger_rf_scan`** (§3b): it is gated behind a confirmation
-because it acts on a device, but it alters no configuration and only refreshes a
-measurement. Requiring confirmation is therefore not the test of what this check may
-call — *changing the network* is.
+There are two exceptions, and neither changes configuration:
+
+- **`unifi_trigger_rf_scan`** (§3b) is gated behind a confirmation because it acts on a
+  device, but it only refreshes a measurement. Requiring confirmation is therefore not
+  the test of what this check may call — *changing the network* is.
+- **A one-shot `iperf3` server on the gateway** (§2e). The binary ships in its firmware;
+  `timeout … iperf3 -s -1` serves a single test and exits, leaving nothing behind. Its
+  cost is 30 s of a saturated backhaul, which §2e gates.
 
 The one thing this check may write is **this file** — the §9 skill-feedback edits,
 applied when the working tree is clean and proposed as a diff when it is not. Never
@@ -200,10 +204,11 @@ downloading at their combined ceiling (~80 MB/s, i.e. ~640 Mbit/s — the figure
 **bytes**, and reading it as bits understates the target by 8x) _while_ Plex streams and
 the workstation is in normal use, with none of the three visibly degraded. That is the
 state this network holds most of the time and the state a run should try to assess.
-If the offered load is far below it, say so plainly and mark the section
-**⚪ inconclusive — network idle**, rather than reporting a clean bill of health the
-measurement does not support. Note the known-good ceiling under real load is
-663 Mbit/s downstream (`docs/wifi-mesh.md`), so tens of Mbit/s is not a ceiling.
+Below it, the passive reading says nothing about capacity — §2e measures the ceiling
+directly. Mark the section **⚪ inconclusive — network idle** only when §2e was skipped,
+rather than reporting a clean bill of health the measurement does not support. The air
+ceiling is ~0.95–1.05 Gbit/s downstream (§9 baselines), above the WAN, so tens of
+Mbit/s is never a ceiling.
 
 The reverse misreading matters too: ~70–80 MB/s of combined qBittorrent and Plex
 traffic is **normal working load**, not a fault. Never propose capping
@@ -215,6 +220,66 @@ Traffic that crosses a VLAN between two devices on the same bridge hairpins the 
 twice instead of switching locally (`docs/wifi-mesh.md`). So a workload that _starts_
 crossing VLANs — a new service reaching the NAS from VLAN 10, say — is a throughput
 finding, not just a routing detail. Check that NAS traffic is still intra-VLAN 50.
+
+### 2e. Link ceiling — active test
+
+Passive counters show what the link carries, never what it could carry. iperf3 from the
+workstation to the gateway drives the link to saturation so the XG's counters can read
+the ceiling. This is the one pair worth testing: the workstation is wired to
+`UDB Homelab` at 2.5 GbE, the gateway sits beyond the mesh on the 2.5 GbE spine, both
+already have iperf3, and the Trusted → Gateway zone allows port 5201. The UNAS-4 and the
+k3s nodes either share the same air path or never touch it, and their CPUs or 1 GbE NICs
+cap below the link.
+
+**iperf3's own number is not the result** — it is only what was left after qBittorrent,
+SAB and Plex took their share. The XG's `vwireap11` counters carry every byte crossing
+the air, so their total over the test window _is_ the ceiling and nothing needs
+subtracting. NAS moves and \*arr imports switch locally inside the bridge and never
+reach those counters.
+
+**Skip it while Plex is streaming** — saturation stutters a stream. Plex's API needs a
+token, so read the pod's own transmit rate instead; above ~2 Mbit/s (field 10, over the
+5 s) is a session:
+
+```
+P=$(kubectl get pod -n media -l app.kubernetes.io/name=plex -o name | head -1)
+kubectl exec -n media "$P" -c plex -- sh -c 'grep eth0: /proc/net/dev; sleep 5; grep eth0: /proc/net/dev'
+```
+
+Otherwise run it downstream (`-R`: the gateway sends), 4 streams for 30 s, sampling the
+middle 20 s:
+
+```
+XG=<resolved IP>; U=<unifi ssh user>
+ssh UGCMax 'timeout 45 iperf3 -s -1' & sleep 2
+( sleep 4; ssh -J UGCMax "$U@$XG" 'grep vwireap11: /proc/net/dev; sleep 20;
+    grep vwireap11: /proc/net/dev; apstats -r -i wifi2 | grep "chan util"' > xg.txt ) &
+( sleep 4; ssh UGCMax 'grep "^cpu[0-9]" /proc/stat; sleep 20; grep "^cpu[0-9]" /proc/stat' > gw.txt ) &
+iperf3 -c 10.10.10.1 -P 4 -t 30 -R | grep -E 'SUM.*receiver'
+wait
+```
+
+- **Ceiling** = the `vwireap11` tx delta (field 10) × 8 ÷ 20 s. Report it with iperf3's
+  receiver sum beside it; the gap is the concurrent load.
+- **Air-bound or not.** `Self BSS chan util` is the AP's own airtime and `OBSS chan util`
+  the neighbours', read inside the test window. At ~90% self or above the air is the
+  limit and the number is the ceiling. Below that, check `gw.txt`: a gateway core at
+  ≥ 90% busy (`(total − idle − iowait) / total` between the reads) means the endpoint
+  capped the test and the number is a floor. The gateway is also routing the live WAN
+  traffic, so it runs hot here; the XG and UDB stay far below their limits.
+- **Thresholds**, air-bound only: 🟡 more than 20% below the §9 downloads-paused
+  ceiling, 🔴 more than 40% below. Runs spread by ~10% on their own — the same day
+  read 943 Mbit/s paused and 1056 under load — so a dip inside that band is noise. A
+  low ceiling with the air saturated is a link that lost rate — compare §2a's PHY
+  rates. A floor is not a finding; re-run when the WAN load is lighter.
+
+Upstream (the same run without `-R`, reading the rx delta) only when an upload complaint
+is on the table. Its ceiling is about half the downstream one: under load the UDB
+transmits at ~650 Mbps PHY against the AP's 1441, so ~520 Mbit/s is healthy. It shares
+airtime with whatever the rack is downloading, so the §9 threshold applies only with
+downloads paused — otherwise report the concurrent downstream rate beside it. Not
+`--bidir`: both directions would split one airtime and neither number would mean
+anything.
 
 ## 3. AP radios and airtime
 
@@ -252,9 +317,14 @@ proposed change before making it — divide the same traffic by a wider channel'
 efficiency to get the CU it would cost there, and how much any one station contributes
 by dividing its own measured rate by the figure. Expect roughly **4.4–4.7 Mbit/s per
 %CU at 80 MHz** and **8–9 at 320 MHz**. A client station on the same radio adds its own
-airtime to self-CU, so the figure reads somewhat low while `num_sta` shows one active. A
-band change is worth about a 2× airtime saving, and a station moving tens of kbit/s is
-worth nothing measurable however bad its RSSI looks. Do this arithmetic before proposing
+airtime to self-CU, so the figure reads somewhat low while `num_sta` shows one active.
+Efficiency also climbs toward saturation as frame aggregation fills up (downstream on ch37
+reached 10.7–11.7 at 92–93% self-CU under §2e), so compare figures taken at similar load.
+It is direction-dependent too: saturated **upstream** reads only ~5.9, because the UDB
+transmits at about half the AP's PHY rate — so judge the ~4.4 collapse flag on
+downstream-dominated traffic. A band change is
+worth about a 2× airtime saving, and a station moving tens of kbit/s is worth nothing
+measurable however bad its RSSI looks. Do this arithmetic before proposing
 to move anything — it separates the levers that matter from the ones that merely feel
 productive.
 
@@ -271,9 +341,9 @@ that does carry backhaul is **ch104**, shared by the Balcony's link and most of 
 Report both radios' CU side by side and call out the imbalance — 🟡 when MLO is on and
 5 GHz CU exceeds 6 GHz CU by more than 25 points under non-trivial load, and **🔴 whenever
 the normalised efficiency lands at the narrow band's figure** (~4.4 rather than ~8–9
-Mbit/s per %self-CU), whatever raw CU reads. Efficiency catches the collapse at any load;
-a CU-gap threshold only catches it at full tilt, which is how the 2026-09-09 run nearly
-missed it.
+Mbit/s per %self-CU) on downstream-dominated load, whatever raw CU reads. Efficiency
+catches the collapse at any load; a CU-gap threshold only catches it at full tilt, which
+is how the 2026-09-09 run nearly missed it.
 
 Do **not** try to confirm the split from the mesh VAP byte counters (§2a, trap 4).
 Per-radio airtime is an independent measurement and is the one to trust.
@@ -607,21 +677,25 @@ Baselines for those rows (quote current numbers against them — an accepted con
 still gets measured). **Under load** is the one that counts; the idle figures are kept
 only so a quiet run has something to compare against.
 
-| Measured                                     | Mesh down  | Mesh up    | Divergence vs node-02 | Efficiency | ch36 CU (self) | ch37 CU (self) |
-| -------------------------------------------- | ---------- | ---------- | --------------------- | ---------- | -------------- | -------------- |
-| **Healthy — MLO off, 432 Mbit/s qBt demand** | 515 Mbit/s | 106 Mbit/s | −0.9% down · −1.7% up | **8.51**   | 6 (1)          | **78 (73)**    |
-| Fault — MLO on, collapsed onto ch36          | 404 Mbit/s | 33 Mbit/s  | +1.6% down · −4.0% up | **4.43**   | **95 (93)**    | 7 (7)          |
-| Reference — 6 GHz single link, 2026-08-28    | 526 Mbit/s | 157 Mbit/s | 0.9% down             | 8.9        | 20             | 82             |
+| Measured                                      | Mesh down   | Mesh up    | Divergence vs node-02 | Efficiency | ch36 CU (self) | ch37 CU (self) |
+| --------------------------------------------- | ----------- | ---------- | --------------------- | ---------- | -------------- | -------------- |
+| **Healthy — MLO off, 432 Mbit/s qBt demand**  | 515 Mbit/s  | 106 Mbit/s | −0.9% down · −1.7% up | **8.51**   | 6 (1)          | **78 (73)**    |
+| **Ceiling down — §2e, downloads paused**      | 943 Mbit/s  | 41 Mbit/s  | —                     | **10.7**   | —              | 94 (92)        |
+| Ceiling up — §2e, downloads paused            | 10 Mbit/s   | 517 Mbit/s | —                     | 5.9        | —              | 94 (90)        |
+| Ceiling down — §2e, ~400 Mbit/s qBt alongside | 1056 Mbit/s | 35 Mbit/s  | —                     | 11.7       | —              | 95 (93)        |
+| Fault — MLO on, collapsed onto ch36           | 404 Mbit/s  | 33 Mbit/s  | +1.6% down · −4.0% up | **4.43**   | **95 (93)**    | 7 (7)          |
+| Reference — 6 GHz single link, 2026-08-28     | 526 Mbit/s  | 157 Mbit/s | 0.9% down             | 8.9        | 20             | 82             |
 
 `UDB Homelab` uplink is a **single 6 GHz link** (§2a): ch37 EHT320, −65 to −66 dBm,
 1080–1729 Mbps. External airtime on ch37 is 1–5%.
 
 **Efficiency is the row that matters.** 8.5 Mbit/s per %self-CU is a 320 MHz link doing its
 job; 4.4 is the same traffic squeezed onto 80 MHz. High CU on ch37 is the cost of the work,
-not a ceiling — at 73% self-CU delivering 621 Mbit/s there is headroom to ~850. Latency
-improved with the fix even at higher load: gateway RTT **avg 18.3 ms, max 41.5 ms, mdev
-8.7 ms** from a station behind the bridge, against **29.4 / 64.2 / 15.7 ms** in the fault
-state. Compare against these before calling a latency rise new.
+not a ceiling — the link saturates at ~0.95–1.05 Gbit/s downstream and ~0.52 Gbit/s
+upstream, at 90–93% self-CU (§2e).
+Latency improved with the fix even at higher load: gateway RTT **avg 18.3 ms, max
+41.5 ms, mdev 8.7 ms** from a station behind the bridge, against **29.4 / 64.2 /
+15.7 ms** in the fault state. Compare against these before calling a latency rise new.
 
 Adding a row here is deliberate: it needs the re-open trigger _and_ the baseline,
 otherwise it is not an acceptance, it is a blind spot. Permanent by-design exemptions —
@@ -646,8 +720,9 @@ deliberately exempt. Use ⚠️ inline when calling out a specific warning in pr
    wired clients), with any §1 drift marked. This is the section that makes the rest
    readable; render it even when nothing drifted.
 3. **Mesh table** — per direction: measured throughput, child NIC, divergence, link
-   state and PHY rates, and **the offered load it was measured under**. If the
-   network was idle, say so here, not in a footnote.
+   state and PHY rates, **the offered load it was measured under**, and the §2e ceiling
+   with what bounded it (air or gateway) — or why it was skipped. If the network was
+   idle, say so here, not in a footnote.
 4. **Radio table** — one row per radio: `Status | AP | Band | Ch/Width | CU | External | Retries | Stations`.
 5. **Wired line** — anything linked slower than both ends support, or any error
    counter still moving; otherwise one line saying neither was found. Don't enumerate

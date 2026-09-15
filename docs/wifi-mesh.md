@@ -184,6 +184,14 @@ minutes of one-minute samples):
 At these numbers the path is WAN-limited, not mesh-limited. Throughput varying with
 demand is expected and is not a fault.
 
+The single-link 6 GHz backhaul (MLO off) saturates at **~0.95–1.05 Gbit/s downstream**
+and **~0.52 Gbit/s upstream**, each with ch37 at 90–93% self airtime and 2–4% from
+neighbours — measured 2026-09-15 by loading the link with `iperf3 -P 4` (`-R` for
+downstream) between the workstation and the gateway and reading `vwireap11`. Upstream is
+lower because under load the UDB transmits at ~650 Mbps PHY against the AP's 1441.
+Downstream sits above the WAN, so downloads hit the WAN first; upstream sits below it, so
+sustained uploads reach the mesh ceiling first.
+
 ## Gotchas
 
 - **DFS on a mesh parent costs availability.** ch104 needs a 60 s Channel
