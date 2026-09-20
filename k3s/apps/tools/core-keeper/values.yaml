@@ -44,11 +44,10 @@ app-template:
               protocol: UDP
           resources:
             requests:
-              cpu: 500m
+              cpu: "1"
               memory: 1Gi
             limits:
-              cpu: "2"
-              memory: 4Gi
+              memory: 6Gi
 
   secrets:
     core-keeper:
