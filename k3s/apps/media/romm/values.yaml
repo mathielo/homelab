@@ -89,7 +89,7 @@ app-template:
         romm:
           image:
             repository: rommapp/romm
-            tag: "5.2.0"
+            tag: "5.3.1"
           # The image defines a romm (1000:1000) user but its entrypoint never
           # drops to it, so without this every process — nginx, gunicorn, the RQ
           # workers and valkey — runs as root. The image is built for it: nginx
