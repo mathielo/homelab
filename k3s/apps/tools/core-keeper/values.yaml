@@ -34,6 +34,7 @@ app-template:
             MAX_PLAYERS: "2"
             SERVER_PORT: "27015"
             TZ: Europe/Stockholm
+            ACTIVATE_CONTENT: "LegendaryScepterDungeon,MossBiomeDungeons"
           envFrom:
             - secretRef:
                 identifier: core-keeper # GAME_ID + PASSWORD
@@ -45,9 +46,9 @@ app-template:
           resources:
             requests:
               cpu: "1"
-              memory: 1Gi
+              memory: 4Gi
             limits:
-              memory: 6Gi
+              memory: 8Gi
 
   secrets:
     core-keeper:
