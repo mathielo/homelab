@@ -61,6 +61,15 @@ prometheus:
       # `receivers` carries the Telegram bot_token + chat_id (the secrets) plus a
       # one-line reference to the template above; it lives in values.sops.yaml.
 
+  # This job copies Service labels onto every series. These two change on chart
+  # bumps, which splits each series in two and breaks kube-state-metrics joins
+  # (many-to-many errors) for as long as the bump is inside a query's range.
+  scrapeConfigs:
+    kubernetes-service-endpoints:
+      post_relabel_configs: |
+        - action: labeldrop
+          regex: helm_sh_chart|app_kubernetes_io_version
+
   # Scrape Longhorn manager metrics (longhorn_volume_*, longhorn_node_*) —
   # annotation-based discovery doesn't pick them up, so add an explicit job.
   extraScrapeConfigs: |

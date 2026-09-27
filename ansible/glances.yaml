@@ -49,8 +49,9 @@
       become_user: "{{ ansible_user }}"
       command: "/home/{{ ansible_user }}/.local/bin/uv tool install glances==4.5.7 --with fastapi --with uvicorn --with jinja2"
       register: glances_install
-      changed_when: "'Installed' in glances_install.stdout"
+      changed_when: "'Installed' in glances_install.stderr"
       failed_when: glances_install.rc != 0 and 'already installed' not in glances_install.stderr
+      notify: Restart Glances
 
     - name: Deploy Glances systemd unit
       template:
