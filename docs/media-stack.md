@@ -91,6 +91,7 @@ All services share the `media-data` PVC (NFS-backed from UNAS-4, mounted at `/me
 │   ├── shows/                   ← qBittorrent "nas/shows" category → Sonarr imports from here
 │   ├── books/                   ← qBittorrent "nas/books" category
 │   ├── music/                   ← slskd completed downloads → DroppedNeedle imports from here
+│   ├── held/                    ← DroppedNeedle downloads held for review (its /app/cache/held)
 │   ├── parked/                  ← qBittorrent "nas/parked" category
 │   ├── seeding/                 ← qBittorrent "nas/seeding" category
 │   └── usenet/                  ← SABnzbd download root (music/ → DroppedNeedle)
@@ -351,7 +352,7 @@ slskd is configured through environment variables; `k3s/apps/media/slskd/values.
 
 The first two sit under `app-template.controllers.slskd.initContainers.gluetun.env`, the rest under `app-template.controllers.slskd.containers.slskd.env`.
 
-Incomplete transfers live on `k3s-node-01`'s SSD (`/mnt/ssd/local/slskd`); finished files are moved to `/media/dl/music`. The shared folder is `/media/lib/music`, mounted read-only. The System page at `https://slskd.m6o.dev` shows the VPN state and the forwarded listen port.
+Incomplete transfers live on `k3s-node-01`'s SSD (`/mnt/ssd/local/slskd`); finished files are moved to `/media/dl/music`. The shared folder is `/media/lib/music`, mounted read-only and rescanned every 6 hours (System → Shares → Rescan picks up new imports immediately). The System page at `https://slskd.m6o.dev` shows the VPN state and the forwarded listen port.
 
 ### Step 12: DroppedNeedle
 

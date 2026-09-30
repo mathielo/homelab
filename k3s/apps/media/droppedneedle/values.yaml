@@ -98,3 +98,7 @@ app-template:
       existingClaim: media-data
       globalMounts:
         - path: /media
+        # Held-for-review downloads are full audio files that accumulate until
+        # resolved, so they live on the NAS rather than the Longhorn volume.
+        - path: /app/cache/held
+          subPath: dl/held

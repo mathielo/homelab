@@ -183,8 +183,10 @@ app-template:
             requests:
               cpu: 50m
               memory: 256Mi
+            # Bursts of concurrent searches from DroppedNeedle spike past 1Gi, well
+            # above the ~250-450Mi steady state.
             limits:
-              memory: 1Gi
+              memory: 2Gi
 
   service:
     slskd:
