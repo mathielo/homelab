@@ -332,6 +332,11 @@ app-template:
                   description: Library insights
                   icon: mdi-movie-search
                   siteMonitor: http://prismarr.media.svc.cluster.local:7070
+              - DroppedNeedle:
+                  href: https://dn.m6o.dev
+                  description: Music requests & discovery
+                  icon: mdi-music-circle
+                  siteMonitor: http://droppedneedle.media.svc.cluster.local:8688/health
 
           - Games:
               - RomM:
@@ -379,6 +384,11 @@ app-template:
                     type: sabnzbd
                     url: http://sabnzbd.media.svc.cluster.local:8080
                     key: "{{ "{{HOMEPAGE_VAR_SABNZBD_KEY}}" }}"
+              - slskd:
+                  href: https://slskd.m6o.dev
+                  description: Soulseek
+                  icon: slskd.png
+                  siteMonitor: http://slskd.media.svc.cluster.local:5030/health
               - Autobrr:
                   href: https://autobrr.m6o.dev
                   description: Release automation

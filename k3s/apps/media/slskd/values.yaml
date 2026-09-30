@@ -1,0 +1,304 @@
+# slskd (Soulseek) with Gluetun VPN kill-switch sidecar (ProtonVPN / WireGuard).
+#
+# Network architecture:
+#   - Gluetun runs as a native k8s sidecar (initContainer with restartPolicy: Always)
+#     and slskd shares its network namespace, so all Soulseek traffic exits the tunnel.
+#   - slskd's built-in Gluetun integration polls the control server for the forwarded
+#     port, applies it as the listen port at runtime, and disconnects from Soulseek
+#     whenever the VPN reports down.
+#   - vpn-port-healer restarts the tunnel in-process when ProtonVPN drops the NAT-PMP
+#     forward (gluetun #1749), which never recovers on its own.
+#
+# Storage:
+#   - Incomplete transfers land on node-01's SSD. slskd moves each finished file to
+#     /media/dl/music (a copy, since it crosses filesystems) and only then reports it
+#     complete, so DroppedNeedle never sees a partial file.
+#   - /media/dl/music shares the NFS filesystem with /media/lib/music, which is what
+#     lets DroppedNeedle import with an atomic rename.
+#   - The library is mounted read-only and is the only shared folder: Soulseek peers
+#     treat users who share nothing as leechers.
+app-template:
+  defaultPodOptions:
+    nodeSelector:
+      kubernetes.io/hostname: k3s-node-01
+
+  controllers:
+    slskd:
+      # Recreate lets the old pod fully release the RWO config PVC and its WireGuard
+      # rules before the new pod starts. See: https://github.com/qdm12/gluetun/issues/2471
+      strategy: Recreate
+      pod:
+        # The Longhorn /app volume is written by slskd running as 1000:1000.
+        securityContext:
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+        # Override k8s DNS to fix resolution inside Gluetun VPN.
+        # Default dnsPolicy (ClusterFirst) injects ndots:5 + search domains,
+        # which causes musl's resolver to exhaust search suffixes through
+        # Gluetun's DoT DNS before trying the bare hostname — failing with
+        # "Name has no usable address".
+        dnsPolicy: None
+        dnsConfig:
+          nameservers:
+            - 127.0.0.1
+          options:
+            - name: ndots
+              value: "0"
+
+      initContainers:
+        # The startup probe holds slskd back until the tunnel and DNS are healthy;
+        # for a native sidecar, kubelet gates the next container on startupProbe.
+        gluetun:
+          image:
+            repository: ghcr.io/qdm12/gluetun
+            tag: v3.41.3
+          restartPolicy: Always
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+          probes:
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - /gluetun-entrypoint
+                    - healthcheck
+                initialDelaySeconds: 5
+                periodSeconds: 5
+                failureThreshold: 12
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - /gluetun-entrypoint
+                    - healthcheck
+                initialDelaySeconds: 60
+                periodSeconds: 30
+                failureThreshold: 3
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    # Clean up stale WireGuard IP rules left by previous pods.
+                    # See: https://github.com/qdm12/gluetun/issues/2471
+                    (ip rule del table 51820; ip -6 rule del table 51820) 2>/dev/null || true
+          env:
+            VPN_SERVICE_PROVIDER: protonvpn
+            VPN_TYPE: wireguard
+            # WIREGUARD_PRIVATE_KEY and WIREGUARD_ADDRESSES injected via values.sops.yaml
+            SERVER_COUNTRIES: Sweden
+            # P2P servers are the ones with NAT-PMP; PORT_FORWARD_ONLY refuses to
+            # fall back to a server that cannot forward.
+            SERVER_FEATURES: p2p
+            VPN_PORT_FORWARDING: "on"
+            PORT_FORWARD_ONLY: "on"
+            # Two DoT upstreams so a Cloudflare blip falls back to Quad9 instead of
+            # hitting gluetun's loopback fallback (127.0.0.1:53 = itself → CPU spin).
+            DNS_UPSTREAM_RESOLVERS: "cloudflare,quad9"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+
+        # kubelet creates the hostPath as root and fsGroup does not apply to
+        # hostPaths, while slskd runs as 1000:1000.
+        incomplete-perms:
+          image:
+            repository: busybox
+            tag: "1.38.0"
+          command:
+            - chown
+            - 1000:1000
+            - /incomplete
+
+        vpn-port-healer:
+          image:
+            repository: curlimages/curl
+            tag: "8.22.0"
+          restartPolicy: Always
+          command:
+            - /bin/sh
+            - /scripts/vpn-port-healer.sh
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 200m
+              memory: 32Mi
+
+      containers:
+        slskd:
+          image:
+            repository: slskd/slskd
+            tag: "0.26.0"
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+          env:
+            TZ: Europe/Stockholm
+            SLSKD_UMASK: "002"
+            SLSKD_SHARED_DIR: /media/lib/music
+            # slskd has no filesystem watcher, so imports only become visible to
+            # peers on a rescan; this interval (minutes) is the most they lag.
+            SLSKD_SHARE_CACHE_RETENTION: "360"
+            SLSKD_DOWNLOADS_DIR: /media/dl/music
+            SLSKD_INCOMPLETE_DIR: /incomplete
+            SLSKD_VPN: "true"
+            SLSKD_VPN_PORT_FORWARDING: "true"
+            SLSKD_VPN_GLUETUN_URL: http://127.0.0.1:8000
+            # SLSKD_SLSK_USERNAME / SLSKD_SLSK_PASSWORD (Soulseek account),
+            # SLSKD_USERNAME / SLSKD_PASSWORD (web UI) and SLSKD_API_KEY
+            # (DroppedNeedle) injected via values.sops.yaml
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 5030
+                periodSeconds: 30
+                failureThreshold: 3
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 5030
+                periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+
+  service:
+    slskd:
+      controller: slskd
+      ports:
+        http:
+          port: 5030
+
+  ingress:
+    slskd:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      hosts:
+        - host: slskd.m6o.dev
+          paths:
+            - path: /
+              service:
+                identifier: slskd
+                port: http
+      tls:
+        - hosts:
+            - slskd.m6o.dev
+          secretName: slskd-tls
+
+  configMaps:
+    gluetun-auth:
+      data:
+        # The control server is reachable only from containers sharing the pod
+        # netns. slskd reads the public IP and forwarded port; the healer reads the
+        # port and restarts the tunnel.
+        config.toml: |
+          [[roles]]
+          name = "slskd"
+          routes = ["GET /v1/publicip/ip", "GET /v1/portforward"]
+          auth = "none"
+
+          [[roles]]
+          name = "vpn-port-healer"
+          routes = ["GET /v1/portforward", "PUT /v1/vpn/status"]
+          auth = "none"
+    healer:
+      data:
+        vpn-port-healer.sh: |
+          #!/bin/sh
+          # Re-acquire a lapsed ProtonVPN NAT-PMP port-forward (gluetun #1749) by
+          # restarting the tunnel IN-PROCESS via gluetun's control server
+          CONTROL=http://127.0.0.1:8000
+
+          sleep 90   # grace: let the tunnel connect and acquire its first port
+          miss=0
+          while true; do
+            port=$(curl -fsS --max-time 10 "$CONTROL/v1/portforward" | sed -n 's/.*"port": *\([0-9]\+\).*/\1/p')
+            if [ "${port:-0}" -gt 0 ]; then
+              miss=0
+            else
+              # Require ~90s of sustained port-0 (3 × 30s) to ride out the normal
+              # NAT-PMP keep-alive window without a false restart.
+              miss=$((miss + 1))
+              if [ "$miss" -ge 3 ]; then
+                echo "vpn-port-healer: no forwarded port — restarting VPN via control server"
+                curl -fsS --max-time 10 -X PUT -d '{"status":"stopped"}' "$CONTROL/v1/vpn/status"
+                sleep 5
+                curl -fsS --max-time 10 -X PUT -d '{"status":"running"}' "$CONTROL/v1/vpn/status"
+                miss=0
+                sleep 60   # let gluetun reconnect and re-acquire before re-checking
+              fi
+            fi
+            sleep 30
+          done
+
+  persistence:
+    gluetun-auth:
+      type: configMap
+      identifier: gluetun-auth
+      defaultMode: 0444
+      advancedMounts:
+        slskd:
+          gluetun:
+            - path: /gluetun/auth
+              readOnly: true
+    healer:
+      type: configMap
+      identifier: healer
+      defaultMode: 0555
+      advancedMounts:
+        slskd:
+          vpn-port-healer:
+            - path: /scripts
+              readOnly: true
+    app:
+      existingClaim: slskd-config-lh
+      advancedMounts:
+        slskd:
+          slskd:
+            - path: /app
+    incomplete:
+      type: hostPath
+      hostPath: /mnt/ssd/local/slskd
+      hostPathType: DirectoryOrCreate
+      advancedMounts:
+        slskd:
+          incomplete-perms:
+            - path: /incomplete
+          slskd:
+            - path: /incomplete
+    media:
+      type: persistentVolumeClaim
+      existingClaim: media-data
+      advancedMounts:
+        slskd:
+          slskd:
+            - path: /media/dl/music
+              subPath: dl/music
+            - path: /media/lib/music
+              subPath: lib/music
+              readOnly: true

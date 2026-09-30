@@ -1,0 +1,100 @@
+# DroppedNeedle imports finished downloads from slskd (/media/dl/music) and SABnzbd
+# (/media/dl/usenet/music) into /media/lib/music with an atomic rename, so all three
+# must sit under the single /media mount — a nested mount would turn every import
+# into a copy.
+app-template:
+  controllers:
+    droppedneedle:
+      # RWO config PVC requires the old pod to fully release before the new one
+      # mounts it.
+      strategy: Recreate
+
+      containers:
+        droppedneedle:
+          image:
+            repository: droppedneedle/droppedneedle
+            tag: v2.15.0
+          env:
+            PUID: "1000"
+            PGID: "1000"
+            UMASK: "002"
+            TZ: Europe/Stockholm
+            PORT: "8688"
+            # DroppedNeedle's view of slskd's completed directory.
+            SLSKD_DOWNLOADS_PATH: /media/dl/music
+          probes:
+            # The first boot after an upgrade validates and backs up the database
+            # before serving; upstream allows it 10 minutes.
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 8688
+                periodSeconds: 10
+                failureThreshold: 60
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 8688
+                periodSeconds: 30
+                failureThreshold: 3
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 8688
+                periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+
+  service:
+    droppedneedle:
+      controller: droppedneedle
+      ports:
+        http:
+          port: 8688
+
+  ingress:
+    droppedneedle:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      hosts:
+        - host: dn.m6o.dev
+          paths:
+            - path: /
+              service:
+                identifier: droppedneedle
+                port: http
+      tls:
+        - hosts:
+            - dn.m6o.dev
+          secretName: droppedneedle-tls
+
+  persistence:
+    # SQLite needs real file locking and fsync, so config stays on Longhorn, never NFS.
+    data:
+      existingClaim: droppedneedle-data-lh
+      globalMounts:
+        - path: /app/config
+          subPath: config
+        - path: /app/cache
+          subPath: cache
+        - path: /app/plugins
+          subPath: plugins
+    media:
+      type: persistentVolumeClaim
+      existingClaim: media-data
+      globalMounts:
+        - path: /media

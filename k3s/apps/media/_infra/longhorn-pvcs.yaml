@@ -218,3 +218,29 @@ spec:
   resources:
     requests:
       storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: slskd-config-lh
+  namespace: media
+spec:
+  storageClassName: longhorn
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+# config/ (SQLite), cache/ (artwork, metadata, pre-upgrade DB backups) and
+# plugins/ share one volume via subPaths.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: droppedneedle-data-lh
+  namespace: media
+spec:
+  storageClassName: longhorn
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 10Gi

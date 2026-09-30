@@ -261,6 +261,29 @@
       groupName: 'roms',
     },
     {
+      description: 'Music stack (DroppedNeedle, slskd)',
+      matchDatasources: [
+        'docker',
+      ],
+      matchPackageNames: [
+        'droppedneedle/droppedneedle',
+        'slskd/slskd',
+      ],
+      groupName: 'music',
+    },
+    {
+      // slskd also pushes per-commit builds as 0.26.0.65534-<sha>, which default
+      // docker versioning ranks above the 0.26.0 release.
+      description: 'slskd: stable x.y.z releases only',
+      matchDatasources: [
+        'docker',
+      ],
+      matchPackageNames: [
+        'slskd/slskd',
+      ],
+      versioning: 'regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$',
+    },
+    {
       description: 'Dashboard images',
       matchDatasources: [
         'docker',

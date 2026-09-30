@@ -14,9 +14,13 @@ Push flow:
 Config flow:
   Profilarr (curated quality profiles + custom formats) → Sonarr/Radarr (sync)
 
+Music flow:
+  DroppedNeedle (requests, discovery, import) → slskd (primary) / SABnzbd via Prowlarr (Usenet) → Plex (Plexamp)
+
 Download flow:
   SABnzbd      → Gluetun VPN → Usenet provider  → NFS media library
   qBt (SE, BR, MAM) → Gluetun VPN → Torrent trackers → NFS media library
+  slskd        → Gluetun VPN → Soulseek network → NFS media library
 
 DNS/indexer flow:
   Prowlarr → DrunkenSlug / NZBFinder (NZB search)
@@ -25,22 +29,24 @@ DNS/indexer flow:
 
 ## Services
 
-| Service   | URL                         | Port  | Purpose                                    |
-| --------- | --------------------------- | ----- | ------------------------------------------ |
-| SABnzbd   | `https://sabnzbd.m6o.dev`   | 8080  | Usenet downloader                          |
-| qBt SE    | `https://se.qbt.m6o.dev`    | 8080  | Torrent downloader                         |
-| qBt BR    | `https://br.qbt.m6o.dev`    | 8080  | Torrent downloader                         |
-| qBt MAM   | `https://mam.qbt.m6o.dev`   | 8080  | Torrent downloader (MyAnonaMouse-only)     |
-| qui       | `https://qui.m6o.dev`       | 7476  | Multi-qBt instance manager UI + cross-seed |
-| Prowlarr  | `https://prowlarr.m6o.dev`  | 9696  | Indexer manager/proxy                      |
-| Radarr    | `https://radarr.m6o.dev`    | 7878  | Movie automation                           |
-| Sonarr    | `https://sonarr.m6o.dev`    | 8989  | Shows automation                           |
-| Bazarr    | `https://bazarr.m6o.dev`    | 6767  | Subtitle automation                        |
-| Plex      | `https://plex.m6o.dev`      | 32400 | Media server / playback                    |
-| Autobrr   | `https://autobrr.m6o.dev`   | 7474  | Filtered release automation                |
-| Pulsarr   | `https://pulsarr.m6o.dev`   | 3003  | Automated media requests (Sonarr/Radarr)   |
-| Prismarr  | `https://prismarr.m6o.dev`  | 7070  | Media request portal                       |
-| Profilarr | `https://profilarr.m6o.dev` | 6868  | Quality profiles / custom formats          |
+| Service       | URL                         | Port  | Purpose                                    |
+| ------------- | --------------------------- | ----- | ------------------------------------------ |
+| SABnzbd       | `https://sabnzbd.m6o.dev`   | 8080  | Usenet downloader                          |
+| qBt SE        | `https://se.qbt.m6o.dev`    | 8080  | Torrent downloader                         |
+| qBt BR        | `https://br.qbt.m6o.dev`    | 8080  | Torrent downloader                         |
+| qBt MAM       | `https://mam.qbt.m6o.dev`   | 8080  | Torrent downloader (MyAnonaMouse-only)     |
+| slskd         | `https://slskd.m6o.dev`     | 5030  | Soulseek client                            |
+| qui           | `https://qui.m6o.dev`       | 7476  | Multi-qBt instance manager UI + cross-seed |
+| Prowlarr      | `https://prowlarr.m6o.dev`  | 9696  | Indexer manager/proxy                      |
+| Radarr        | `https://radarr.m6o.dev`    | 7878  | Movie automation                           |
+| Sonarr        | `https://sonarr.m6o.dev`    | 8989  | Shows automation                           |
+| DroppedNeedle | `https://dn.m6o.dev`        | 8688  | Music requests, discovery and import       |
+| Bazarr        | `https://bazarr.m6o.dev`    | 6767  | Subtitle automation                        |
+| Plex          | `https://plex.m6o.dev`      | 32400 | Media server / playback                    |
+| Autobrr       | `https://autobrr.m6o.dev`   | 7474  | Filtered release automation                |
+| Pulsarr       | `https://pulsarr.m6o.dev`   | 3003  | Automated media requests (Sonarr/Radarr)   |
+| Prismarr      | `https://prismarr.m6o.dev`  | 7070  | Media request portal                       |
+| Profilarr     | `https://profilarr.m6o.dev` | 6868  | Quality profiles / custom formats          |
 
 > Searcharr (Telegram request bot) also runs in `media` but has no web UI.
 
@@ -84,13 +90,15 @@ All services share the `media-data` PVC (NFS-backed from UNAS-4, mounted at `/me
 │   ├── movies/                  ← qBittorrent "nas/movies" category → Radarr imports from here
 │   ├── shows/                   ← qBittorrent "nas/shows" category → Sonarr imports from here
 │   ├── books/                   ← qBittorrent "nas/books" category
+│   ├── music/                   ← slskd completed downloads → DroppedNeedle imports from here
 │   ├── parked/                  ← qBittorrent "nas/parked" category
 │   ├── seeding/                 ← qBittorrent "nas/seeding" category
-│   └── usenet/                  ← SABnzbd download root
+│   └── usenet/                  ← SABnzbd download root (music/ → DroppedNeedle)
 └── lib/                         ← ARR apps hardlink here; media servers read here
     ├── movies/                  ← Radarr root folder, Plex movies library
     ├── shows/                   ← Sonarr root folder, Plex shows library
-    └── books/ cartoons/ concerts/ music/ musicvids/ yt/
+    ├── music/                   ← DroppedNeedle library, Plex music library, slskd share (read-only)
+    └── books/ cartoons/ concerts/ musicvids/ yt/
 ```
 
 ### qBittorrent Categories → ARR Correlation
@@ -117,14 +125,15 @@ qBittorrent downloads land on the NVMe scratch (`/local/_incomplete`) and only *
 
 ## VPN Kill-Switch (Gluetun)
 
-SABnzbd and qBittorrent both run behind a Gluetun VPN sidecar for privacy:
+SABnzbd, qBittorrent and slskd all run behind a Gluetun VPN sidecar for privacy:
 
 - **VPN provider:** ProtonVPN (WireGuard)
-- **Server locations:** Sweden (`qbt-se`, SABnzbd), Brazil (`qbt-br`), and a fixed single-ASN set of Sweden servers (`qbt-mam`) — one WireGuard profile per exit
+- **Server locations:** Sweden (`qbt-se`, SABnzbd, slskd), Brazil (`qbt-br`), and a fixed single-ASN set of Sweden servers (`qbt-mam`) — one WireGuard profile per exit
+- **Port forwarding:** qBittorrent and slskd get a ProtonVPN NAT-PMP port. Gluetun pushes it to qBittorrent's API; slskd polls Gluetun's control server itself and disconnects from Soulseek while the tunnel is down
 - **Kill-switch:** If the VPN tunnel drops, all download traffic is blocked (Gluetun firewall)
 - **Bypass subnets:** `10.42.0.0/16` and `10.43.0.0/16` (k3s pod/service CIDRs) so in-cluster communication still works
 
-Credentials (`WIREGUARD_PRIVATE_KEY`, `WIREGUARD_ADDRESSES`) are encrypted per instance in `values-<instance>.sops.yaml`.
+Credentials (`WIREGUARD_PRIVATE_KEY`, `WIREGUARD_ADDRESSES`) are encrypted per instance in `values.sops.yaml`.
 
 ### Restarting a qBittorrent instance
 
@@ -163,17 +172,18 @@ Complete the setup wizard, then configure:
 
 **Config → Folders:**
 
-| Setting                   | Path          |
-| ------------------------- | ------------- |
-| Temporary Download Folder | `/incomplete` |
-| Completed Download Folder | `/media/dl`   |
+| Setting                   | Path               |
+| ------------------------- | ------------------ |
+| Temporary Download Folder | `/incomplete`      |
+| Completed Download Folder | `/media/dl/usenet` |
 
-**Config → Categories:**
+**Config → Categories** (folders are relative to the completed download folder):
 
-| Category | Folder             |
-| -------- | ------------------ |
-| `movies` | `/media/dl/movies` |
-| `shows`  | `/media/dl/shows`  |
+| Category | Folder   |
+| -------- | -------- |
+| `movies` | `movies` |
+| `shows`  | `shows`  |
+| `music`  | `music`  |
 
 Note the **API key** from Config → General → Security.
 
@@ -251,10 +261,17 @@ Complete the setup wizard at `https://plex.m6o.dev`, then:
 
 2. **Add libraries:**
 
-| Library | Content Type | Folder              |
-| ------- | ------------ | ------------------- |
-| Movies  | Movies       | `/media/lib/movies` |
-| Shows   | TV Shows     | `/media/lib/shows`  |
+| Library      | Content Type | Folder                 |
+| ------------ | ------------ | ---------------------- |
+| Movies       | Movies       | `/media/lib/movies`    |
+| Shows        | TV Shows     | `/media/lib/shows`     |
+| Cartoons     | TV Shows     | `/media/lib/cartoons`  |
+| Concerts     | Other Videos | `/media/lib/concerts`  |
+| Music Videos | Other Videos | `/media/lib/musicvids` |
+| YouTube      | Other Videos | `/media/lib/yt`        |
+| Music        | Music        | `/media/lib/music`     |
+
+NFS writes from other pods raise no filesystem events in Plex, so new files appear on the scheduled library scan (Settings → Library → "Scan my library periodically", every 2 hours).
 
 3. **Enable hardware transcoding** (requires Plex Pass):
    - Settings → Transcoder → check "Use hardware acceleration when available"
@@ -319,3 +336,43 @@ Browse `https://profilarr.m6o.dev` and create the admin account (built-in auth i
 3. **Sync** — push the selected profiles to Sonarr/Radarr. The in-pod `profilarr-parser` sidecar powers the release-regex testing used when building/validating formats.
 
 > :bulb: Profilarr stores its config and the \*arr API keys in its own `/config` (Longhorn `profilarr-config-lh` PVC) — no `values.sops.yaml` is required.
+
+### Step 11: slskd
+
+slskd is configured through environment variables; `k3s/apps/media/slskd/values.sops.yaml` holds:
+
+| Key                                           | Value                                                                 |
+| --------------------------------------------- | --------------------------------------------------------------------- |
+| `WIREGUARD_PRIVATE_KEY`                       | ProtonVPN WireGuard config with NAT-PMP (port forwarding) enabled     |
+| `WIREGUARD_ADDRESSES`                         | Same config                                                           |
+| `SLSKD_SLSK_USERNAME` / `SLSKD_SLSK_PASSWORD` | Soulseek account (registered on first login with an unused name)      |
+| `SLSKD_USERNAME` / `SLSKD_PASSWORD`           | slskd web UI login                                                    |
+| `SLSKD_API_KEY`                               | `role=readwrite;cidr=10.42.0.0/16;<key>` — the key DroppedNeedle uses |
+
+The first two sit under `app-template.controllers.slskd.initContainers.gluetun.env`, the rest under `app-template.controllers.slskd.containers.slskd.env`.
+
+Incomplete transfers live on `k3s-node-01`'s SSD (`/mnt/ssd/local/slskd`); finished files are moved to `/media/dl/music`. The shared folder is `/media/lib/music`, mounted read-only. The System page at `https://slskd.m6o.dev` shows the VPN state and the forwarded listen port.
+
+### Step 12: DroppedNeedle
+
+Browse `https://dn.m6o.dev` — the first account created is the admin. Then:
+
+1. **Settings → Library** — library path `/media/lib/music`, then run a scan.
+
+2. **Settings → Download Client:**
+
+   | Setting         | Value                                         |
+   | --------------- | --------------------------------------------- |
+   | slskd URL       | `http://slskd.media.svc.cluster.local:5030`   |
+   | slskd API key   | The key from `SLSKD_API_KEY`                  |
+   | SABnzbd URL     | `http://sabnzbd.media.svc.cluster.local:8080` |
+   | SABnzbd API key | SABnzbd API key (Step 1), category `music`    |
+   | Source priority | slskd first, Usenet second                    |
+
+3. **Settings → Indexers / Prowlarr** — `http://prowlarr.media.svc.cluster.local:9696` + Prowlarr API key.
+
+4. **Settings → Plex** — `http://plex.media.svc.cluster.local:32400` + Plex token (Step 7), Music library.
+
+5. **AcoustID** — a free API key from `https://acoustid.org` enables fingerprint verification; without it, matching relies on tags and text.
+
+Plexamp plays the library through Plex; DroppedNeedle's Plex login lets Plex users sign in and request.
