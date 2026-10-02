@@ -1,0 +1,8 @@
+apiVersion: v2
+name: shelfarr
+description: Ebook and audiobook requests, search and import (drives Prowlarr, qBittorrent and SABnzbd)
+version: 1.0.0
+dependencies:
+  - name: app-template
+    repository: https://bjw-s-labs.github.io/helm-charts/
+    version: "5.*"

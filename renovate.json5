@@ -284,6 +284,29 @@
       versioning: 'regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$',
     },
     {
+      description: 'Book stack (Audiobookshelf, Shelfarr)',
+      matchDatasources: [
+        'docker',
+      ],
+      matchPackageNames: [
+        'ghcr.io/advplyr/audiobookshelf',
+        'ghcr.io/pedro-revez-silva/shelfarr',
+      ],
+      groupName: 'books',
+    },
+    {
+      // Shelfarr also pushes a tag per commit short SHA; an all-digit SHA would
+      // outrank the YYYY.MM.DD.N releases under default docker versioning.
+      description: 'Shelfarr: dated releases only',
+      matchDatasources: [
+        'docker',
+      ],
+      matchPackageNames: [
+        'ghcr.io/pedro-revez-silva/shelfarr',
+      ],
+      versioning: 'regex:^(?<major>\\d{4})\\.(?<minor>\\d{2})\\.(?<patch>\\d{2})\\.(?<build>\\d+)$',
+    },
+    {
       description: 'Dashboard images',
       matchDatasources: [
         'docker',

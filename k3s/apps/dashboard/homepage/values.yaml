@@ -307,6 +307,11 @@ app-template:
                     type: bazarr
                     url: http://bazarr.media.svc.cluster.local:6767
                     key: "{{ "{{HOMEPAGE_VAR_BAZARR_KEY}}" }}"
+              - Audiobookshelf:
+                  href: https://books.m6o.dev
+                  description: Audiobooks & ebooks
+                  icon: audiobookshelf.png
+                  siteMonitor: http://audiobookshelf.media.svc.cluster.local:13378/healthcheck
 
           - Automation:
               - Prowlarr:
@@ -337,6 +342,11 @@ app-template:
                   description: Music requests & discovery
                   icon: mdi-music-circle
                   siteMonitor: http://droppedneedle.media.svc.cluster.local:8688/health
+              - Shelfarr:
+                  href: https://shelfarr.m6o.dev
+                  description: Book requests & search
+                  icon: mdi-bookshelf
+                  siteMonitor: http://shelfarr.media.svc.cluster.local/up
 
           - Games:
               - RomM:

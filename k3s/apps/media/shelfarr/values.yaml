@@ -1,0 +1,97 @@
+# Shelfarr hardlinks finished downloads from /media/dl into /media/lib/books, so the
+# whole share is one /media mount — separate mounts for dl/ and lib/ would turn
+# every import into a copy. qbt-mam and SABnzbd mount the same share at /media too,
+# so the paths they report need no remote path mapping.
+#
+# Everything else (indexers, download clients, Audiobookshelf, output paths, import
+# mode) lives in Shelfarr's own database, set through the admin UI.
+app-template:
+  controllers:
+    shelfarr:
+      # RWO config PVC requires the old pod to fully release before the new one
+      # mounts it.
+      strategy: Recreate
+
+      containers:
+        shelfarr:
+          image:
+            repository: ghcr.io/pedro-revez-silva/shelfarr
+            tag: 2026.09.28.1
+          env:
+            # The entrypoint starts as root, remaps its rails user to PUID/PGID,
+            # chowns only /rails/storage and /rails/tmp, then drops privileges.
+            PUID: "1000"
+            PGID: "1000"
+            TZ: Europe/Stockholm
+            # Runs the background job queue (searches, imports, library sync)
+            # inside the web process instead of a separate worker.
+            SOLID_QUEUE_IN_PUMA: "1"
+          probes:
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /up
+                  port: 80
+                periodSeconds: 10
+                failureThreshold: 30
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /up
+                  port: 80
+                periodSeconds: 30
+                failureThreshold: 3
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /up
+                  port: 80
+                periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 384Mi
+            limits:
+              memory: 1Gi
+
+  service:
+    shelfarr:
+      controller: shelfarr
+      ports:
+        http:
+          port: 80
+
+  ingress:
+    shelfarr:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      hosts:
+        - host: shelfarr.m6o.dev
+          paths:
+            - path: /
+              service:
+                identifier: shelfarr
+                port: http
+      tls:
+        - hosts:
+            - shelfarr.m6o.dev
+          secretName: shelfarr-tls
+
+  persistence:
+    # SQLite needs real file locking and fsync, so storage stays on Longhorn, never NFS.
+    data:
+      existingClaim: shelfarr-data-lh
+      globalMounts:
+        - path: /rails/storage
+    media:
+      type: persistentVolumeClaim
+      existingClaim: media-data
+      globalMounts:
+        - path: /media

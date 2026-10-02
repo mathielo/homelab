@@ -1,0 +1,94 @@
+# Serves the curated /media/lib/books tree that Shelfarr hardlinks into. The library
+# is mounted read-write because web uploads land in it.
+app-template:
+  defaultPodOptions:
+    # Same uid/gid as the download clients and Shelfarr, so uploads and the
+    # folders it creates in the library are owned consistently. The image has no
+    # PUID/PGID handling of its own.
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      fsGroupChangePolicy: OnRootMismatch
+
+  controllers:
+    audiobookshelf:
+      # RWO config PVC requires the old pod to fully release before the new one
+      # mounts it.
+      strategy: Recreate
+
+      containers:
+        audiobookshelf:
+          image:
+            repository: ghcr.io/advplyr/audiobookshelf
+            tag: 2.37.1
+          env:
+            TZ: Europe/Stockholm
+            # The image default of 80 is a privileged port for a non-root user.
+            PORT: "13378"
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /healthcheck
+                  port: 13378
+                periodSeconds: 30
+                failureThreshold: 3
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /healthcheck
+                  port: 13378
+                periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+
+  service:
+    audiobookshelf:
+      controller: audiobookshelf
+      ports:
+        http:
+          port: 13378
+
+  ingress:
+    audiobookshelf:
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+        # Web uploads carry whole audiobooks.
+        nginx.ingress.kubernetes.io/proxy-body-size: "0"
+      hosts:
+        - host: books.m6o.dev
+          paths:
+            - path: /
+              service:
+                identifier: audiobookshelf
+                port: http
+      tls:
+        - hosts:
+            - books.m6o.dev
+          secretName: audiobookshelf-tls
+
+  persistence:
+    # SQLite needs real file locking and fsync, so config stays on Longhorn, never NFS.
+    data:
+      existingClaim: audiobookshelf-data-lh
+      globalMounts:
+        - path: /config
+          subPath: config
+        - path: /metadata
+          subPath: metadata
+    books:
+      type: persistentVolumeClaim
+      existingClaim: media-data
+      globalMounts:
+        - path: /media/lib/books
+          subPath: lib/books

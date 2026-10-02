@@ -17,6 +17,9 @@ Config flow:
 Music flow:
   DroppedNeedle (requests, discovery, import) → slskd (primary) / SABnzbd via Prowlarr (Usenet) → Plex (Plexamp)
 
+Book flow:
+  Shelfarr (requests, search, import) → Prowlarr → qbt-mam / SABnzbd → Audiobookshelf
+
 Download flow:
   SABnzbd      → Gluetun VPN → Usenet provider  → NFS media library
   qBt (SE, BR, MAM) → Gluetun VPN → Torrent trackers → NFS media library
@@ -29,24 +32,26 @@ DNS/indexer flow:
 
 ## Services
 
-| Service       | URL                         | Port  | Purpose                                    |
-| ------------- | --------------------------- | ----- | ------------------------------------------ |
-| SABnzbd       | `https://sabnzbd.m6o.dev`   | 8080  | Usenet downloader                          |
-| qBt SE        | `https://se.qbt.m6o.dev`    | 8080  | Torrent downloader                         |
-| qBt BR        | `https://br.qbt.m6o.dev`    | 8080  | Torrent downloader                         |
-| qBt MAM       | `https://mam.qbt.m6o.dev`   | 8080  | Torrent downloader (MyAnonaMouse-only)     |
-| slskd         | `https://slskd.m6o.dev`     | 5030  | Soulseek client                            |
-| qui           | `https://qui.m6o.dev`       | 7476  | Multi-qBt instance manager UI + cross-seed |
-| Prowlarr      | `https://prowlarr.m6o.dev`  | 9696  | Indexer manager/proxy                      |
-| Radarr        | `https://radarr.m6o.dev`    | 7878  | Movie automation                           |
-| Sonarr        | `https://sonarr.m6o.dev`    | 8989  | Shows automation                           |
-| DroppedNeedle | `https://dn.m6o.dev`        | 8688  | Music requests, discovery and import       |
-| Bazarr        | `https://bazarr.m6o.dev`    | 6767  | Subtitle automation                        |
-| Plex          | `https://plex.m6o.dev`      | 32400 | Media server / playback                    |
-| Autobrr       | `https://autobrr.m6o.dev`   | 7474  | Filtered release automation                |
-| Pulsarr       | `https://pulsarr.m6o.dev`   | 3003  | Automated media requests (Sonarr/Radarr)   |
-| Prismarr      | `https://prismarr.m6o.dev`  | 7070  | Media request portal                       |
-| Profilarr     | `https://profilarr.m6o.dev` | 6868  | Quality profiles / custom formats          |
+| Service        | URL                         | Port  | Purpose                                    |
+| -------------- | --------------------------- | ----- | ------------------------------------------ |
+| SABnzbd        | `https://sabnzbd.m6o.dev`   | 8080  | Usenet downloader                          |
+| qBt SE         | `https://se.qbt.m6o.dev`    | 8080  | Torrent downloader                         |
+| qBt BR         | `https://br.qbt.m6o.dev`    | 8080  | Torrent downloader                         |
+| qBt MAM        | `https://mam.qbt.m6o.dev`   | 8080  | Torrent downloader (MyAnonaMouse, Simurg)  |
+| slskd          | `https://slskd.m6o.dev`     | 5030  | Soulseek client                            |
+| qui            | `https://qui.m6o.dev`       | 7476  | Multi-qBt instance manager UI + cross-seed |
+| Prowlarr       | `https://prowlarr.m6o.dev`  | 9696  | Indexer manager/proxy                      |
+| Radarr         | `https://radarr.m6o.dev`    | 7878  | Movie automation                           |
+| Sonarr         | `https://sonarr.m6o.dev`    | 8989  | Shows automation                           |
+| DroppedNeedle  | `https://dn.m6o.dev`        | 8688  | Music requests, discovery and import       |
+| Shelfarr       | `https://shelfarr.m6o.dev`  | 80    | Book requests, search and import           |
+| Bazarr         | `https://bazarr.m6o.dev`    | 6767  | Subtitle automation                        |
+| Plex           | `https://plex.m6o.dev`      | 32400 | Media server / playback                    |
+| Audiobookshelf | `https://books.m6o.dev`     | 13378 | Audiobook and ebook library / playback     |
+| Autobrr        | `https://autobrr.m6o.dev`   | 7474  | Filtered release automation                |
+| Pulsarr        | `https://pulsarr.m6o.dev`   | 3003  | Automated media requests (Sonarr/Radarr)   |
+| Prismarr       | `https://prismarr.m6o.dev`  | 7070  | Media request portal                       |
+| Profilarr      | `https://profilarr.m6o.dev` | 6868  | Quality profiles / custom formats          |
 
 > Searcharr (Telegram request bot) also runs in `media` but has no web UI.
 
@@ -89,17 +94,18 @@ All services share the `media-data` PVC (NFS-backed from UNAS-4, mounted at `/me
 ├── dl/                          ← download clients write here
 │   ├── movies/                  ← qBittorrent "nas/movies" category → Radarr imports from here
 │   ├── shows/                   ← qBittorrent "nas/shows" category → Sonarr imports from here
-│   ├── books/                   ← qBittorrent "nas/books" category
+│   ├── books/                   ← qBittorrent "nas/books" category → Shelfarr imports from here
 │   ├── music/                   ← slskd completed downloads → DroppedNeedle imports from here
 │   ├── held/                    ← DroppedNeedle downloads held for review (its /app/cache/held)
 │   ├── parked/                  ← qBittorrent "nas/parked" category
 │   ├── seeding/                 ← qBittorrent "nas/seeding" category
-│   └── usenet/                  ← SABnzbd download root (music/ → DroppedNeedle)
+│   └── usenet/                  ← SABnzbd download root
 └── lib/                         ← ARR apps hardlink here; media servers read here
     ├── movies/                  ← Radarr root folder, Plex movies library
     ├── shows/                   ← Sonarr root folder, Plex shows library
     ├── music/                   ← DroppedNeedle library, Plex music library, slskd share (read-only)
-    └── books/ cartoons/ concerts/ musicvids/ yt/
+    ├── books/                   ← Shelfarr library (<Author>/<Title>/), Audiobookshelf library
+    └── cartoons/ concerts/ musicvids/ yt/
 ```
 
 ### qBittorrent Categories → ARR Correlation
@@ -110,6 +116,7 @@ qBittorrent categories define the per-category save path. ARR download clients m
 | -------------------- | ------------------ | ----------- | ------------------------------- |
 | `nas/movies`         | `/media/dl/movies` | Radarr      | `nas/movies`                    |
 | `nas/shows`          | `/media/dl/shows`  | Sonarr      | `nas/shows`                     |
+| `nas/books`          | `/media/dl/books`  | Shelfarr    | `nas/books`                     |
 
 Categories and per-instance preferences are managed declaratively via scripts in [scripts/qbt/](../scripts/qbt/): `apply-categories.sh <instance>` pushes that instance's block of [`categories.yaml`](../scripts/qbt/categories.yaml) (category → save path; each instance has its own set) and `apply-prefs.sh <instance>` pushes [`prefs.yaml`](../scripts/qbt/prefs.yaml), both through the WebUI API.
 
@@ -185,6 +192,7 @@ Complete the setup wizard, then configure:
 | `movies` | `movies` |
 | `shows`  | `shows`  |
 | `music`  | `music`  |
+| `books`  | `books`  |
 
 Note the **API key** from Config → General → Security.
 
@@ -377,3 +385,36 @@ Browse `https://dn.m6o.dev` — the first account created is the admin. Then:
 5. **AcoustID** — a free API key from `https://acoustid.org` enables fingerprint verification; without it, matching relies on tags and text.
 
 Plexamp plays the library through Plex; DroppedNeedle's Plex login lets Plex users sign in and request.
+
+### Step 13: Audiobookshelf
+
+Browse `https://books.m6o.dev` — the first account created is the root admin. Then:
+
+1. **Settings → Libraries → Add** — media type **Books**, folder `/media/lib/books`. One library holds both formats: an ebook and an audiobook in the same `<Author>/<Title>/` folder are one item, with reading and listening progress tracked separately.
+
+2. **Settings → API Keys** — create a key for Shelfarr. The library ID is the last segment of the library's URL.
+
+Library files are hardlinks to torrents that are still seeding, so an in-place write breaks the torrent's piece hashes. Leave **Store metadata with item** off (metadata and covers then live under `/metadata` on the Longhorn volume) and don't run the **Embed Metadata** tool.
+
+### Step 14: Shelfarr
+
+Browse `https://shelfarr.m6o.dev` — the first account created is the admin. Then, under **Admin → Settings**:
+
+| Setting             | Value                                                                            |
+| ------------------- | -------------------------------------------------------------------------------- |
+| Indexer             | Prowlarr, `http://prowlarr.media.svc.cluster.local:9696` + API key, tags `books` |
+| Import mode         | `hardlink`                                                                       |
+| Audiobook output    | `/media/lib/books`, path template `{author}/{title}`                             |
+| Ebook output        | `/media/lib/books`, path template `{author}/{title}`                             |
+| Remote path mapping | empty                                                                            |
+| Audiobookshelf      | `http://audiobookshelf.media.svc.cluster.local:13378` + API key (Step 13)        |
+| ABS library IDs     | The Books library's ID for both the audiobook and the ebook library              |
+
+Download clients have their own page, **Admin → Download Clients** (linked from the admin dashboard, not from Settings):
+
+| Client      | Value                                                                              |
+| ----------- | ---------------------------------------------------------------------------------- |
+| qBittorrent | `http://qbt-mam.media.svc.cluster.local:8080` + WebUI login, category `nas/books`  |
+| SABnzbd     | `http://sabnzbd.media.svc.cluster.local:8080` + API key (Step 1), category `books` |
+
+Every book torrent goes to `qbt-mam` because MAM's session is ASN-locked to that instance's VPN exit (see [MyAnonaMouse dynamic seedbox](#myanonamouse-dynamic-seedbox-qbt-mam)). Both output paths share one template so an ebook and its audiobook land in the same folder, which is what makes them a single Audiobookshelf item.

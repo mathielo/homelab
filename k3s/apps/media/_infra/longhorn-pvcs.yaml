@@ -244,3 +244,31 @@ spec:
   resources:
     requests:
       storage: 10Gi
+---
+# config/ (SQLite) and metadata/ (covers, cache, scheduled backups) share one
+# volume via subPaths.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: audiobookshelf-data-lh
+  namespace: media
+spec:
+  storageClassName: longhorn
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi
+---
+# SQLite database plus the auto-generated Rails master key that encrypts the
+# integration credentials stored in it.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shelfarr-data-lh
+  namespace: media
+spec:
+  storageClassName: longhorn
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi

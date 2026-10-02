@@ -30,6 +30,6 @@ qbt-se:
 
 qbt-mam:
   nas: { save_path: /media/dl }
-  nas/books: { save_path: /media/lib/books }
+  nas/books: { save_path: /media/dl/books }
   r0: { save_path: /r0 }
   r0/books: { save_path: /r0/books }
