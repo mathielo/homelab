@@ -402,19 +402,21 @@ Browse `https://shelfarr.m6o.dev` — the first account created is the admin. Th
 
 | Setting             | Value                                                                            |
 | ------------------- | -------------------------------------------------------------------------------- |
-| Indexer             | Prowlarr, `http://prowlarr.media.svc.cluster.local:9696` + API key, tags `books` |
+| Indexer             | Prowlarr, `https://prowlarr.m6o.dev` + API key, tags `books`                     |
 | Import mode         | `hardlink`                                                                       |
 | Audiobook output    | `/media/lib/books`, path template `{author}/{title}`                             |
 | Ebook output        | `/media/lib/books`, path template `{author}/{title}`                             |
-| Remote path mapping | empty                                                                            |
+| Download paths      | local `/media/dl`, remote empty                                                  |
 | Audiobookshelf      | `http://audiobookshelf.media.svc.cluster.local:13378` + API key (Step 13)        |
 | ABS library IDs     | The Books library's ID for both the audiobook and the ebook library              |
 
 Download clients have their own page, **Admin → Download Clients** (linked from the admin dashboard, not from Settings):
 
-| Client      | Value                                                                              |
-| ----------- | ---------------------------------------------------------------------------------- |
-| qBittorrent | `http://qbt-mam.media.svc.cluster.local:8080` + WebUI login, category `nas/books`  |
-| SABnzbd     | `http://sabnzbd.media.svc.cluster.local:8080` + API key (Step 1), category `books` |
+| Client      | Value                                                                              | Download path            |
+| ----------- | ---------------------------------------------------------------------------------- | ------------------------ |
+| qBittorrent | `http://qbt-mam.media.svc.cluster.local:8080` + WebUI login, category `nas/books`  | `/media/dl/books`        |
+| SABnzbd     | `http://sabnzbd.media.svc.cluster.local:8080` + API key (Step 1), category `books` | `/media/dl/usenet/books` |
+
+Shelfarr only imports from paths under its local download path or a client's download path, and treats each client's path as a shared root it never deletes — without them, finished downloads are refused and SABnzbd job cleanup has no floor.
 
 Every book torrent goes to `qbt-mam` because MAM's session is ASN-locked to that instance's VPN exit (see [MyAnonaMouse dynamic seedbox](#myanonamouse-dynamic-seedbox-qbt-mam)). Both output paths share one template so an ebook and its audiobook land in the same folder, which is what makes them a single Audiobookshelf item.
