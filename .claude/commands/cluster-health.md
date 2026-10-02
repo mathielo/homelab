@@ -5,7 +5,7 @@ allowed-tools: Bash(kubectl get:*), Bash(kubectl top:*), Bash(kubectl logs:*), B
 ---
 
 Run an on-demand health check of the homelab k3s cluster and give me a structured
-report. Log scan window: `$1` (default `1h` if empty).
+report. Log scan window: `$0` (default `1h` if empty), written `W` below.
 
 **The infrastructure is strictly read-only**: `kubectl get`/`top`/`logs`/`describe`/
 `exec` of read commands, and read-only `ssh` OS inspection. No `apply`/`edit`/`patch`/
@@ -32,11 +32,11 @@ string, so always POST:
 
 ```
 PQ()  { kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- wget -qO- \
-        --post-data="query=$(printf %s "$1" | jq -sRr @uri)" localhost:9090/api/v1/query; }
+        --post-data="query=$(printf %s "${1}" | jq -sRr @uri)" localhost:9090/api/v1/query; }
 PQR() { kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- wget -qO- \
-        --post-data="query=$(printf %s "$1" | jq -sRr @uri)&start=$(date -d "${2:-7 days ago}" +%s)&end=$(date +%s)&step=${3:-3600}" \
+        --post-data="query=$(printf %s "${1}" | jq -sRr @uri)&start=$(date -d "${2:-7 days ago}" +%s)&end=$(date +%s)&step=${3:-3600}" \
         localhost:9090/api/v1/query_range; }
-L='\(.metric.pvc // .metric.device // .metric.pod // .metric.node // "-")'
+L='\(.metric.pvc // .metric.persistentvolumeclaim // .metric.device // .metric.pod // .metric.node // "-")'
 ```
 
 **Firing now** — every one goes into the §8 table; a report that says 🟢 while an
@@ -102,13 +102,13 @@ names are the SSH host names, and a hardcoded list goes stale the day one is add
 ```
 for h in $(kubectl get nodes -o name | cut -d/ -f2); do echo "### $h"; ssh -o ConnectTimeout=5 "$h" \
   'cores=$(nproc); load=$(cut -d" " -f1-3 /proc/loadavg); v=$(vmstat 1 2 | tail -1);
-   usr=$(echo $v|awk "{print \$13}"); sys=$(echo $v|awk "{print \$14}"); wa=$(echo $v|awk "{print \$16}");
-   bi=$(echo $v|awk "{print \$9}"); bo=$(echo $v|awk "{print \$10}");
-   mem=$(free -m|awk "/^Mem:/{printf \"%d/%dMi (%d%%)\",\$3,\$2,\$3*100/\$2}");
+   usr=$(echo $v|awk "{print \$(13)}"); sys=$(echo $v|awk "{print \$(14)}"); wa=$(echo $v|awk "{print \$(16)}");
+   bi=$(echo $v|awk "{print \$(9)}"); bo=$(echo $v|awk "{print \$(10)}");
+   mem=$(free -m|awk "/^Mem:/{printf \"%d/%dMi (%d%%)\",\$(3),\$(2),\$(3)*100/\$(2)}");
    echo "cores=$cores load=[$load] cpu_busy=$((usr+sys))% iowait=${wa}% blk_in=${bi} blk_out=${bo} mem=$mem";
-   echo "psi_cpu=$(awk "/some/{print \$3}" /proc/pressure/cpu) psi_io=$(awk "/some/{print \$3}" /proc/pressure/io) psi_mem=$(awk "/some/{print \$3}" /proc/pressure/memory)";
-   echo "dstate=$(ps -eo stat= | grep -c "^D") up=$(awk "{print int(\$1/86400)}" /proc/uptime)d";
-   grep " nfs " /proc/mounts | awk "{print \$2}" | grep -v kubelet;
+   echo "psi_cpu=$(awk "/some/{print \$(3)}" /proc/pressure/cpu) psi_io=$(awk "/some/{print \$(3)}" /proc/pressure/io) psi_mem=$(awk "/some/{print \$(3)}" /proc/pressure/memory)";
+   echo "dstate=$(ps -eo stat= | grep -c "^D") up=$(awk "{print int(\$(1)/86400)}" /proc/uptime)d";
+   grep " nfs " /proc/mounts | awk "{print \$(2)}" | grep -v kubelet;
    test -e /var/run/reboot-required.pkgs && echo "reboot_pending=$(tr "\n" " " < /var/run/reboot-required.pkgs)" || echo "reboot_pending=none";
    df -h -x tmpfs -x devtmpfs -x overlay -x efivarfs --output=target,size,used,pcent | tail -n +2 | grep -vE "/boot/efi"'; echo; done
 ```
@@ -159,8 +159,8 @@ k8s. Two rules before calling it:
   *persists* across a resample is 🔴:
 
   ```
-  ssh <node> 'ps -eo pid,stat,wchan:30,comm --no-headers | awk "\$2 ~ /^D/"; sleep 3;
-    echo ---; ps -eo pid,stat,wchan:30,comm --no-headers | awk "\$2 ~ /^D/"'
+  ssh <node> 'ps -eo pid,stat,wchan:30,comm --no-headers | awk "\$(2) ~ /^D/"; sleep 3;
+    echo ---; ps -eo pid,stat,wchan:30,comm --no-headers | awk "\$(2) ~ /^D/"'
   ```
 
 **Pending kernel reboot** — the nodes install security updates unattended but never reboot
@@ -252,9 +252,9 @@ Then the per-container view, joining live usage against configured values on the
 `ns/pod/container` key:
 
 ```
-awk -F'\t' 'NR==FNR{r[$1]=$2" "$3" "$4" "$5; next} ($1 in r){print $1"\t"$2"\t"$3"\t"r[$1]}' \
+awk -F'\t' 'NR==FNR{r[$(1)]=$(2)" "$(3)" "$(4)" "$(5); next} ($(1) in r){print $(1)"\t"$(2)"\t"$(3)"\t"r[$(1)]}' \
   <(kubectl get pods -A -o json 2>/dev/null | jq -r '.items[]|.metadata.namespace as $ns|.metadata.name as $p|(.spec.containers[], .spec.initContainers[]?)|[$ns+"/"+$p+"/"+.name,(.resources.requests.cpu//"-"),(.resources.limits.cpu//"-"),(.resources.requests.memory//"-"),(.resources.limits.memory//"-")]|@tsv' | sort) \
-  <(kubectl top pods -A --containers --no-headers 2>/dev/null | awk '{print $1"/"$2"/"$3"\t"$4"\t"$5}' | sort)
+  <(kubectl top pods -A --containers --no-headers 2>/dev/null | awk '{print $(1)"/"$(2)"/"$(3)"\t"$(4)"\t"$(5)}' | sort)
 ```
 (columns: `key  cpu_use  mem_use  cpu_req cpu_lim mem_req mem_lim`)
 
@@ -371,8 +371,8 @@ kubectl get volumes.longhorn.io -n longhorn-system -o json | jq -r '.items[]
 ```
 
 Read fields by name, never by column position — `kubectl get` gained a `DATA ENGINE`
-column, so `awk '$2'` on its table output tests the wrong field and reports every volume
-as broken.
+column, so a positional `awk` field on its table output tests the wrong column and reports
+every volume as broken.
 
 Then confirm the recurring `backup`/`snapshot` **job** pods reached `Completed`, matching
 the timestamped job pods only
@@ -444,9 +444,9 @@ count and the diff; do not re-fetch per day:
 B=$(kubectl get backups.longhorn.io -n longhorn-system -o json \
   | jq -r '.items[]|select(.status.state=="Completed")|"\(.status.snapshotCreatedAt)\t\(.status.volumeName)"' \
   | while read -r ts vol; do echo "$(date -d "$ts" +%F) $vol"; done | sort -u)
-echo "$B" | awk '{print $1}' | uniq -c | tail -9      # distinct volumes per local day
-comm -13 <(echo "$B"|awk -v d="$(date -d '2 days ago' +%F)" '$1==d{print $2}') \
-         <(echo "$B"|awk -v d="$(date -d yesterday  +%F)" '$1==d{print $2}')   # what a dip dropped
+echo "$B" | awk '{print $(1)}' | uniq -c | tail -9      # distinct volumes per local day
+comm -23 <(echo "$B"|awk -v d="$(date -d '2 days ago' +%F)" '$(1)==d{print $(2)}') \
+         <(echo "$B"|awk -v d="$(date -d yesterday  +%F)" '$(1)==d{print $(2)}')   # what a dip dropped
 ```
 
 `tail -9` is the point: weekly and monthly backups are retained for months, so the
@@ -479,7 +479,9 @@ target. Two messages, both retried forever:
   (hundreds of lines a day for one bad record), so match the named volume against the
   `Error` list rather than reading the volume as count evidence. It stops when
   `failed-backup-ttl` evicts the CR, so a high count whose record is under a day old needs
-  no action.
+  no action. A named `backup=` with no CR and `… is still in progress` in the error is a
+  run in flight inside the 01:00–05:00 backup window and stops when it ends — count only
+  what logs after the window.
 - `Failed to get info from backup store` … `timeout executing: … system-backup list` — the
   5-minute target reconcile timing out against the NAS. Volume backups can all succeed
   while this fails, so check the volume evidence first. A cluster of these inside a
@@ -534,14 +536,14 @@ being deleted) are in `docs/pvc-maintenance.md` → "When it gets stuck". Never
 `longhorn_volume_actual_size_bytes` on an attached volume for 30m; verify the metric names
 against `/api/v1/label/__name__/values` first.
 
-## 6. Log scan (window `$1`) — every app, with frequency
+## 6. Log scan (window `W`) — every app, with frequency
 
 **Pass 1 — the sweep.** One Loki query covers *every* namespace (`dashboard`, `tools`,
 `metallb-system`, `kube-system` included), so a new or renamed app cannot fall off the
 list, and returns the **count per app** that §8's Frequency column needs:
 
 ```
-W=${1:-1h}
+W=$0; W=${W:-1h}
 Q='sum by (namespace, app) (count_over_time({namespace=~".+"} |~ "(?i)(error|fatal|panic|warn)" != "\"error\":null" != "error=null" ['"$W"']))'
 kubectl exec -n monitoring deploy/grafana -c grafana -- wget -qO- http://loki:3100/loki/api/v1/query \
   --post-data="query=$(printf %s "$Q" | jq -sRr @uri)" \
@@ -589,12 +591,22 @@ log, not merely a fault-free one: noise is what hides the one line that matters.
 by count.
 
 **Pass 2 — the drill-down.** The workstation shell is **zsh**, which does not word-split
-unquoted parameters: iterate `ns pod` pairs with `printf '%s\n' … | while read -r ns pfx`,
-never `for t in "ns app"; do set -- $t`, which yields an empty `$2` and fails silently,
-producing empty sections that look like clean apps.
+unquoted parameters: iterate `ns app` pairs (Pass 1's labels) with
+`printf '%s\n' … | while read -r ns app`, never `for t in "ns app"; do set -- $t`, which
+leaves the second word empty and fails silently, producing empty sections that look like
+clean apps.
+
+Read from Loki, not `kubectl logs`: over a window longer than the pod's age (any multi-day
+window, or any app a Renovate bump just rolled) `kubectl logs` sees only the live pod and
+ranks a fraction of what Pass 1 counted. Loki returns the newest 5 000 lines, so for the
+top few apps the ranking covers the tail of the window — pair it with Pass 1 bucketed by
+`[6h]` for *when*:
 
 ```
-kubectl logs -n "$ns" "$pod" --all-containers --prefix --since="$1" 2>/dev/null \
+sel="{namespace=\"$ns\",app=\"$app\"} |~ \"(?i)(error|fatal|panic|warn)\""
+kubectl exec -n monitoring deploy/grafana -c grafana -- wget -qO- http://loki:3100/loki/api/v1/query_range \
+  --post-data="query=$(printf %s "$sel" | jq -sRr @uri)&limit=5000&since=$W" \
+  | jq -r '.data.result[].values[][1]' \
   | sed 's/\x1b\[[0-9;]*m//g' \
   | grep -iE '\b(error|fatal|panic|warn(ing)?)\b|level=(error|warn)|"level":"(error|warn|fatal)"|[[:space:]]E[0-9]{4}[[:space:]]|\[(error|crit)\]' \
   | grep -ivE '"error":null|error=null|level=info|caller=metrics\.go|warnings\.go|is deprecated|"GET |"POST |HTTP/[12]' \
@@ -614,8 +626,10 @@ need different responses, so the count must survive into §8.
 Match on **log-severity markers**, not bare substrings (`fail` matches the `failed_only`
 query param in nginx access logs; `error` matches `"error":null`).
 
-If Loki is down, fall back to Pass 2 across every namespace from `kubectl get ns` (not a
-hardcoded list) and say in the report that the sweep ran degraded.
+If Loki is down, feed `kubectl logs -n "$ns" "$pod" --all-containers --prefix --since="$W"`
+into the same pipeline for every pod of every namespace from `kubectl get ns` (not a
+hardcoded list), and say in the report that the sweep ran degraded and blind to replaced
+pods.
 
 ## 7. Pi-hole HA (dual resolver + VIP)
 
@@ -700,7 +714,15 @@ line earns ✅ accept only when it is both benign *and* unfixable upstream.
   chatter. Covers `v1 Endpoints is deprecated` and the high-volume
   `metadata.finalizers: prefer a domain-qualified finalizer name` alike.
 - plex `## IGNORE THE ERROR MESSAGE:  ##` — the container's own startup banner, matched by
-  the word `ERROR`.
+  the word `ERROR`; and plex's transcoder printing its ffmpeg build line
+  (`configuration: … --fatal-warnings …`) once per transcode, matched by `warn`.
+- argocd-repo-server `found in Chart.yaml, but missing in charts/ directory` — the first
+  `helm template` of each umbrella chart at a new git revision; the repo-server then builds
+  dependencies and retries. One burst per app per commit, so it tracks Renovate merges.
+- ingress-nginx `local SSL certificate <ns>/<app>-tls was not found` and cert-manager
+  `re-queuing item due to optimistic locking` for an Ingress created in the window — the
+  minutes before cert-manager issues its first certificate. Accept only if
+  `kubectl get certificates -A` is all `Ready=True` now.
 - gluetun (qbt/sabnzbd VPN sidecars) `WARN [dns] ... connection reset by peer` /
   `renewing dead connection` to Quad9 `:853` — transient DoT hiccups it self-heals. Flag
   only if persistent or downloads are stalling.
@@ -828,6 +850,10 @@ fix:
   per-day `kubectl` calls). Every run pays it.
 - **Bloat** — a measurement, a narrated incident, an example carrying no rule, a proposal
   already applied or declined. Cut it, keep the rule.
+- **Argument substitution** — this file is a slash command: before it is read, Claude Code
+  replaces every `$` followed by a digit with the invocation's words (0-based, so the
+  window is the zeroth). Write awk fields as `$(1)` and shell positionals as `${1}`; a
+  bare one arrives as a word of the user's message and the command fails or lies.
 - **Ambiguity** — a threshold with no unit, a verdict with no owning section, an instruction
   whose subject is unclear on a cold read.
 
