@@ -213,6 +213,16 @@ app-template:
           secretName: slskd-tls
 
   configMaps:
+    # Retention exists only as YAML (no env var). DroppedNeedle imports within
+    # minutes, so a completed file still here after a day is an orphan of a
+    # failed or retried attempt — and a stale copy makes slskd save the next
+    # download of that name as `<name>_<ticks>.<ext>`, which DroppedNeedle can't find.
+    slskd-config:
+      data:
+        slskd.yml: |
+          retention:
+            files:
+              complete: 1440
     gluetun-auth:
       data:
         # The control server is reachable only from containers sharing the pod
@@ -259,6 +269,15 @@ app-template:
           done
 
   persistence:
+    slskd-config:
+      type: configMap
+      identifier: slskd-config
+      advancedMounts:
+        slskd:
+          slskd:
+            - path: /app/slskd.yml
+              subPath: slskd.yml
+              readOnly: true
     gluetun-auth:
       type: configMap
       identifier: gluetun-auth

@@ -369,7 +369,7 @@ slskd is configured through environment variables; `k3s/apps/media/slskd/values.
 
 The first two sit under `app-template.controllers.slskd.initContainers.gluetun.env`, the rest under `app-template.controllers.slskd.containers.slskd.env`.
 
-Incomplete transfers live on `k3s-node-01`'s SSD (`/mnt/ssd/local/slskd`); finished files are moved to `/media/dl/music`. The shared folder is `/media/lib/music`, mounted read-only and rescanned every 6 hours (System → Shares → Rescan picks up new imports immediately). The System page at `https://slskd.m6o.dev` shows the VPN state and the forwarded listen port.
+Incomplete transfers live on `k3s-node-01`'s SSD (`/mnt/ssd/local/slskd`); finished files are moved to `/media/dl/music`, where slskd deletes any file unaccessed for a day (`retention.files.complete` in a ConfigMap-mounted `/app/slskd.yml`, the one setting with no env var). The shared folder is `/media/lib/music`, mounted read-only and rescanned every 6 hours (System → Shares → Rescan picks up new imports immediately). The System page at `https://slskd.m6o.dev` shows the VPN state and the forwarded listen port.
 
 ### Step 12: DroppedNeedle
 
