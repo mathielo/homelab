@@ -16,7 +16,7 @@ app-template:
         shelfarr:
           image:
             repository: ghcr.io/pedro-revez-silva/shelfarr
-            tag: 2026.09.28.1
+            tag: 2026.10.05.1
           env:
             # The entrypoint starts as root, remaps its rails user to PUID/PGID,
             # chowns only /rails/storage and /rails/tmp, then drops privileges.
