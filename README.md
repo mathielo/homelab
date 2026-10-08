@@ -37,7 +37,7 @@ shares, plus k3s-node-02's DAS array at `/mnt/n02r0`. The workstation has its ow
 local `/mnt/r0`, so the node's array cannot use that path.
 
 ```bash
-sudo mkdir -p /mnt/nas/{backups,media} /mnt/n02r0
+sudo mkdir -p /mnt/nas/{backups,media,roms} /mnt/n02r0
 # copy the entries into /etc/fstab, then
 sudo systemctl daemon-reload
 ```

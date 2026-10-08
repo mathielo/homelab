@@ -93,6 +93,7 @@ This repository is **public**. When making changes:
 
 - `docs/` - Hardware inventory, network architecture, service guides
 - `k3s/` - Kubernetes cluster setup, manifests, and Ansible playbooks
+- `workstation/` - Fedora workstation (`spacedora`) host notes, incl. the bad-RAM `memmap` exclusion
 - `k3s/apps/tools/` - catch-all namespace for miscellaneous self-hosted apps. Per-service dependencies (databases, caches) run as in-pod native sidecars — `initContainers.<name>.restartPolicy: Always` plus a `wait-for-db` initContainer — never as operators or separate Deployments.
 
 ## Runbooks
