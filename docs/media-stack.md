@@ -204,12 +204,12 @@ Note the **WebUI credentials** — password is managed in `values.sops.yaml`.
 
 qui cross-seeds in hardlink mode into `/r0/cross-seed/<tracker>` on qbt-se and qbt-br. Its cross-seed settings live in qui's database, not in this repo:
 
-| Setting                         | Value |
-| ------------------------------- | ----- |
-| Skip recheck                    | on    |
-| Max auto-start download (MiB)   | 0     |
+| Cross-Seed tab  | Setting                       | Value |
+| --------------- | ----------------------------- | ----- |
+| Matching rules  | Skip recheck-required matches | on    |
+| After injection | Max auto-start download (MiB) | 0     |
 
-**Skip recheck** must stay on. qui's hardlink adds inherit qBittorrent's incomplete-download path (`/local/_incomplete`), so any cross-seed that rechecks below 100% is moved off `/r0` the moment the recheck ends. That turns its hardlinks into copies, and two partial adds with the same root folder name collide in the temp path. With Skip recheck on, qui only adds a match whose files all hardlink, so every cross-seed is complete on arrival and never leaves `/r0`.
+**Skip recheck-required matches** must stay on. qui's hardlink adds inherit qBittorrent's incomplete-download path (`/local/_incomplete`), so any cross-seed that rechecks below 100% is moved off `/r0` the moment the recheck ends. That turns its hardlinks into copies, and two partial adds with the same root folder name collide in the temp path. With it on, qui only adds a match whose files all hardlink, so every cross-seed is complete on arrival and never leaves `/r0`.
 
 ### Step 3: Prowlarr
 
