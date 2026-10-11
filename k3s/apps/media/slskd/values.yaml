@@ -158,6 +158,9 @@ app-template:
             SLSKD_VPN: "true"
             SLSKD_VPN_PORT_FORWARDING: "true"
             SLSKD_VPN_GLUETUN_URL: http://127.0.0.1:8000
+            # stdout is already shipped to Loki; the disk logger would duplicate it
+            # onto the 1 GiB config volume that also holds search.db.
+            SLSKD_NO_DISK_LOGGER: "true"
             # SLSKD_SLSK_USERNAME / SLSKD_SLSK_PASSWORD (Soulseek account),
             # SLSKD_USERNAME / SLSKD_PASSWORD (web UI) and SLSKD_API_KEY
             # (DroppedNeedle) injected via values.sops.yaml
