@@ -194,6 +194,10 @@ Complete the setup wizard, then configure:
 | `music`  | `music`  |
 | `books`  | `books`  |
 
+**Config → Scheduling** — `Resume` daily at `22:00` and `Pause` daily at `06:00`, so downloads only run overnight. Grabs made during the day queue at 0% until 22:00.
+
+**Config → Specials** — `ext_rename_ignore`: `wv, ape`. Deobfuscate doesn't recognise these lossless audio extensions and would otherwise append a guessed one (`track.wv` → `track.wv.wvp`).
+
 Note the **API key** from Config → General → Security.
 
 ### Step 2: qui + qBittorrent instances
@@ -238,6 +242,7 @@ Set up authentication, then:
    - SABnzbd: host `sabnzbd.media.svc.cluster.local`, port `8080`, category `movies`
    - qBittorrent: host `qbt-{br,se}.media.svc.cluster.local`, port `8080`, category `movies`
 3. **Settings → Profiles** — configure quality profiles
+4. **Settings → Profiles → Delay Profiles** — default profile: Usenet delay `360`, both bypass options off
 
 Note the **API key** from Settings → General.
 
@@ -250,8 +255,11 @@ Set up authentication, then:
    - SABnzbd: host `sabnzbd.media.svc.cluster.local`, port `8080`, category `shows`
    - qBittorrent: host `qbt-{br,se}.media.svc.cluster.local`, port `8080`, category `shows`
 3. **Settings → Profiles** — configure quality profiles
+4. **Settings → Profiles → Delay Profiles** — default profile: Usenet delay `360`, both bypass options off
 
 Note the **API key** from Settings → General.
+
+The delay profile is there because of SABnzbd's overnight schedule. During the day the file on disk doesn't change, so every new release that beats it gets grabbed: one episode can collect five or six grabs that all download at 22:00. Whichever import first wins, and the rest stay in the queue forever as "Not a Custom Format upgrade". The delay holds a fresh release for 6 hours, measured from when it was published, then grabs the best one seen in that time. Both bypasses must stay off. "Above Custom Format Score" with the default minimum of 0 lets every release through, and "Highest Quality" lets through every same-quality upgrade, which is the case the delay exists for. Releases older than the delay, and manual or interactive searches, are never held.
 
 > :bulb: Now go back to Prowlarr (Step 3) and add Sonarr/Radarr as apps so indexers sync automatically.
 
