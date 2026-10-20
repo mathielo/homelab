@@ -13,3 +13,9 @@
 
 # sudo mkdir -p /mnt/n02r0
 10.10.50.12:/mnt/r0 /mnt/n02r0 nfs defaults,_netdev,nofail,x-systemd.automount 0 0
+
+# Workstation's own md RAID 0 (2× WD Purple 4 TB) — see workstation/README.md.
+# "nofail" keeps the desktop booting if the array fails to assemble.
+
+# sudo mkdir -p /mnt/r0
+UUID=cba90d48-f740-4eda-abe7-164c0837869c /mnt/r0 xfs defaults,nofail 0 0

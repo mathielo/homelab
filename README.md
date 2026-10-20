@@ -32,12 +32,14 @@ ln -sf ~/src/homelab/.config/ssh.config ~/.ssh/config
 
 # Workstation mounts
 
-All of them are NFS entries in [`.config/etc.fstab`](.config/etc.fstab) — the UNAS
-shares, plus k3s-node-02's DAS array at `/mnt/n02r0`. The workstation has its own
-local `/mnt/r0`, so the node's array cannot use that path.
+All of them are in [`.config/etc.fstab`](.config/etc.fstab): NFS entries for the UNAS
+shares and k3s-node-02's DAS array at `/mnt/n02r0`, plus the workstation's own local
+RAID 0 at `/mnt/r0` (which is why the node's array cannot use that path). The NFS
+entries need the workstation's VLAN 50 leg — see
+[`workstation/README.md`](workstation/README.md#network).
 
 ```bash
-sudo mkdir -p /mnt/nas/{backups,media,roms} /mnt/n02r0
+sudo mkdir -p /mnt/nas/{backups,media,roms} /mnt/n02r0 /mnt/r0
 # copy the entries into /etc/fstab, then
 sudo systemctl daemon-reload
 ```
@@ -48,47 +50,12 @@ actually mounted on the node.
 
 # Prerequisites
 
-Some tools need to be installed locally to be able to manage the homelab setup, namely:
-
-- Ansible
-- sshpass
-- Docker + compose plugin
-- k9s
-- age
-- sops
-
-Run the install script to set everything up in one shot:
+The workstation toolchain — Ansible, sshpass, kubectl, Helm, k9s, Argo CD CLI, age, sops,
+mikefarah's yq, the GitHub CLI, the NFS client and Docker + compose — comes from the Arch
+repos via the install script:
 
 ```bash
 ./scripts/install.sh
-```
-
-Or install manually:
-
-```bash
-# Ansible + sshpass
-sudo dnf install -y ansible sshpass
-
-# Docker + compose plugin
-sudo dnf config-manager addrepo --from-repofile https://download.docker.com/linux/fedora/docker-ce.repo
-sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-sudo systemctl enable --now docker
-sudo usermod -aG docker $USER  # log out and back in after this
-
-# k9s
-sudo dnf install -y k9s
-
-# age (encryption tool used by SOPS)
-sudo dnf install -y age
-
-# sops (secret file encryption)
-SOPS_VERSION=$(curl -s https://api.github.com/repos/getsops/sops/releases/latest | grep tag_name | cut -d '"' -f 4)
-curl -LO "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.amd64"
-sudo install -m 755 "sops-${SOPS_VERSION}.linux.amd64" /usr/local/bin/sops
-rm "sops-${SOPS_VERSION}.linux.amd64"
-
-# Ansible community SOPS collection
-ansible-galaxy collection install community.sops
 ```
 
 # Secrets

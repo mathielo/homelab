@@ -590,7 +590,7 @@ level, probe interval, a stale config the app is complaining about). The goal is
 log, not merely a fault-free one: noise is what hides the one line that matters. Work down
 by count.
 
-**Pass 2 — the drill-down.** The workstation shell is **zsh**, which does not word-split
+**Pass 2 — the drill-down.** Keep the loop shell-agnostic — zsh does not word-split
 unquoted parameters: iterate `ns app` pairs (Pass 1's labels) with
 `printf '%s\n' … | while read -r ns app`, never `for t in "ns app"; do set -- $t`, which
 leaves the second word empty and fails silently, producing empty sections that look like

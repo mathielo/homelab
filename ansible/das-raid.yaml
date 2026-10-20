@@ -169,7 +169,7 @@
   vars:
     md_device: /dev/md0
     mount_point: /mnt/r0
-    # Workstation's tagged VLAN 50 address (ansible/host_vars/spacedora.yml).
+    # Workstation's tagged VLAN 50 address (ansible/group_vars/workstation.yml).
     # NFS authorises by source IP, so the export is scoped to that single host —
     # VLAN 50 also carries the other k3s nodes and the NAS.
     nfs_export_client: 10.10.50.180

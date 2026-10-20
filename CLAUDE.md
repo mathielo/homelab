@@ -9,9 +9,10 @@ This is a homelab repository for documenting, configuring, and automating a home
 ## Working Style
 
 - **Ask before assuming**: When _requirements_ are ambiguous, ask clarifying questions before starting. But for facts about the _existing setup_, read the repo's config/manifests/docs directly — the repo is the source of truth, don't ask what you can look up.
-- **Target environment**: Commands run from a Fedora Linux workstation; k3s nodes run Ubuntu Server. Assume this unless otherwise specified.
+- **Target environment**: Commands run from an Arch Linux (bash) workstation; k3s nodes run Ubuntu Server. Assume this unless otherwise specified.
 - **User context**: Seasoned developer comfortable with code, learning networking specifics and advanced features.
 - **No git operations**: Do not commit, push, or perform other git operations unless explicitly asked. The user reviews and commits all changes themselves. Don't append reminders that git is theirs ("staged for you", "commit when ready") — it's understood, and the repetition is noise.
+- **Commits made on request** look like the user's own: a short imperative title matching `git log`, no body, no `Co-Authored-By` or session trailers, pushed straight to `main`. The permission covers that one change only.
 - **Scripts stay simple**: Flat, sequential commands. No logging helpers, no idempotency/exists guards inside scripts — readability over cleverness (idempotency belongs in the Ansible/GitOps layer, not shell scripts).
 - **Planning docs live in the repo**: Commit planning/runbook docs under the repo (e.g. `docs/` or `plans/`), never in a workstation-only local path.
 - **Keep docs in sync**: The repo is the source of truth, so it must stay accurate. Whenever you spot an outdated/stale doc while doing any task (removed service still listed, renamed path, changed port, etc.), fix it as part of that task. If the fix is genuinely out of scope, flag it explicitly rather than ignore it. Never trust a doc over the live config/manifests — verify, then correct the doc.
@@ -65,6 +66,7 @@ Everything is GitOps: tracked in code, idempotent, replayable. **Never mutate li
 - **No mutating commands**: no `kubectl apply/edit/patch/scale`, no `helm upgrade/install`, no direct file/sysctl edits on nodes, no write calls to the qBittorrent / Pi-hole / UniFi APIs. Propose every change as code (Ansible, Helm values, k8s manifests) and hand the user the exact command to run. Read-only inspection (`kubectl get`, SSH `vmstat`/`cat /proc/...`) is fine.
 - **Prefer**: ConfigMaps over PVCs for config, Ansible over manual steps, checked-in manifests over imperative `kubectl`.
 - **kubectl/helm run locally**: the workstation kubeconfig talks to the cluster — run them directly, never SSH-wrapped. Use bare `kubectl` (no `sudo`, no `KUBECONFIG=` override). SSH to nodes only for read-only OS inspection.
+- **SSH**: every host alias in [`.config/ssh.config`](.config/ssh.config) (symlinked to `~/.ssh/config`) is passwordless through the 1Password agent — use them directly for read-only checks rather than asking the user to run them. Use the aliases (`UNAS`, `k3s-node-02`, `pihole-01`, …), which carry each host's user.
 - **Ansible playbooks** (k3s, cert-manager, argocd) run from the repo root with `-i ansible/inventory.ini`. (Monitoring is GitOps now — deployed by ArgoCD from `k3s/apps/monitoring/`, not Ansible.)
 - **Destructive playbooks confirm after preflight**: use a `pause` mid-play, once the targets have been displayed — not `vars_prompt` at play start. The operator must see what will be touched before committing to it.
 - **Ad-hoc Longhorn snapshots/backups** via the Longhorn UI, not `kubectl` Snapshot/Backup CRs (Argo ownership/reconciliation fights CR-based ones).
@@ -93,7 +95,7 @@ This repository is **public**. When making changes:
 
 - `docs/` - Hardware inventory, network architecture, service guides
 - `k3s/` - Kubernetes cluster setup, manifests, and Ansible playbooks
-- `workstation/` - Fedora workstation (`spacedora`) host notes, incl. the bad-RAM `memmap` exclusion
+- `workstation/` - Workstation host notes, incl. the bad-RAM `memmap` exclusion
 - `k3s/apps/tools/` - catch-all namespace for miscellaneous self-hosted apps. Per-service dependencies (databases, caches) run as in-pod native sidecars — `initContainers.<name>.restartPolicy: Always` plus a `wait-for-db` initContainer — never as operators or separate Deployments.
 
 ## Runbooks
@@ -183,6 +185,7 @@ Claude has MCP access to Pi-hole and UniFi for **read-only purposes**:
 - **Renovate config is `renovate.json5` only** — never create a plain `renovate.json`. Two config files make Renovate error out, and the duplicate strips every comment. Delete it if one appears.
 - **Check Renovate config** — when adding any versioned dependency (Helm chart, container image, pip/uv package, etc.), verify that `renovate.json5` has a matching custom manager regex if the file/format isn't auto-detected. Add one if missing.
 - Look up current latest versions online before implementing — don't assume versions from memory or documentation are current.
+- **Preview Renovate read-only** with the `renovate/renovate` Docker image (`RENOVATE_DRY_RUN=full`, `RENOVATE_PLATFORM=github`, `RENOVATE_TOKEN=$(gh auth token)`, target `mathielo/homelab`), adding `RENOVATE_FORCE='{"schedule":null,"dependencyDashboardApproval":false}'` to see past the weekend schedule. It reads the remote default branch, not the working tree. A fresh dry-run beats the hosted app's PRs and Dependency Dashboard, whose Docker Hub tag cache can serve versions that don't exist.
 
 ## Planned Expansions
 
