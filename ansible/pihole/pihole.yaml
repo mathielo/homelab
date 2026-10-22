@@ -9,7 +9,7 @@
     # Comma-separated: that is the format `nmcli -g ipv4.dns` prints back, and
     # the task below compares against it verbatim.
     pihole_resolvers: "127.0.0.1,10.10.53.53"
-    nebula_sync_version: "0.11.2"
+    nebula_sync_version: "0.11.3"
     # Hourly — config/blocklists change rarely, and each sync restarts FTL on the
     # RPi3 standby via teleporter import, so keep the cadence gentle.
     nebula_sync_cron: "0 * * * *"
