@@ -1,0 +1,7 @@
+# Homelab shell additions, sourced from ~/.bashrc (see workstation/README.md).
+# General aliases (k, dc, git shortcuts) live in mathielo/dotfiles.
+
+export KUBECONFIG="$HOME/.kube/config-k3s"
+
+# Loads the personal AGE key from 1Password so sops can decrypt; never written to disk.
+sops-age-key() { export SOPS_AGE_KEY=$(op read "op://Private/Homelab Personal AGE Key/AGE/secret key"); }

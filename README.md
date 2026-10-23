@@ -20,14 +20,13 @@ Docs, config, scripts and _whatnots_ for everything being set up and experimente
 
 # SSH: hosts, config & keys
 
-All homelab related host configuration and SSH keys can be found in [`./config/ssh.config`](.config/ssh.config). They can be simply symlinked into `~/.ssh/config`:
+All homelab host configuration can be found in [`.config/ssh.config`](.config/ssh.config).
+The main `~/.ssh/config` (1Password SSH agent, GitHub key) comes from
+[mathielo/dotfiles](https://github.com/mathielo/dotfiles), and includes everything in
+`~/.ssh/config.d/`. Link the homelab hosts there:
 
 ```bash
-# Write the public key from 1Passowrd to a file
-op read "op://Private/GitHub 1P SSH/public key" > ~/.ssh/gh1p.pub
-
-# Symlink the ssh config
-ln -sf ~/src/homelab/.config/ssh.config ~/.ssh/config
+ln -sf ~/src/homelab/.config/ssh.config ~/.ssh/config.d/homelab
 ```
 
 # Workstation mounts

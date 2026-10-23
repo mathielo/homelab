@@ -1,97 +1,13 @@
 # Workstation
 
-Intel i7-11700K on an ASUS ROG STRIX B560-F GAMING WIFI, NVIDIA RTX 3080, and 4× 8 GB DDR4
-from two Corsair kits.
-
-| Slots            | Kit                  | Model                |
-| ---------------- | -------------------- | -------------------- |
-| A-DIMM0, B-DIMM0 | Vengeance RGB PRO    | `CMW16GX4M2C3200C16` |
-| A-DIMM1, B-DIMM1 | Vengeance RGB PRO SL | `CMH16GX4M2E3200C16` |
+The home workstation (`omy-space`) as part of the homelab: storage,
+network and the reinstall procedure. 
 
 | Device    | Model                    | Size   | Role                                         |
 | --------- | ------------------------ | ------ | -------------------------------------------- |
 | `nvme0n1` | Corsair MP600 CORE       | 1.8 TB | OS (LUKS + btrfs, Limine, snapper)           |
-| `sda`     | WDC WD44PURZ (WD Purple) | 3.6 TB | `md0` member                                 |
-| `sdb`     | WDC WD44PURZ (WD Purple) | 3.6 TB | `md0` member — XFS RAID 0, mounted `/mnt/r0` |
-
-## Faulty RAM
-
-One module has a defective region. Memtest86+ fails a ~32 KB window at physical
-`0x175ce81d8`–`0x175cefe98` (5.83 GB): every error is single-bit, on bits 58 and 61 only
-(`Bits in Error Mask: 2400000000000000`). It is not known which DIMM holds it. On a running
-system the faults show up as segfaults across unrelated processes, all with
-`si_code=0x80` and `si_addr=0` (a #GP from a non-canonical pointer), plus the occasional
-kernel oops.
-
-A kernel parameter marks the page-aligned 64 KB block around the window as reserved, so
-the kernel never allocates it:
-
-```
-memmap=0x10000%0x175ce0000-1+2
-```
-
-`memmap=<size>%<offset>-<oldtype>+<newtype>` changes the range's e820 type from 1 (RAM)
-to 2 (reserved). A malformed value is rejected with `-EINVAL`, so a typo cannot take RAM
-away.
-
-**Never use the `$` form** (`memmap=0x10000$0x175ce0000`). Shells and boot-loader config
-parsers expand `$0x…` as a variable, which leaves a bare `memmap=0x10000` — the kernel
-reads that as "64 KB of usable RAM" and the boot hangs with no message. The Limine drop-ins
-below are sourced by bash, so the hazard applies there too.
-
-XMP stays **disabled** in the BIOS, so the memory runs at 2133 MT/s. The failing window
-was measured at that speed and has not been characterised at 3200 MT/s. Clearing the CMOS
-turns XMP back on.
-
-The physical address depends on which slots hold which DIMMs. After moving, adding or
-removing a module, derive a new range before relying on this one.
-
-### Applying it
-
-The boot entries are built by `limine-entry-tool`, which reads drop-ins from
-`/etc/limine-entry-tool.d/`. The kernel-update hook rebuilds from the same files, so the
-parameter carries over to every new kernel.
-
-```bash
-echo 'KERNEL_CMDLINE[default]+=" memmap=0x10000%0x175ce0000-1+2"' \
-  | sudo tee /etc/limine-entry-tool.d/memmap-badram.conf
-sudo limine-mkinitcpio
-sudo grep -rl --text 'memmap=0x10000%0x175ce0000-1+2' /boot
-```
-
-The `grep` must print at least one file under `/boot` (`limine.conf`, or the UKI when the
-command line is baked into it). After rebooting, confirm the hole exists:
-
-```bash
-journalctl -b -k | grep 'user: \[mem 0x000000017'
-```
-
-The output must show the reserved block, with System RAM resuming right after it:
-
-```
-user: [mem 0x0000000175ce0000-0x0000000175ceffff]  device reserved
-user: [mem 0x0000000175cf0000-0x000000085fffffff]  System RAM
-```
-
-A missing parameter fails silently: the system boots and the crashes come back. Before
-blaming the range for a new crash, check that the boot in question carried it —
-`journalctl -b -N -k | grep -m1 'Command line:'`. Reading `/proc/iomem` as non-root shows
-only zeros, so it proves nothing.
-
-To remove it, delete the drop-in and run `sudo limine-mkinitcpio` again.
-
-### Deriving a new range
-
-1. Boot Memtest86+ with CPU mode set to `SEQ`. Parallel mode prints so many errors to the
-   console that it looks frozen.
-
-2. Set the error report mode to the Linux `memmap` list. Tests 0 and 7 are left out of
-   that list because they can't pin an exact address.
-
-3. Memtest86+ writes nothing to disk, so photograph the screen.
-
-4. Round the reported span outward to 64 KB boundaries: the start down to a multiple of
-   `0x10000`, and the size up to a multiple of `0x10000`.
+| `sda`     | WDC WD44PURZ (WD Purple) | 3.6 TB | md RAID 0 member                             |
+| `sdb`     | WDC WD44PURZ (WD Purple) | 3.6 TB | md RAID 0 member — XFS, mounted `/mnt/r0`    |
 
 ## Local RAID 0
 
@@ -105,6 +21,10 @@ sudo pacman -S --needed mdadm xfsprogs
 sudo mdadm --assemble --scan
 sudo mdadm --detail --scan | sudo tee -a /etc/mdadm.conf
 ```
+
+The array's metadata name is `spacedora:0`, so on another hostname it assembles as
+`/dev/md127` rather than `md0`. The fstab entry mounts it by filesystem UUID, so the
+device name doesn't matter.
 
 The mount is the `/mnt/r0` entry in [`.config/etc.fstab`](../.config/etc.fstab).
 
@@ -159,3 +79,73 @@ The workstation is not a tailnet member. It sits on the LAN, and with k3s-server
 advertising `10.10.50.0/24`, `--accept-routes` would pull Servers-VLAN traffic into the
 tunnel instead of the local VLAN 50 leg. If it ever joins, use `tailscale up` without that
 flag — and check that any installer script doing the join doesn't pass it.
+
+## Reinstall
+
+Only `nvme0n1` gets formatted. The local RAID 0 survives as long as the installer never
+touches `sda`/`sdb`. The `memmap` exclusion comes first on the new install (see [dotfiles](https://github.com/mathielo/dotfiles) `hosts/omy-space`), then the [dotfiles](https://github.com/mathielo/dotfiles) install. This section is the homelab part around
+them.
+
+### After the dotfiles install
+
+Each step depends on the one before it.
+
+1. **Clone homelab and link its SSH hosts.** Then add GitHub's CLI and the homelab shell
+   additions:
+
+   ```bash
+   git clone git@github.com:mathielo/homelab.git ~/src/homelab
+   ln -sf ~/src/homelab/.config/ssh.config ~/.ssh/config.d/homelab
+   echo 'source "$HOME/src/homelab/.config/bashrc"' >> ~/.bashrc
+   ```
+
+2. **Toolchain:** `./scripts/install.sh`, then `gh auth login`. The script doesn't add you
+   to the `docker` group: `sudo usermod -aG docker "$USER"` and log in again for sudoless
+   Docker.
+
+3. **VLAN 50 leg:** the [playbook](#network). Run it from the **repo root**: inside
+   `ansible/`, `ansible.cfg` turns on the sops vars plugin, which fails without the AGE
+   key. Confirm `ip route get 10.10.50.4` goes out `enp4s0.50` and `ip route get 1.1.1.1`
+   out `enp4s0`.
+
+4. **Mounts:** assemble the [local array](#local-raid-0), then the fstab entries per the
+   [README](../README.md#workstation-mounts). `sudo pacman -S --needed xfsprogs` too.
+
+5. **Restore.** If Claude Code already ran on the new install, back up its fresh
+   `~/.claude/settings.json` and `history.jsonl` first and merge rather than overwrite:
+
+   ```bash
+   B="/mnt/nas/backups/<date> workstation"
+   cp ~/.claude/settings.json /tmp/settings.new.json; cp ~/.claude/history.jsonl /tmp/history.new.jsonl
+   rsync -rlptH --info=progress2 --exclude=dot-config.tar.gz "$B/" ~/
+   jq -s '.[0] * .[1]' "$B/.claude/settings.json" /tmp/settings.new.json > ~/.claude/settings.json
+   cat "$B/.claude/history.jsonl" /tmp/history.new.jsonl > ~/.claude/history.jsonl
+   ```
+
+   The memory directories land under the same project slugs as long as the username and
+   repo paths are unchanged. Check `kubectl get nodes` works with the restored kubeconfig;
+   if it's missing, refetch it:
+
+   ```bash
+   mkdir -p -m 700 ~/.kube
+   ssh k3s-server sudo cat /etc/k3s/k3s.yaml | sed 's/127.0.0.1/10.10.50.10/' > ~/.kube/config-k3s
+   chmod 600 ~/.kube/config-k3s
+   ```
+
+6. **UniFi plugins.** They start with `uvx`, so install `uv` first, then the plugins, and
+   recreate the password file. The restored `settings.json` already enables them and points
+   at that file:
+
+   ```bash
+   mise use -g uv
+   mkdir -p -m 700 ~/.config/unifi
+   op read "op://Private/<m8hl login>/password" > ~/.config/unifi/password && chmod 600 ~/.config/unifi/password
+   ```
+
+   In Claude: `/plugin install unifi-network@unifi-plugins` and
+   `/plugin install unifi-protect@unifi-plugins`, then restart Claude so it picks up `uvx`
+   on its `PATH`. A server that failed to start is cached as failed for 15 minutes, even
+   across restarts: `/mcp` → the server → Reconnect retries at once.
+
+7. **Later:** delete the NAS backup after a few weeks.
+
