@@ -142,7 +142,7 @@ app-template:
         slskd:
           image:
             repository: slskd/slskd
-            tag: "0.26.1"
+            tag: "0.26.2"
           securityContext:
             runAsUser: 1000
             runAsGroup: 1000
