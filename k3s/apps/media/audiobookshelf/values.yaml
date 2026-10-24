@@ -21,7 +21,7 @@ app-template:
         audiobookshelf:
           image:
             repository: ghcr.io/advplyr/audiobookshelf
-            tag: 2.37.1
+            tag: 2.37.2
           env:
             TZ: Europe/Stockholm
             # The image default of 80 is a privileged port for a non-root user.
