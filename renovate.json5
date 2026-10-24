@@ -171,6 +171,17 @@
       ],
     },
     {
+      // Tracker client whitelists lag qBittorrent releases, so its bumps merge on their own.
+      description: 'qBittorrent in its own PR',
+      matchDatasources: [
+        'docker',
+      ],
+      matchPackageNames: [
+        'ghcr.io/hotio/qbittorrent',
+      ],
+      groupName: 'qbittorrent',
+    },
+    {
       description: 'Media support (Gluetun, busybox, curl)',
       matchDatasources: [
         'docker',
