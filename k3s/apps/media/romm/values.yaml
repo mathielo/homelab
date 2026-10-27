@@ -35,6 +35,11 @@ app-template:
           image:
             repository: mariadb
             tag: "13.0.2"
+          # RomM drops a connection without a clean close about once an hour, and
+          # at the default log_warnings=2 each one logs an `Aborted connection`
+          # warning. The entrypoint prepends mariadbd to flag-only args.
+          args:
+            - --log-warnings=1
           env:
             MARIADB_DATABASE: romm
             MARIADB_USER: romm

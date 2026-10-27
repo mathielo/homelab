@@ -11,8 +11,13 @@ metadata:
 data:
   settings.yml: |
     # Merge with the image's built-in defaults (engine list, etc.); only the
-    # keys below are overridden.
-    use_default_settings: true
+    # keys below are overridden. ahmia and torch are Tor-only engines and fail
+    # to register without a Tor proxy.
+    use_default_settings:
+      engines:
+        remove:
+          - ahmia
+          - torch
 
     general:
       instance_name: "SearXNG"

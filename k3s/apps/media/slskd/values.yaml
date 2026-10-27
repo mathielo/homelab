@@ -184,8 +184,8 @@ app-template:
                 periodSeconds: 10
           resources:
             requests:
-              cpu: 50m
-              memory: 320Mi
+              cpu: 125m
+              memory: 384Mi
             # Bursts of concurrent searches from DroppedNeedle spike past 1Gi, well
             # above the ~250-450Mi steady state.
             limits:

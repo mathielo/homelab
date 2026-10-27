@@ -44,10 +44,10 @@ app-template:
           resources:
             requests:
               cpu: 100m
-              memory: 512Mi
+              memory: 768Mi
             limits:
               cpu: 2000m
-              memory: 1Gi
+              memory: 1536Mi
 
   service:
     qui:

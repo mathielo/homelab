@@ -544,11 +544,19 @@ list, and returns the **count per app** that §8's Frequency column needs:
 
 ```
 W=$0; W=${W:-1h}
-Q='sum by (namespace, app) (count_over_time({namespace=~".+"} |~ "(?i)(error|fatal|panic|warn)" != "\"error\":null" != "error=null" ['"$W"']))'
-kubectl exec -n monitoring deploy/grafana -c grafana -- wget -qO- http://loki:3100/loki/api/v1/query \
-  --post-data="query=$(printf %s "$Q" | jq -sRr @uri)" \
-  | jq -r '.data.result[]|"\(.value[1])\t\(.metric.namespace)/\(.metric.app)"' | sort -rn
+case $W in *d) R=1d; N=${W%d};; *) R=$W; N=1;; esac
+Q='sum by (namespace, app) (count_over_time({namespace=~".+", app!="coredns"} |~ "(?i)(error|fatal|panic|warn)" != "\"error\":null" != "error=null" ['"$R"']))'
+for i in $(seq 0 $((N-1))); do
+  kubectl exec -n monitoring deploy/grafana -c grafana -- wget -qO- http://loki:3100/loki/api/v1/query \
+    --post-data="query=$(printf %s "$Q" | jq -sRr @uri)&time=$(date -d "$i days ago" +%s)000000000" \
+    | jq -r '.data.result[]|"\(.metric.namespace)/\(.metric.app)\t\(.value[1])"'
+done | awk -F'\t' '{s[$(1)]+=$(2)} END{for(k in s) print s[k]"\t"k}' | sort -rn
 ```
+
+**One query over a multi-day window OOMKills Loki** (1Gi limit), which takes down the log
+store this section reads. coredns' query logging (~50k lines/h) is the bulk of what it would
+scan, so it is excluded at the stream selector, and a `d` window runs as sequential one-day
+slices.
 
 The two `!=` filters mirror Pass 2's exclusions. Without them structured-log lines whose
 *success* payload contains the word (`"error":null`) inflate the count, and an app ranks
@@ -608,7 +616,7 @@ kubectl exec -n monitoring deploy/grafana -c grafana -- wget -qO- http://loki:31
   --post-data="query=$(printf %s "$sel" | jq -sRr @uri)&limit=5000&since=$W" \
   | jq -r '.data.result[].values[][1]' \
   | sed 's/\x1b\[[0-9;]*m//g' \
-  | grep -iE '\b(error|fatal|panic|warn(ing)?)\b|level=(error|warn)|"level":"(error|warn|fatal)"|[[:space:]]E[0-9]{4}[[:space:]]|\[(error|crit)\]' \
+  | grep -iE '\b(error|fatal|panic|warn(ing)?)\b|level=(error|warn)|"level":"(error|warn|fatal)"|(^|[[:space:]])E[0-9]{4}[[:space:]]|\[(error|crit)\]' \
   | grep -ivE '"error":null|error=null|level=info|caller=metrics\.go|warnings\.go|is deprecated|"GET |"POST |HTTP/[12]' \
   | sed -E 's/[0-9]{4}-[0-9-]*T?[0-9:.]*Z?//g; s/\b[EWIF][0-9]{4} [0-9:.]+ +[0-9]+\b//g; s/[0-9]{2}:[0-9]{2}:[0-9]{2}//g; s/[0-9]+/N/g' \
   | cut -c1-180 | sort | uniq -c | sort -rn | head -10
@@ -707,8 +715,8 @@ line earns ✅ accept only when it is both benign *and* unfixable upstream.
   `*_TOKEN`, `*_PASSWORD`) holds live credentials in plaintext, so when a config check
   needs one, grep for that single variable instead of dumping the block.
 - loki query-stats (`caller=metrics.go`, `level=info`) and coredns `[INFO]`/`[WARNING]`
-  query logs — telemetry, not faults. coredns query logging is deliberately on and
-  dominates every Loki count by tens of thousands per hour; rank it, then set it aside.
+  query logs — telemetry, not faults. coredns query logging is deliberately on, which is
+  why Pass 1 excludes it at the selector.
 - `loki-canary` `tail max duration limit exceeded` — canary recycling its tail.
 - k8s API deprecation `Warning:` lines from longhorn-manager/controllers — upstream
   chatter. Covers `v1 Endpoints is deprecated` and the high-volume
@@ -724,10 +732,24 @@ line earns ✅ accept only when it is both benign *and* unfixable upstream.
   minutes before cert-manager issues its first certificate. Accept only if
   `kubectl get certificates -A` is all `Ready=True` now.
 - gluetun (qbt/sabnzbd VPN sidecars) `WARN [dns] ... connection reset by peer` /
-  `renewing dead connection` to Quad9 `:853` — transient DoT hiccups it self-heals. Flag
-  only if persistent or downloads are stalling.
+  `renewing dead connection` to Quad9 `:853` — transient DoT hiccups it self-heals. It runs
+  every day at ~1 000/day on `qbt-se` and a few hundred on the other gluetuns, so
+  "persistent" alone is not a trigger: flag it only if downloads stall or a pod's daily
+  count jumps tenfold.
 - `csi-snapshotter` `could not find the requested resource (...VolumeSnapshot*)` — those
   CRDs aren't installed; Longhorn backups use their own path.
+- longhorn-manager `Error syncing snapshot check task` … `is hashing snapshot` — a
+  burst of thousands on the `snapshot-data-integrity-cronjob` days (`0 0 */7 * *`: the
+  1st/8th/15th/22nd/29th, 00:00 UTC) as concurrent hash requests for one volume retry each
+  other. A real finding only if it appears on another day or names a hash *mismatch*.
+- instance-manager `fail to read at 0 for N` / `Cannot queue in more request. Connection
+  is not open` / `io error … -14` — the engine frontend dropping in-flight I/O as a volume
+  detaches. Benign when it lands in the minute a pod using that node's volume was
+  replaced (Renovate rollouts, ~07:00 local); outside a pod move it is a replica fault.
+- kubelet `FreeDiskSpaceFailed` (`Failed to free sufficient space by deleting unused
+  images`) during an image-pull wave — image GC lands just above its 80% low threshold
+  because the rest is in-use images. Benign while `/` holds its 14-day band (§1's
+  `NodeRootDiskFillingUp` catches a real trend).
 - **qui** orphan-scan `failed` on `qbt-br` — cosmetic: qui has no `/local` mount and br
   always has active downloads, and qui marks any run with walk errors and zero orphans as
   failed. Not fixable via Ignore Paths; never mount `/local` into qui.
