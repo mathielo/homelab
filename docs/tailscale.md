@@ -80,10 +80,10 @@ A healthy result shows `active; direct [2a00:…]:41641` (direct over IPv6) shor
 Tailscale is installed on hosts via the shared Ansible playbook:
 
 ```bash
-ansible-playbook tailscale.yaml --limit <host>
+ansible-playbook -i ansible/inventory.ini ansible/tailscale.yaml --limit <host>
 ```
 
-The playbook uses a reusable auth key from `ansible/group_vars/all/secrets.sops.yaml`. For host-specific setup steps (static IP assignment, admin console config), see:
+The playbook uses a reusable auth key from `ansible/tailscale.sops.yaml`. For host-specific setup steps (static IP assignment, admin console config), see:
 
 - [Pi-hole Tailscale setup](../ansible/pihole.md#tailscale)
 - [k3s Tailscale setup](../ansible/k3s.md#tailscale)
