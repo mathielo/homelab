@@ -19,6 +19,13 @@
         "python",
         "unifi_mcp_optimized.py"
       ]
+    },
+    "pagera": {
+      "type": "http",
+      "url": "https://api.pagera.eu/mcp",
+      "headers": {
+        "Authorization": "Bearer ${PAGERA_API_TOKEN}"
+      }
     }
   }
 }

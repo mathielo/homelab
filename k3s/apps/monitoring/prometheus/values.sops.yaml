@@ -2,12 +2,20 @@ prometheus:
     alertmanager:
         config:
             receivers:
-                - name: ENC[AES256_GCM,data:Mw4z1v0TQJ4=,iv:Y2Muhl6nJWi7s+2BkDgaDgUbGepcJFULMhqxUt6U4TQ=,tag:+of/HpU1jEU4HNPBRJcwBw==,type:str]
+                - name: ENC[AES256_GCM,data:ZggmVMRP1A==,iv:RYVox/hzbjWoEKHoRFTld3g0CbZjbqOmMNN0E+HjKR4=,tag:s14sgdZTMAgm4J3n7GKaMA==,type:str]
                   telegram_configs:
                     - bot_token: ENC[AES256_GCM,data:CtfbHPgFUU/EiDKnabqv8ty5z6rgaifK/EZUg5f410hyKWbB6MucevPraM5Bpg==,iv:ext9wWjjOtV9uYOpjHOpu4huGmbtzP9cidJaopG4Ca8=,tag:R08HxpmNpYqFWxiRTIDMRA==,type:str]
                       chat_id: ENC[AES256_GCM,data:9y8d7DHY80w4SBo=,iv:uGPz6zLIeDgRFa8iIKzzBmu7wF2jWDVysPhYkXJKKn0=,tag:LBTEHN6VTvqBirFOqZzhRQ==,type:int]
                       parse_mode: ENC[AES256_GCM,data:JEx4GA==,iv:TXjKlJwJkujQtijXgwkiPOFwHSQ+dd64WMkZZIzw9us=,tag:i5bj/zH1tYwOax/TJ6Qzdg==,type:str]
                       message: ENC[AES256_GCM,data:tsWZumaomfQoh6slgqe10t0AsuXNKkQBIN5xJgVAwluZPTU=,iv:nwA7rzD9oJrw4lgGlQ06kOvIE4EU75Dt8cJXmwAMmPM=,tag:0jQIleMXt0OKxN2a48XjQw==,type:str]
+                  webhook_configs:
+                    - url: ENC[AES256_GCM,data:IZYbjL8sv6GiIFX94pbyzj9kOZe30g/cQOVihW5e79lynR9j/+qUIWMfSwGN5cnQidyL,iv:eY/ZNNUxLPTvAhLhqWsVlLmA0mrFNSO31mGs4u2GXZU=,tag:Cc6CYm95+CWgnsF2wKEkbg==,type:str]
+                      send_resolved: ENC[AES256_GCM,data:SbEJMQ==,iv:4S62bnhrdvOeO34snA1ZO1jPyzVVMCojIt7jiW4bFMw=,tag:1gkw1zQp/ZIMf4VczDFKnw==,type:bool]
+                      http_config:
+                        authorization:
+                            type: ENC[AES256_GCM,data:dJ4z++a9,iv:fCFG/5sHetMYThWgjrp1HE2w9rCu+JhI1czQmUmdFVU=,tag:9KZL9/Jq/zSpBVFZWd9wdg==,type:str]
+                            #ENC[AES256_GCM,data:DjofNu9MFBMdLAYjCVkl258k,iv:Erupa7M1hyMhxeS6+XJlrwMIt25I8mQ4lXs4gqnUz2M=,tag:WrzxiChArG2lUmHtv1qxIQ==,type:comment]
+                            credentials: ENC[AES256_GCM,data:EYXeQVR7YNVk91vrh4KRIWVNwyZOJmMosfyLFgAoClDP2pjS1Khwo1ltk6A=,iv:M0Z9GHBoLa9JizNZxmz5JSynqxqA+4VX9J0njLme+p4=,tag:ekSt/xkk+ibu73qVGNzREQ==,type:str]
 sops:
     age:
         - enc: |
@@ -28,7 +36,7 @@ sops:
             MxGDlQ5YMAfXksYtYJ7mXQEDx09fSPWCzSI+n0GqIeILut5gzWcqVw==
             -----END AGE ENCRYPTED FILE-----
           recipient: age1kt5aynyagn4t6v4epgl95ls9gpskq49f07j2v797g99zhje8teussmnytu
-    lastmodified: "2026-06-05T11:47:15Z"
-    mac: ENC[AES256_GCM,data:4EfmoGxVaJR9xTbJAaaNpFoZkGykmU2TAKEwskVHiFS80KpdHPG3gADSb3+WEyhYERZPtWd2O12ICDhn1nKbI/dmRKd6hj4ExA+wxbFauT0JfzudyFu+bCt3VWy5vWgCuT5uaFXZuJYC+LYxQ4+RqYsP21Y+zl944pUkam+RNJs=,iv:4xEgIcTcPRIXAsYDEHHOfqJWIseoreNUzo2z//gnu7c=,tag:dtlkRiBkx1T+dr2Z8da+JQ==,type:str]
+    lastmodified: "2026-10-29T19:46:44Z"
+    mac: ENC[AES256_GCM,data:RrP168tmevDTdjkw6twWwUC1ECznr5zkH+DoaYcaXN4M13zmfYVmmMRus53wWYXPITnfar92wVLabcWXKxB56uiWLGpXMDCOn0UCFyFOVPjMgDnY7IDYDf1+Csl0yGk8VA3TSsNREzNk9szHeVRFCdQPpAb9ocTp6rAqjS58Fcw=,iv:5kpPg0x3JcWy5TB7xg9Dxovox1xOKeCeG1R/q1R79U0=,tag:C5EIwTtLyFNYyYrg3VEPOw==,type:str]
     unencrypted_suffix: _unencrypted
-    version: 3.13.0
+    version: 3.13.3

@@ -39,7 +39,9 @@ the ingress and off the network it isn't authenticated on.
 ## Alerting
 
 Rules and Alertmanager routing both live in
-`k3s/apps/monitoring/prometheus/values.yaml`. Telegram is the only receiver.
+`k3s/apps/monitoring/prometheus/values.yaml`. Every route goes to the single
+`default` receiver, which notifies both Telegram and [Pagera](https://app.pagera.eu)
+(Alertmanager webhook), so the cadence below applies to both.
 
 ### Notification cadence
 

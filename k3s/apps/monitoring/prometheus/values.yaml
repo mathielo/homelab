@@ -33,13 +33,13 @@ prometheus:
       templates:
         - "/etc/alertmanager/*.tmpl"
       route:
-        receiver: telegram
+        receiver: default
         group_by: ["alertname", "namespace"]
         group_wait: 30s
         group_interval: 5m
         repeat_interval: 4h
         routes:
-          - receiver: telegram
+          - receiver: default
             matchers:
               - alertname=~"NodeDiskPressure|NodeDiskCritical"
             repeat_interval: 6h
@@ -48,18 +48,19 @@ prometheus:
           # they announce once and stay quiet until they clear. Grouped per
           # device because one drive crossing its threshold must not re-notify
           # for the other drives sharing the group.
-          - receiver: telegram
+          - receiver: default
             matchers:
               - alertname=~"Disk.*|Nvme.*|Das.*"
               - severity=warning
             group_by: ["alertname", "device"]
             repeat_interval: 720h
-          - receiver: telegram
+          - receiver: default
             matchers:
               - severity=critical
             repeat_interval: 1h
-      # `receivers` carries the Telegram bot_token + chat_id (the secrets) plus a
-      # one-line reference to the template above; it lives in values.sops.yaml.
+      # `receivers` lives in values.sops.yaml: the `default` receiver carries the
+      # Telegram bot_token + chat_id (with a one-line reference to the template
+      # above) and the Pagera webhook with its integration key.
 
   # This job copies Service labels onto every series. These two change on chart
   # bumps, which splits each series in two and breaks kube-state-metrics joins

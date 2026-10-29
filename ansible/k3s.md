@@ -122,7 +122,7 @@ A lean observability stack runs in the `monitoring` namespace, deployed by
 
 | Component  | Chart                             | Role                                |
 | ---------- | --------------------------------- | ----------------------------------- |
-| Prometheus | `prometheus-community/prometheus` | Metrics + Alertmanager (Telegram)   |
+| Prometheus | `prometheus-community/prometheus` | Metrics + Alertmanager              |
 | Grafana    | `grafana/grafana`                 | Dashboards for metrics and logs     |
 | Loki       | `grafana/loki`                    | Log storage and query engine        |
 | Promtail   | `grafana/promtail`                | Ships pod logs from nodes into Loki |
@@ -147,7 +147,7 @@ Both Prometheus and Loki datasources are pre-configured — no manual setup need
 
 Helm values live beside each chart in `k3s/apps/monitoring/<component>/values.yaml`
 (`prometheus`, `loki`, `promtail`, `grafana`). Secrets are in per-component
-`values.sops.yaml` (Grafana admin, Alertmanager Telegram token), decrypted by
+`values.sops.yaml` (Grafana admin, Alertmanager receivers), decrypted by
 ArgoCD's helm-secrets plugin.
 
 Key settings:
@@ -155,7 +155,7 @@ Key settings:
 - **Retention:** 30 days for both Prometheus and Loki
 - **Storage:** Longhorn PVCs (10Gi Prometheus, 10Gi Loki, 2Gi Grafana, 1Gi Alertmanager)
 - **Resources:** Sized for a Mini PC/NUC
-- **Alerting:** Alertmanager → Telegram; rules in `prometheus/values.yaml` under `serverFiles.alerting_rules.yml`
+- **Alerting:** Alertmanager → Telegram + Pagera; rules in `prometheus/values.yaml` under `serverFiles.alerting_rules.yml`
 
 ### Adding more services
 
