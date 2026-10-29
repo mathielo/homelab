@@ -32,6 +32,8 @@ app-template:
             tag: "2026.10.27-cb74e7f81"
           env:
             SEARXNG_PORT: "8080"
+            # Increase concurrent working threads when processing image results
+            GRANIAN_BLOCKING_THREADS: "32"
           resources:
             requests:
               cpu: 50m

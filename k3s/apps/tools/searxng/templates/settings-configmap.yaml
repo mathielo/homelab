@@ -37,3 +37,4 @@ data:
 
     ui:
       default_theme: simple
+      hotkeys: vim
