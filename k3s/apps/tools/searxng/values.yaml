@@ -29,7 +29,7 @@ app-template:
         searxng:
           image:
             repository: searxng/searxng
-            tag: "2026.10.27-cb74e7f81"
+            tag: "2026.10.29-cff884f98"
           env:
             SEARXNG_PORT: "8080"
             # Increase concurrent working threads when processing image results
