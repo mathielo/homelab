@@ -134,7 +134,9 @@ runs without `--enable-feature=promql-experimental-functions`. If the rows ever
 disagree between gauges, that is why.
 
 `HOTTEST` uses `topk(1, node_hwmon_temp_celsius)` with `value_and_name`, so it names
-the host it read. `PODS` sets a fixed colour: with no thresholds declared Grafana
+the host it read. NVMe drives count only by their Composite sensor (`temp1`): the
+extra `temp2`/`temp3` sensors are internal hotspots with no warning threshold that sit
+20–30 °C above Composite, and the drive throttles on Composite alone. `PODS` sets a fixed colour: with no thresholds declared Grafana
 falls back to its own base-green/red-at-80 default, which turns a healthy pod count
 red.
 

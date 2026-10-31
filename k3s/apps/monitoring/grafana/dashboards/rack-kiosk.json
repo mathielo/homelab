@@ -206,7 +206,7 @@
       },
       "targets": [
         {
-          "expr": "topk(1, node_hwmon_temp_celsius)",
+          "expr": "topk(1, node_hwmon_temp_celsius{chip!~\"nvme.*\"} or node_hwmon_temp_celsius{chip=~\"nvme.*\", sensor=\"temp1\"})",
           "refId": "A",
           "instant": true,
           "legendFormat": "{{node}}"
