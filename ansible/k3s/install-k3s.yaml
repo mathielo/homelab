@@ -46,6 +46,22 @@
         mode: "0644"
       notify: Apply sysctl settings
 
+    # Ubuntu 26.04 ships kernel.apparmor_restrict_unprivileged_unconfined=1, which
+    # turns runc's change into cri-containerd.apparmor.d into a stack with
+    # unconfined. From kernel 7.0.0-41 that stack lands on every container process
+    # (`cri-containerd.apparmor.d//&unconfined`), and containerd's profile only
+    # allows signals to the bare profile name, so a container can't signal its own
+    # processes: Go's setuid/setgid (gosu) spins forever and .NET aborts at its
+    # first GC suspension. Drop this once containerd's profile allows the stacked
+    # peer (containerd/containerd#14485).
+    - name: Let runc change into the container AppArmor profile without stacking
+      copy:
+        dest: /etc/sysctl.d/99-apparmor-containers.conf
+        content: |
+          kernel.apparmor_restrict_unprivileged_unconfined = 0
+        mode: "0644"
+      notify: Apply sysctl settings
+
     - name: Bound dirty page-cache so a slow NFS target can't stall every writer on the node
       # With default vm.dirty_ratio the kernel buffers multiple GB of un-flushed writes headed
       # for the NAS, then hard-throttles ALL writers node-wide (the global limit is not per-fs),
@@ -133,6 +149,9 @@
       register: k3s_installed
       failed_when: false
       changed_when: false
+      # Read-only, so it also runs under --check; a skipped result has no stdout and
+      # would make the install task below look due.
+      check_mode: false
 
     - name: Install or upgrade k3s server using official install script
       shell:
@@ -261,6 +280,9 @@
       register: k3s_installed
       failed_when: false
       changed_when: false
+      # Read-only, so it also runs under --check; a skipped result has no stdout and
+      # would make the install task below look due.
+      check_mode: false
 
     - name: Install or upgrade k3s agent using official install script
       shell:

@@ -108,6 +108,7 @@ for h in $(kubectl get nodes -o name | cut -d/ -f2); do echo "### $h"; ssh -o Co
    echo "cores=$cores load=[$load] cpu_busy=$((usr+sys))% iowait=${wa}% blk_in=${bi} blk_out=${bo} mem=$mem";
    echo "psi_cpu=$(awk "/some/{print \$(3)}" /proc/pressure/cpu) psi_io=$(awk "/some/{print \$(3)}" /proc/pressure/io) psi_mem=$(awk "/some/{print \$(3)}" /proc/pressure/memory)";
    echo "dstate=$(ps -eo stat= | grep -c "^D") up=$(awk "{print int(\$(1)/86400)}" /proc/uptime)d";
+   echo "aa_signal_denied_1h=$(journalctl -k -q --since -1h --grep "apparmor=\"DENIED\" operation=\"signal\"" | wc -l)";
    grep " nfs " /proc/mounts | awk "{print \$(2)}" | grep -v kubelet;
    test -e /var/run/reboot-required.pkgs && echo "reboot_pending=$(tr "\n" " " < /var/run/reboot-required.pkgs)" || echo "reboot_pending=none";
    df -h -x tmpfs -x devtmpfs -x overlay -x efivarfs --output=target,size,used,pcent | tail -n +2 | grep -vE "/boot/efi"'; echo; done
@@ -124,15 +125,16 @@ column (🟢 ok / 🟡 warning / 🔴 critical / ⚪ by-design) = its worst brea
 Thresholds **mirror the alert rules** deliberately, so the check and the always-on rule
 say one thing. Change one, change both:
 
-| Metric         | 🟡        | 🔴                                | Alert rule                              |
-| -------------- | --------- | --------------------------------- | --------------------------------------- |
-| `Load÷core`    | >1.0      | >2.0                              | — (none; see k3s-server caveat)         |
-| `CPU busy`     | >85%      | —                                 | `NodeHighCPU` (>85%, 15m)               |
-| `Mem`          | >85%      | —                                 | `NodeHighMemory` (>85%, 5m)             |
-| `iowait`       | >20%      | —                                 | —                                       |
-| `PSI io`       | avg60 >20 | —                                 | —                                       |
-| `dstate_procs` | —         | >0 *persisting across a resample* | —                                       |
-| Disk use       | ≥85%      | ≥90%                              | `NodeDiskPressure` / `NodeDiskCritical` |
+| Metric                | 🟡        | 🔴                                | Alert rule                              |
+| --------------------- | --------- | --------------------------------- | --------------------------------------- |
+| `Load÷core`           | >1.0      | >2.0                              | — (none; see k3s-server caveat)         |
+| `CPU busy`            | >85%      | —                                 | `NodeHighCPU` (>85%, 15m)               |
+| `Mem`                 | >85%      | —                                 | `NodeHighMemory` (>85%, 5m)             |
+| `iowait`              | >20%      | —                                 | —                                       |
+| `PSI io`              | avg60 >20 | —                                 | —                                       |
+| `dstate_procs`        | —         | >0 *persisting across a resample* | —                                       |
+| Disk use              | ≥85%      | ≥90%                              | `NodeDiskPressure` / `NodeDiskCritical` |
+| `aa_signal_denied_1h` | >0        | —                                 | —                                       |
 
 - **`/mnt/r0` (k3s-node-02) is always ⚪** — never 🟡/🔴, never carried to §8. It is a bulk
   media array whose working state is full; the disk rules exclude it by
@@ -144,6 +146,12 @@ say one thing. Change one, change both:
 - **`/` trends high** on every node (containerd image cache in `/var/lib/k3s/agent`). Note
   ≥85%, but kubelet image-GC self-prunes at 85%/80% (`ansible/k3s/install-k3s.yaml`), so
   high-but-stable is not a finding; `NodeRootDiskFillingUp` catches a real trend.
+
+- **`aa_signal_denied_1h` > 0** — containers are carrying the stacked AppArmor label and
+  can't signal their own processes (`99-apparmor-containers.conf` in
+  `ansible/k3s/install-k3s.yaml` missing or not yet applied to running pods). Name the
+  senders with `journalctl -k --since -1h --grep 'operation="signal"'`; comms with spaces,
+  like .NET's thread names, are hex-encoded in the audit record.
 
 **Wedged `hard` NFS mount** — `dstate_procs` > 0 with `/mnt/nas/media` present is
 *possibly* this. Uninterruptible processes survive `kill -9`; symptoms are node-wide
