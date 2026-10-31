@@ -69,6 +69,24 @@
       community.general.timezone:
         name: "{{ system_timezone }}"
 
+    # journald's default cap is 10% of the filesystem, up to 4 GiB, which is the
+    # full 4 GiB on the k3s nodes' 40 GiB roots. kubelet evicts pods below 5% free
+    # there, so a noisy kernel log alone can push a node into eviction.
+    - name: Ensure journald drop-in directory exists
+      file:
+        path: /etc/systemd/journald.conf.d
+        state: directory
+        mode: "0755"
+
+    - name: Cap the persistent journal size
+      copy:
+        dest: /etc/systemd/journald.conf.d/size.conf
+        content: |
+          [Journal]
+          SystemMaxUse=500M
+        mode: "0644"
+      notify: Restart journald
+
     - name: Install unattended-upgrades
       apt:
         name:
@@ -139,4 +157,9 @@
     - name: Restart sshd
       systemd:
         name: ssh
+        state: restarted
+
+    - name: Restart journald
+      systemd:
+        name: systemd-journald
         state: restarted
