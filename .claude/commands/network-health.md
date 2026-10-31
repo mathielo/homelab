@@ -636,19 +636,12 @@ have fixed it since the last run, and telling them otherwise is worse than silen
   `ssh UNAS 'cat /sys/class/net/eth0/carrier_changes'` — the count only advances on a
   real transition, and only a rising count is a finding. The same reasoning covers the
   workstation and the Steam Deck dock on their own ports.
-- **`homeassistant … blocked from accessing 1.1.1.1 / 1.0.0.1 by Block ext DNS`** —
-  **fixed 2026-09-08** by `ha dns options --servers dns://10.10.53.53 --fallback=false`;
-  the HA OS DNS plugin was probing its hardcoded Cloudflare fallback every ~600 s, which
-  the DNS-leak policy blocked every time. Verify with `ssh homeassistant 'ha dns info'`
-  (expect `fallback: false`) before reopening. If these events return, the plugin config
-  was reset — re-apply rather than re-investigating.
 - **`Dev UGC Max was blocked from accessing 8.8.8.8 / 1.1.1.1 by the Block DoH -
 Internal Firewall Policy`** — every ~5 min (~290 a day), the single largest
   contributor to the feed and the reason an unfiltered page covers hours (§7).
   `Dev UGC Max` is out-of-scope dev equipment on the Homelab bridge, and the block is
-  the DNS-leak policy working on a device that probes hardcoded DoH resolvers. Not the
-  Home Assistant case above (that one was fixed at
-  source). Count it and move on; there is nothing to fix on our side.
+  the DNS-leak policy working on a device that probes hardcoded DoH resolvers. Count it
+  and move on; there is nothing to fix on our side.
 - **k3s-node-01 shown at `10.10.50.3`** in the controller's client list — that is the
   MetalLB VIP, L2-announced from whichever node currently holds it, so the controller
   attributes it to that node's MAC. Not an addressing fault.

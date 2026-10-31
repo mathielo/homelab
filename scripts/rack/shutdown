@@ -4,14 +4,13 @@
 # Uses SSH hosts defined in ~/.ssh/config (sourced from .config/ssh.config).
 #
 # Shutdown order:
-#   1. Home Assistant Pi (fire and forget)
-#   2. Detach Longhorn volumes (cordon + scale workloads to 0 + wait)
-#   3. Release the NFS holders pinning /mnt/r0 (local mount + export)
-#   4. Stop the DAS array on k3s-node-02
-#   5. Shut down k3s nodes (agents first, then server)
-#   6. pihole-01 (last — it's DNS for everything)
+#   1. Detach Longhorn volumes (cordon + scale workloads to 0 + wait)
+#   2. Release the NFS holders pinning /mnt/r0 (local mount + export)
+#   3. Stop the DAS array on k3s-node-02
+#   4. Shut down k3s nodes (agents first, then server)
+#   5. pihole-01 (last — it's DNS for everything)
 #
-# Step 2 is critical: powering off a node while a Longhorn volume is still
+# Step 1 is critical: powering off a node while a Longhorn volume is still
 # attached tears the iSCSI session away mid-write and corrupts the ext4/DB on
 # it (see docs/storage-longhorn.md). Detaching first makes poweroff safe.
 # Reverse with scripts/rack/startup, which uncordons the nodes.
@@ -37,7 +36,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 LONGHORN_NS=("media" "dashboard" "monitoring" "tools")
 
 # NFS references to k3s-node-02's /mnt/r0 that must be released before the DAS
-# array can be stopped (step 3). R0_EXPORT_CLIENT is the workstation address the
+# array can be stopped (step 2). R0_EXPORT_CLIENT is the workstation address the
 # node exports to — cross-check with:
 #   ssh k3s-node-02 'sudo exportfs -v'
 R0_LOCAL_MOUNT="/mnt/n02r0"
@@ -78,16 +77,11 @@ wait_for_shutdown() {
     return 1
 }
 
-# --- Step 1: Home Assistant Pi (fire and forget) ---
-
-log "=== Step 1: Shutting down Home Assistant ==="
-run_ssh homeassistant "sudo shutdown -h now" || warn "Failed to send shutdown to homeassistant"
-
-# --- Step 2: Detach Longhorn volumes ---
+# --- Step 1: Detach Longhorn volumes ---
 # Cordon so nothing reschedules, scale workloads to 0 so every Longhorn volume
 # detaches, then wait for confirmation before any node loses power.
 
-log "=== Step 2: Detaching Longhorn volumes ==="
+log "=== Step 1: Detaching Longhorn volumes ==="
 
 for node in "${K3S_NODES[@]}"; do
     kubectl cordon "$node" || warn "Failed to cordon $node"
@@ -161,7 +155,7 @@ if [ -n "$attached" ]; then
     [ "$reply" = "yes" ] || { warn "Aborted — nothing was powered off."; exit 1; }
 fi
 
-# --- Step 3: Release NFS holders on /mnt/r0 ---
+# --- Step 2: Release NFS holders on /mnt/r0 ---
 # k3s-node-02 exports /mnt/r0 over NFS to the workstation. Two independent
 # references keep the filesystem busy and make `das-down` fail with
 # "target is busy", and neither is visible to lsof or to the mount-namespace
@@ -176,7 +170,7 @@ fi
 # Both are restored automatically: the export by nfs-server at boot, the
 # workstation mount by its automount unit on next access.
 
-log "=== Step 3: Releasing NFS holders on /mnt/r0 ==="
+log "=== Step 2: Releasing NFS holders on /mnt/r0 ==="
 
 # Read the mount table rather than stat()-ing the path: $R0_LOCAL_MOUNT is a
 # direct automount, so `mountpoint`/`findmnt <path>` would trigger the remount
@@ -196,7 +190,7 @@ if run_ssh k3s-node-02 "sudo exportfs -v 2>/dev/null | grep -q '^/mnt/r0'"; then
         || warn "Failed to unexport /mnt/r0 — das-down will likely fail."
 fi
 
-# --- Step 4: Stop the DAS array on k3s-node-02 ---
+# --- Step 3: Stop the DAS array on k3s-node-02 ---
 # The enclosure loses power with the rack. Its RAID 0 has no backup, so the array
 # is stopped explicitly rather than left to systemd's unmount on the way down.
 # See docs/das-power-cycle.md. Never run ansible/das-raid.yaml to bring it back.
@@ -205,7 +199,7 @@ fi
 # RAID 0 with no backup, so the question that matters is whether the array is
 # actually down, not whether a command returned 0.
 
-log "=== Step 4: Stopping the DAS array on k3s-node-02 ==="
+log "=== Step 3: Stopping the DAS array on k3s-node-02 ==="
 run_ssh k3s-node-02 "sudo das-down" || true
 
 if run_ssh k3s-node-02 "! mountpoint -q /mnt/r0 && ! grep -q '^md0 ' /proc/mdstat"; then
@@ -221,23 +215,23 @@ else
     [ "$reply" = "yes" ] || { warn "Aborted — nothing was powered off."; exit 1; }
 fi
 
-# --- Step 5: Shut down k3s nodes ---
+# --- Step 4: Shut down k3s nodes ---
 # Hosts that never stopped answering ping are collected so the final message can
 # distinguish "all down" from "we asked them to go down".
 not_confirmed=()
 
-log "=== Step 5: Shutting down k3s nodes ==="
+log "=== Step 4: Shutting down k3s nodes ==="
 for node in "${K3S_NODES[@]}"; do
     log "Shutting down $node..."
     run_ssh "$node" "sudo shutdown -h now" || warn "Failed to send shutdown to $node"
     wait_for_shutdown "$node" || not_confirmed+=("$node")
 done
 
-# --- Step 6: pihole-01 (last — DNS for the whole network) ---
+# --- Step 5: pihole-01 (last — DNS for the whole network) ---
 # Only pihole-01 is rack-mounted. pihole-02 stays up and keepalived hands it the
 # VIP, so the network keeps resolving DNS while the rack is down.
 
-log "=== Step 6: Shutting down pihole-01 ==="
+log "=== Step 5: Shutting down pihole-01 ==="
 run_ssh pihole-01 "sudo shutdown -h now" || warn "Failed to send shutdown to pihole-01"
 wait_for_shutdown pihole-01 || not_confirmed+=("pihole-01")
 

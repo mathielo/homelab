@@ -169,7 +169,7 @@ Neither needs undoing. `/etc/exports` is untouched on disk so `nfs-server` re-ex
 boot, and the workstation's automount remounts on next access — start it again with
 `sudo systemctl start mnt-n02r0.automount`.
 
-`scripts/rack/shutdown` does both of these automatically in its step 3; this section is
+`scripts/rack/shutdown` does both of these automatically in its step 2; this section is
 for a standalone power cycle, or when that step reports a failure.
 
 ### Verify the end state, not the exit code

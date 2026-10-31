@@ -48,10 +48,9 @@ you tell which row in `wlanconfig` output belongs to which device.
 > home-address disclosure vector. Suffixes are enough to match runtime output. Keep
 > full MACs (and UI screenshots that show BSSIDs) out of this repo.
 
-`UDB Homelab` carries the k3s nodes, the UNAS-4, pihole-01, Home Assistant and the
-workstation, so its link is the one that matters for cluster throughput. Devices on it
-switch locally at full speed; anything crossing a VLAN traverses the wireless uplink
-twice, which is why the NAS and the k3s nodes share VLAN 50.
+`UDB Homelab` carries the k3s nodes, the UNAS-4, pihole-01 and the workstation, so its
+link is the one that matters for cluster throughput. Devices on it switch locally at
+full speed; anything crossing a VLAN traverses the wireless uplink twice, which is why the NAS and the k3s nodes share VLAN 50.
 
 ### Why this layout
 
