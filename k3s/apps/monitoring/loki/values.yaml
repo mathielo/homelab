@@ -100,7 +100,7 @@ loki:
         cpu: 5m
         memory: 80Mi
       limits:
-        cpu: 50m
+        cpu: 200m
         memory: 128Mi
 
   # Disable microservices-mode components

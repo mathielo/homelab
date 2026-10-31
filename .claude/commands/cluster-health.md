@@ -36,8 +36,11 @@ PQ()  { kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server
 PQR() { kubectl exec -n monitoring deploy/prometheus-server -c prometheus-server -- wget -qO- \
         --post-data="query=$(printf %s "${1}" | jq -sRr @uri)&start=$(date -d "${2:-7 days ago}" +%s)&end=$(date +%s)&step=${3:-3600}" \
         localhost:9090/api/v1/query_range; }
-L='\(.metric.pvc // .metric.persistentvolumeclaim // .metric.device // .metric.pod // .metric.node // "-")'
+L='\(.metric.pvc // .metric.persistentvolumeclaim // .metric.device // .metric.pod // .metric.deployment // .metric.daemonset // .metric.statefulset // .metric.node // "-")'
 ```
+
+`node` is the last resort in `L`: on kube-state-metrics alerts it names the node the KSM pod
+runs on, not the target, so a `DeploymentNotAvailable` would read as a node.
 
 **Firing now** — every one goes into the §8 table; a report that says 🟢 while an
 *unassessed* alert is firing is wrong. `pending` ones are leads worth naming.
@@ -85,6 +88,10 @@ PQ 'avg_over_time(up[24h]) < 0.99' | jq -r '.data.result[]|"\(.metric.job)\t\(.m
 run and means nothing. A target that scrapes *slowly* fails the same way — a `broken pipe`
 in an exporter's own log is Prometheus hanging up mid-response, usually that exporter's
 CPU limit (§3), not the network.
+
+After node reboots inside the 24h, every target on those nodes dips below the bound, and
+pod IPs that no longer exist stay listed. Re-run it over `up[15m]`: clean there means the
+hits are the reboot, not a flapping target.
 
 **Open monitoring gap** — `PrometheusTargetDown` (`up == 0` for 10m) covers a target that
 stays down, so only a *flapping* one is blind. Proposed, not applied:
@@ -382,11 +389,17 @@ Read fields by name, never by column position — `kubectl get` gained a `DATA E
 column, so a positional `awk` field on its table output tests the wrong column and reports
 every volume as broken.
 
-Then confirm the recurring `backup`/`snapshot` **job** pods reached `Completed`, matching
-the timestamped job pods only
-(`grep -E 'daily-backup-|weekly-backup-|monthly-backup-|snapshot-[0-9]'`) — NOT the
-always-`Running` `csi-snapshotter` controllers. All four schedules produce pods; a regex
-covering two silently reports on half the backup system. **This is the only coverage of a
+Then confirm the latest run of each recurring `backup`/`snapshot` schedule reached
+`Complete`. Read the **Job** objects, not their pods: a node reboot removes completed job
+pods while the Job keeps its status, so after rack maintenance a pod grep finds nothing.
+
+```
+kubectl get jobs -n longhorn-system -o json | jq -r '.items[]
+  | "\(.metadata.name)\t\((.status.conditions // [])[-1].type // "running")\t\(.status.completionTime // "-")"'
+```
+
+All four schedules (`daily-backup`, `weekly-backup`, `monthly-backup`, `snapshot-6h`) must
+appear. A list covering two silently reports on half the backup system. **This is the only coverage of a
 run that failed outright**: `kube_job_failed` needs `backoffLimit: 3` exhausted, and
 `failedJobsHistoryLimit: 1` would then pin that alert to a long-superseded run, so no rule
 exists. A wholesale failure still reaches §0 as backup age within ~6h; this closes the gap
@@ -442,8 +455,8 @@ volumes were skipped while the job reported `Completed` and the newest-backup ti
 stayed green. A one-night miss recovers at ~25h, just under the 30h
 `LonghornVolumeBackupStale` threshold, so nothing alerts.
 
-Bucket by **local** date: the first pass runs 01:00 local at `+0200`, so every nightly
-backup carries a `23:00Z` timestamp belonging to the *previous* UTC day — slicing
+Bucket by **local** date: the first pass runs 01:00 local, which under summer time
+(`+0200`) is `23:00Z` of the *previous* UTC day — slicing
 `snapshotCreatedAt[0:10]` puts the whole run in the day before and makes today look empty,
 which reads as a total backup failure when nothing is wrong. One query covers both the
 count and the diff; do not re-fetch per day:
@@ -553,7 +566,7 @@ list, and returns the **count per app** that §8's Frequency column needs:
 ```
 W=$0; W=${W:-1h}
 case $W in *d) R=1d; N=${W%d};; *) R=$W; N=1;; esac
-Q='sum by (namespace, app) (count_over_time({namespace=~".+", app!="coredns"} |~ "(?i)(error|fatal|panic|warn)" != "\"error\":null" != "error=null" ['"$R"']))'
+Q='sum by (namespace, app) (count_over_time({namespace=~".+", app!="coredns"} |~ "(?i)(error|fatal|panic|warn)" != "\"error\":null" != "error=null" !~ "level=info|\"(GET|POST) |HTTP/[12]" ['"$R"']))'
 for i in $(seq 0 $((N-1))); do
   kubectl exec -n monitoring deploy/grafana -c grafana -- wget -qO- http://loki:3100/loki/api/v1/query \
     --post-data="query=$(printf %s "$Q" | jq -sRr @uri)&time=$(date -d "$i days ago" +%s)000000000" \
@@ -566,9 +579,11 @@ store this section reads. coredns' query logging (~50k lines/h) is the bulk of w
 scan, so it is excluded at the stream selector, and a `d` window runs as sequential one-day
 slices.
 
-The two `!=` filters mirror Pass 2's exclusions. Without them structured-log lines whose
-*success* payload contains the word (`"error":null`) inflate the count, and an app ranks
-near the top with nothing wrong, then drills down to zero. Any exclusion added to Pass 2
+The `!=`/`!~` filters mirror Pass 2's exclusions. Without them, three kinds of line inflate
+the count: structured-log lines whose *success* payload contains the word (`"error":null`),
+ingress-nginx access lines whose URL contains it, and longhorn-manager's `level=info`
+relays of Warning-type k8s Events. An app then ranks near the top with nothing wrong and
+drills down to zero. Any exclusion added to Pass 2
 belongs here too, or the ranking lies.
 
 **Establish currency before triaging.** A count is a total over the window and says nothing
