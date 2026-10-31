@@ -102,9 +102,10 @@
     # Allowed-Origins matches on a repo's archive, which Ubuntu names after the
     # codename (`noble-security`) but Debian does not (`stable-security`), so
     # Debian hosts match by codename through Origins-Pattern instead. They also
-    # take point releases and the Raspberry Pi kernel and firmware: the only
-    # Debian hosts are the Pi-holes, which reboot in staggered slots behind the
-    # keepalived VIP.
+    # take point releases and the Raspberry Pi kernel and firmware, which only
+    # go live on a reboot: the Pi-holes reboot in staggered slots behind the
+    # keepalived VIP, and pi-devbox defines no slot because a reboot ends every
+    # running agent process.
     - name: Configure unattended-upgrades (50unattended-upgrades)
       copy:
         dest: /etc/apt/apt.conf.d/50unattended-upgrades
