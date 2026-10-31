@@ -199,6 +199,19 @@ prometheus:
               annotations:
                 summary: "Node {{ $labels.instance }} memory usage above 85%"
 
+            # A warm reboot of the AMD nodes (k3s-server, k3s-node-01) can leave
+            # the TSC out of sync with HPET, and the clocksource watchdog then
+            # demotes it for the rest of the boot. Clock reads on HPET cost ~17x
+            # more. A power cycle brings the TSC back; a reboot does not. The
+            # Pis run on arch_sys_counter.
+            - alert: NodeClocksourceNotTsc
+              expr: node_time_clocksource_current_info{clocksource!~"tsc|arch_sys_counter"} == 1
+              for: 10m
+              labels:
+                severity: warning
+              annotations:
+                summary: "Node {{ $labels.node }} is on clocksource {{ $labels.clocksource }} instead of tsc"
+
             # These boxes spike on transcodes/downloads, so a short window
             # yields noisy, non-actionable alerts.
             - alert: NodeHighCPU
