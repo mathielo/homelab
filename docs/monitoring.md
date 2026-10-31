@@ -126,7 +126,7 @@ panels have to replace existing ones** rather than be appended, or they fall bel
 the fold. No legends or axes: it is read from across the room, and the threshold
 colours carry the meaning.
 
-The three gauges (CPU, memory, load per host) cover the same five hosts in the same
+The three gauges (CPU, memory, load per core) cover the same five hosts in the same
 row order, so a struggling host reads as a vertical streak. That alignment relies on
 Prometheus returning series in a consistent order rather than on anything enforcing
 it — `sort_by_label()` would, but it is an experimental function and this server
@@ -138,14 +138,14 @@ the host it read. `PODS` sets a fixed colour: with no thresholds declared Grafan
 falls back to its own base-green/red-at-80 default, which turns a healthy pod count
 red.
 
-**`LOAD per host` is raw `node_load1`, which is not comparable across these hosts.**
-Cores differ by 5× (node-02 has 20, node-01 has 4), so equal bars do not mean equal
-pressure. The scale is fixed at 0–8 with thresholds at 4 and 8 — about right for the
-4-core hosts, early for node-02, which would need ~14 to be genuinely saturated. Two
-further caveats: k3s-server's load average spikes to 10–20 from thread churn with CPU
-and PSI flat, so it will show red while idle, and PSI — the honest signal — is only
-reported on the three k3s nodes, not the Pis, so a PSI gauge would have two empty
-rows.
+**`LOAD per core` divides `node_load1` by each host's CPU thread count**, because
+cores differ by 5× (node-02 has 20, node-01 has 4) and raw load bars are not
+comparable across them. 100% is one runnable-or-blocked task per thread: yellow at
+70%, red at 100%. Linux load also counts tasks in uninterruptible disk wait, so
+node-02 rises with DAS reads while its CPU sits idle. k3s-server's load average
+spikes from thread churn with CPU and PSI flat, so it can show red while idle. PSI —
+the honest signal — is only reported on the three k3s nodes, not the Pis, so a PSI
+gauge would have two empty rows.
 
 ## Rack touchscreen kiosk
 

@@ -547,7 +547,7 @@
     {
       "id": 12,
       "type": "bargauge",
-      "title": "LOAD per host (1m)",
+      "title": "LOAD per core (1m)",
       "datasource": "Prometheus",
       "gridPos": {
         "h": 7,
@@ -557,7 +557,7 @@
       },
       "targets": [
         {
-          "expr": "node_load1",
+          "expr": "node_load1 / on (node) count by (node) (node_cpu_seconds_total{mode=\"idle\"})",
           "legendFormat": "{{node}}",
           "refId": "A",
           "instant": true
@@ -581,10 +581,10 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "none",
-          "decimals": 2,
+          "unit": "percentunit",
+          "decimals": 0,
           "min": 0,
-          "max": 8,
+          "max": 1.5,
           "color": {
             "mode": "thresholds"
           },
@@ -597,11 +597,11 @@
               },
               {
                 "color": "yellow",
-                "value": 4
+                "value": 0.7
               },
               {
                 "color": "red",
-                "value": 8
+                "value": 1
               }
             ]
           }
