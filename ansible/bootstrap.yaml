@@ -98,16 +98,31 @@
     # there; the reboot waits for `scripts/rack/shutdown`, which quiesces
     # Longhorn first. `/var/run/reboot-required` marks a node that is due, and
     # `/cluster-health` reports it.
+    #
+    # Allowed-Origins matches on a repo's archive, which Ubuntu names after the
+    # codename (`noble-security`) but Debian does not (`stable-security`), so
+    # Debian hosts match by codename through Origins-Pattern instead. They also
+    # take point releases and the Raspberry Pi kernel and firmware: the only
+    # Debian hosts are the Pi-holes, which reboot in staggered slots behind the
+    # keepalived VIP.
     - name: Configure unattended-upgrades (50unattended-upgrades)
       copy:
         dest: /etc/apt/apt.conf.d/50unattended-upgrades
         mode: "0644"
         content: |
+          {% if ansible_distribution == 'Debian' %}
+          Unattended-Upgrade::Origins-Pattern {
+              "origin=Debian,codename=${distro_codename}-security,label=Debian-Security";
+              "origin=Debian,codename=${distro_codename},label=Debian";
+              "origin=Raspberry Pi Foundation,codename=${distro_codename}";
+          };
+          {% else %}
           Unattended-Upgrade::Allowed-Origins {
               "${distro_id}:${distro_codename}-security";
               "${distro_id}ESMApps:${distro_codename}-apps-security";
               "${distro_id}ESM:${distro_codename}-infra-security";
           };
+          {% endif %}
           Unattended-Upgrade::Remove-Unused-Dependencies "true";
           Unattended-Upgrade::Automatic-Reboot "{{ 'true' if unattended_reboot_time is defined else 'false' }}";
           Unattended-Upgrade::Automatic-Reboot-Time "{{ unattended_reboot_time | default('03:00') }}";
