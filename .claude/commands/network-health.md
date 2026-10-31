@@ -102,26 +102,30 @@ lie. Never trust the doc over the live config.
 
 ## 2. Mesh backhaul — the headline section
 
-`UDB Homelab` carries the entire rack (all k3s nodes, the NAS, both a Pi-hole and Home
-Assistant, and the workstation) behind **one wireless link** to the U7 Pro XG. That
+`UDB Homelab` carries the entire rack (all k3s nodes, the NAS, a Pi-hole and the
+workstation) behind **one wireless link** to the U7 Pro XG. That
 link is the first suspect for any slowness anywhere, and it is the thing this check
 exists to measure.
 
 ### 2a. Is the link the expected one?
 
 ```
-ssh -J UGCMax "$USER@$XG" 'wlanconfig mld0 list sta; wlanconfig vwireap11 list sta'
+ssh -J UGCMax "$USER@$XG" 'wlanconfig vwireap11 list sta; wlanconfig vwireap10 list sta'
 ```
 
-MLO is off (§9 standing conditions), so `mld0` answers `Error received: -19` — that error
-is the confirmation it is still off — and `UDB Homelab` is a plain station on `vwireap11`:
-`CHAN 37`, `IEEE80211_MODE_11BEA_EHT320`. Read `TXRATE`/`RXRATE`, `RSSI` and `ASSOCTIME`
-against the UDB's `/proc/uptime`; an `ASSOCTIME` far shorter than uptime means the link
-re-associated — correlate with §7.
+MLO is off (§9 standing conditions), so `UDB Homelab` is a plain station on `vwireap11`:
+`CHAN 37`, `Cur STA phymode: IEEE80211_MODE_11BEA_EHT320`, `MLO: No`. Read
+`TXRATE`/`RXRATE`, `RSSI` and `ASSOCTIME` against the UDB's `/proc/uptime`; an
+`ASSOCTIME` far shorter than uptime means the link re-associated — correlate with §7.
 
-**If `mld0` lists stations, MLO is back on** — a re-open trigger — and the rest of this
-subsection applies: `UDB Homelab` then shows **two links in one MLD** (5 GHz EHT80 and
-6 GHz EHT320); read `MLO` and `Num Partner links` as well.
+`mld0`'s output does not answer the MLO question: it returns an empty table with MLO off,
+and with MLO on it has listed the non-MLO Balcony while leaving out `UDB Homelab`. Decide
+from two reads that do answer it: the `MLO:` line in `UDB Homelab`'s `vwireap11` detail
+block, and whether the UDB's controller `uplink` carries an `mlo_links` array
+(`unifi_get_device_details`). **If either says MLO, it is back on.** That is a re-open
+trigger, and the rest of this subsection applies: `UDB Homelab` then shows **two links in
+one MLD** (5 GHz EHT80 and 6 GHz EHT320). The UniFi audit log records the toggle as
+`MADE_CHANGES_ONE_GLOBAL_SETTING … mlo_mesh_enabled` (§7).
 
 Four traps make a healthy link look broken; they are documented in
 [`docs/wifi-mesh.md`](../../docs/wifi-mesh.md#four-traps). Read them before judging
@@ -181,7 +185,11 @@ several devices on the bridge, so **mesh > child NIC is normal** — the surplus
 NAS, the other nodes and the workstation, and it grows with how busy they are. Only
 **mesh < child NIC** means frames are being lost or queued between the two, and only
 that direction earns a 🟡/🔴. Apply the thresholds to the shortfall, never to the
-surplus.
+surplus. One confounder runs the other way. node-02's NFS reads from the UNAS are switched
+inside the bridge but still land on `eno1` rx, so a seeding or cross-seed burst against
+the NAS can put node-02 above the mesh with nothing lost (2026-10-31: 239 vs 163 Mbit/s,
+with the iperf3 ceiling at baseline). Before calling a shortfall, check
+`node_nfs_requests_total` on node-02, or confirm with §2e.
 
 ### 2c. Establish the offered load before calling anything a bottleneck
 
@@ -226,8 +234,11 @@ finding, not just a routing detail. Check that NAS traffic is still intra-VLAN 5
 Passive counters show what the link carries, never what it could carry. iperf3 from the
 workstation to the gateway drives the link to saturation so the XG's counters can read
 the ceiling. This is the one pair worth testing: the workstation is wired to
-`UDB Homelab` at 2.5 GbE, the gateway sits beyond the mesh on the 2.5 GbE spine, both
-already have iperf3, and the Trusted → Gateway zone allows port 5201. The UNAS-4 and the
+`UDB Homelab` at 2.5 GbE, the gateway sits beyond the mesh on the 2.5 GbE spine, and the
+Trusted → Gateway zone allows port 5201. The gateway's firmware ships iperf3; the
+workstation needs the `iperf3` package. If `command -v iperf3` fails there, ask the user
+to install it (`! sudo pacman -S iperf3`) rather than skip the test, because no host
+behind the bridge has it and a container client is not a permitted substitute. The UNAS-4 and the
 k3s nodes either share the same air path or never touch it, and their CPUs or 1 GbE NICs
 cap below the link.
 
@@ -251,7 +262,8 @@ middle 20 s:
 
 ```
 XG=<resolved IP>; U=<unifi ssh user>
-ssh UGCMax 'timeout 45 iperf3 -s -1' & sleep 2
+ssh UGCMax 'timeout 60 iperf3 -s -1' > srv.txt 2>&1 &
+until grep -q listening srv.txt 2>/dev/null; do sleep 0.5; done   # SSH setup outlasts a fixed sleep → "Connection refused"
 ( sleep 4; ssh -J UGCMax "$U@$XG" 'grep vwireap11: /proc/net/dev; sleep 20;
     grep vwireap11: /proc/net/dev; apstats -r -i wifi2 | grep "chan util"' > xg.txt ) &
 ( sleep 4; ssh UGCMax 'grep "^cpu[0-9]" /proc/stat; sleep 20; grep "^cpu[0-9]" /proc/stat' > gw.txt ) &
@@ -360,6 +372,23 @@ unifi_execute unifi_list_clients {"filter_type": "all", "limit": 60}
 ```
 
 Read `channel`, `radio` and `signal_dbm`; cross-check the recorders against §8.
+
+**Mesh children are not in that client list.** They show up in each AP's `downlink_table`
+(`unifi_get_device_details`): read `signal`, `tx_rate` and `channel` per child, and apply
+the same −78 dBm line to the child's own link. The UDB G6 Balcony can only stay on the U7
+Mesh's ch104 while that AP's 5 GHz `radio_table` entry has `vwire_enabled: true`. When it is
+`false`, the AP has no mesh VAP (`vwire_vap_table: []`) and the Balcony falls back to the
+XG's ch36 at about −85 dBm. Treat that as a §1 drift and a 🔴: the link drops the camera
+off-air (`DEVICE_UNREACHABLE`). The fix is turning Wireless Meshing back on for the U7
+Mesh's 5 GHz radio.
+
+**A re-parented Balcony is not fixed until its camera streams.** The UDB coming online
+only proves VLAN 1. On 2026-10-31 it meshed to the U7 Mesh while the G6 Turret stayed
+`DISCONNECTED` in Protect. Wireless cameras with a VLAN 20 override give that AP a `br0.20`
+holding `eth0.20`, which pulls tagged VLAN 20 out of `br0`. The mesh VAP had `.10` and
+`.107` legs but no `vwireap<N>.20`, so VLAN 20 never reached the bridge. Check
+`brctl show` on the parent and look for the mesh VAP in `br0.20`, and check that
+`protect_get_camera` reads `CONNECTED` for the Balcony.
 
 Also check, from `unifi_list_devices`: the U7 Mesh's 2.4 GHz radio is on **auto**, so
 its `current_channel` moves. It must stay non-overlapping with the XG's ch11 — 1 or 6
@@ -579,6 +608,7 @@ almost never is. Then check these explicitly, because they are quiet and importa
 | `FIRMWARE_UPDATE_AVAILABLE*`, `BULK_FIRMWARE_UPDATE_AVAILABLE`   | Cross-check against §5                                                              |
 | `AFC_*`                                                          | XG 6 GHz is LPI (raw `radio_table`: `afc_done: 0`); an AFC event means it moved     |
 | `CLIENT_WIFI_SCORE_HAS_DROPPED*`                                 | The controller's own view of a degrading client                                     |
+| `MADE_CHANGES_*` (AUDIT) naming `mlo_mesh_enabled` or `vwire`    | A mesh-shaping toggle; MLO on fires a §9 re-open trigger whoever flipped it         |
 
 ## 8. Protect subsystem
 
@@ -630,8 +660,9 @@ have fixed it since the last run, and telling them otherwise is worse than silen
   a non-`ok` `lan`/`wlan` subsystem (§6).
 - **`UNAS-4 connected to … UDB Homelab Port 8` repeating** — the controller logs this
   tens of times a day, and it is **not** a link flap. The NAS's own NIC disagrees:
-  `carrier_changes` on the endpoint stays at 2 (one boot transition) across days
-  in which the controller logged dozens of "connects". It is the UDB re-learning an
+  `carrier_changes` on the endpoint stays flat across days in which the controller
+  logged dozens of "connects". It moves only on real transitions, and each `UDB Homelab`
+  reboot adds two. It read 16 on 2026-10-31, the day after one. It is the UDB re-learning an
   aged-out MAC entry, not a physical event. **Verify, don't re-investigate:**
   `ssh UNAS 'cat /sys/class/net/eth0/carrier_changes'` — the count only advances on a
   real transition, and only a rising count is a finding. The same reasoning covers the
@@ -649,7 +680,8 @@ Internal Firewall Policy`** — every ~5 min (~290 a day), the single largest
   association state lives on the primary link. Documented trap 3.
 - **Mesh VAP per-link byte counters reading zero in one direction** — the MLO
   accounting artifact, on both the AP and the UDB. Only the sum is real. With MLO off,
-  `vwireap10` / `vwiresta0` read zero because no 5 GHz mesh link exists.
+  `UDB Homelab`'s `vwiresta0` reads zero because it has no 5 GHz link. The XG's
+  `vwireap10` reads zero only while no other mesh child (the Balcony, per §3) uses it.
 - **`AP_HIGH_UTILISATION` on the U7 Pro XG through loaded hours** — fires every 5 min
   while the backhaul is busy. It is ch37's own backhaul airtime, which the standing
   conditions already accept as the cost of the work. It is a finding only when §3 shows
