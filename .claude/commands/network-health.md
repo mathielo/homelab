@@ -117,6 +117,10 @@ MLO is off (§9 standing conditions), so `UDB Homelab` is a plain station on `vw
 `CHAN 37`, `Cur STA phymode: IEEE80211_MODE_11BEA_EHT320`, `MLO: No`. Read
 `TXRATE`/`RXRATE`, `RSSI` and `ASSOCTIME` against the UDB's `/proc/uptime`; an
 `ASSOCTIME` far shorter than uptime means the link re-associated — correlate with §7.
+A brief re-association leaves nothing in the controller's events; the UDB's own log has
+it as a `STA_ASSOC_TRACKER` entry on `vwiresta1`:
+`ssh -J UGCMax "$U@$UDB" 'logread | grep -E "STA_ASSOC_TRACKER.*vwiresta"'` (timestamps
+are local time).
 
 `mld0`'s output does not answer the MLO question: it returns an empty table with MLO off,
 and with MLO on it has listed the non-MLO Balcony while leaving out `UDB Homelab`. Decide
@@ -262,14 +266,18 @@ middle 20 s:
 
 ```
 XG=<resolved IP>; U=<unifi ssh user>
-ssh UGCMax 'timeout 60 iperf3 -s -1' > srv.txt 2>&1 &
-until grep -q listening srv.txt 2>/dev/null; do sleep 0.5; done   # SSH setup outlasts a fixed sleep → "Connection refused"
+ssh UGCMax 'timeout 70 iperf3 -s -1 >/dev/null 2>&1 & sleep 2; ss -ltn | grep -c ":5201 "'   # must print 1
 ( sleep 4; ssh -J UGCMax "$U@$XG" 'grep vwireap11: /proc/net/dev; sleep 20;
     grep vwireap11: /proc/net/dev; apstats -r -i wifi2 | grep "chan util"' > xg.txt ) &
 ( sleep 4; ssh UGCMax 'grep "^cpu[0-9]" /proc/stat; sleep 20; grep "^cpu[0-9]" /proc/stat' > gw.txt ) &
 iperf3 -c 10.10.10.1 -P 4 -t 30 -R | grep -E 'SUM.*receiver'
 wait
 ```
+
+The server's output goes to `/dev/null` on the gateway because when its stdout is the SSH
+channel, it prints `Server listening` while nothing holds :5201. `ss` shows no listener
+and every client gets "Connection refused". The `ss` count confirms the listener before
+the client starts.
 
 - **Ceiling** = the `vwireap11` tx delta (field 10) × 8 ÷ 20 s. Report it with iperf3's
   receiver sum beside it; the gap is the concurrent load.
@@ -468,7 +476,7 @@ Cross-check `ROGUE_AP_DETECTED*` in §7 against a scan showing a new strong emit
 ## 4. Wired path
 
 ```
-unifi_execute unifi_get_port_stats {"device_mac": "<switch mac>"}
+unifi_execute unifi_get_port_stats {"mac_address": "<switch mac>"}
 unifi_execute unifi_get_device_details {"mac_address": "<udb mac>", "summary": true, "include": "basic,ports,uplink,stats"}
 ```
 
@@ -485,8 +493,11 @@ For every up port: `speed`, `full_duplex`, `rx_errors`, `tx_errors`, `rx_dropped
   `ethtool <iface> | grep -A4 'Supported link modes'` (the UNAS-4's sysfs `speed` file
   errors; `ethtool` works).
 - **Error and drop counters are lifetime totals** — a large absolute number on a port
-  with months of uptime says nothing. Sample twice ~60 s apart and report the _rate_;
-  only a counter that is still moving is a finding.
+  with months of uptime says nothing. Sample twice and report the _rate_; only a
+  counter that is still moving is a finding. The controller's `port_table` is a cached
+  snapshot that can return byte-identical on reads a minute apart, so compare the
+  port's `tx_bytes` first. If it did not move, the snapshot has not refreshed and the
+  zero delta means nothing: read again later.
 - **PoE** — 🟡 within 10% of `max_poe_power`, and check for `POE_BUDGET_EXCEEDED` in §7.
 
 ## 5. Consoles and firmware
@@ -568,7 +579,8 @@ those two
 (`ROGUE_*`, `NETWORK_LOOP_*`, `CLIENT_LINK_FLAP_WIRED`, `CLIENT_WIFI_SCORE_*`), run one
 exact `event_type` query each through `unifi_batch`; an empty result is trustworthy
 (`DEVICE_UNREACHABLE` returns its event as a positive control). An invalid `event_type`
-returns the full enum in the error.
+can come back as a bare HTTP 400 instead of the enum (`NETWORK_LOOP_DETECTED_BY_SWITCH`
+did). Treat a 400 as a wrong key, never as "no events".
 
 The unfiltered page is for ranking churn only. ⚠️ **`limit: 200` overflows the tool
 output budget** — the result is written to a file; aggregate from it rather than

@@ -203,10 +203,10 @@ sustained uploads reach the mesh ceiling first.
   2.4 GHz ch11 / 5 GHz ch36 / 6 GHz ch37 at 320 MHz.
 - **Do not widen the XG's 5 GHz to 160 MHz.** A 160 MHz block anchored at ch36 spans
   36–64, dragging in DFS channels 52–64 and the availability cost above.
-- **A slow client is airtime-expensive out of proportion to its bytes.** The Balcony
-  at −80 dBm on 11ac rates consumed far more ch36 airtime than its ~4 Mbit/s of
-  traffic suggested. Moving it to ch104 both freed XG airtime and improved its own
-  link (−78 → −70 dBm).
+- **A slow client is airtime-expensive out of proportion to its bytes.** The Balcony's
+  mesh link to the U7 Mesh sits around −81 dBm at 11ac rates (13–15 Mbps PHY up), so
+  each Mbit/s of camera upload costs about 10 points of ch104 airtime. The camera's
+  recording resolution is therefore a ch104 airtime setting.
 - **AP log buffers are small** and do not survive long — capture them while the fault
   is live. Nothing retains AP-side history, so a fault that is not captured live is
   gone.
