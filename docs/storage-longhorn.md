@@ -45,6 +45,8 @@ kubectl get sc                                     # longhorn (default), local-p
 
 UI: `https://lh.m6o.dev`.
 
+Argo installs the Kubernetes `VolumeSnapshot` CRDs (`k3s/argocd/apps/volume-snapshot-crds.yaml`), which Longhorn's `csi-snapshotter` sidecar watches and k3s does not ship.
+
 ## hostPath prep (after first boot, per node)
 
 `hostPathType: DirectoryOrCreate` auto-creates dirs as `root:root`, which the `1000:1000` containers can't write to — the `chown` is mandatory:
