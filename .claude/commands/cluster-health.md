@@ -56,8 +56,13 @@ by the time anyone looks. `ALERTS` is a recorded series, so its history answers 
 instant query cannot:
 
 ```
-PQR 'ALERTS{alertstate="firing"}' | jq -r ".data.result[]|\"\(.metric.alertname)\t\(.metric.severity)\t$L\tfirst=\(.values[0][0]|tonumber|strftime(\"%m-%d %H:%M\"))\tlast=\(.values[-1][0]|tonumber|strftime(\"%m-%d %H:%M\"))\t\(.values|length)h\"" | sort
+PQR 'max_over_time(ALERTS{alertstate="firing"}[1h])' | jq -r ".data.result[]|\"\(.metric.alertname)\t\(.metric.severity)\t$L\tfirst=\(.values[0][0]|tonumber|strftime(\"%m-%d %H:%M\"))\tlast=\(.values[-1][0]|tonumber|strftime(\"%m-%d %H:%M\"))\t\(.values|length)h\"" | sort
 ```
+
+The `[1h]` window is load-bearing: a bare `ALERTS` range query samples one instant per
+hourly step, so an alert that fires and clears between two samples — a node reboot's
+`DeploymentNotAvailable`, a 10-minute `DiskTemperatureCritical` — never appears.
+`.values|length` then counts hours with any firing sample.
 
 Report these separately from the live ones — an alert that fired and cleared is history,
 not a current fault — but they are the evidence §1–§7 are mostly blind to, and they are
@@ -283,7 +288,10 @@ Surface only containers worth attention (don't dump all ~60), as
 
 - 🔴 **Memory near limit** — `mem %L ≥ 90%`, or any **OOMKilled** history (§2, and
   `PodOOMKilled` in §0) → **raise the mem limit**. OOMKilled is definitive; a high
-  snapshot alone is only a lead.
+  snapshot alone is only a lead. A `NodeOOMKill` in §0's history with no `PodOOMKilled`
+  beside it is a child process or host process killed with no restart to show for it:
+  `ssh <node> 'sudo journalctl _TRANSPORT=kernel --since -1d --grep "Killed process"'`
+  names it (`-k` would read only the current boot).
 - 🟡 **Under-requested memory** — `mem %R > 100%`: the scheduler under-counts it and it is
   first evicted under node pressure → **bump the mem request** toward steady usage. Judge
   on the 7d **median** (`quantile_over_time(0.5, …)`), never the snapshot — a request
@@ -363,7 +371,11 @@ diff instead of tangling with work in progress. What may be applied is narrow:
   No history, no edit. **An `OOMKilled` is itself that history and outranks the peak**:
   the kill is a sub-second spike a 30s-scrape working set never records, so expect the 7d
   peak to sit *well under* the limit on exactly the container that was killed, and raise
-  it anyway. Never read a low peak as evidence the OOMKill was spurious.
+  it anyway. Never read a low peak as evidence the OOMKill was spurious. The exception is
+  a kill caused by a one-off query burst rather than workload: before raising **Loki**, read
+  its `metrics.go` lines with `component=frontend` from the five minutes before the kill. A
+  run of multi-hundred-MB `total_bytes` queries from a health check is the check's fault, so
+  fix the query and leave the limit alone.
 - **No explanatory comments in the YAML** — one changed line per number; the reasoning
   belongs in the report.
 - **Never on a node already deep in limit overcommit** without saying so — raise the
@@ -566,7 +578,7 @@ list, and returns the **count per app** that §8's Frequency column needs:
 ```
 W=$0; W=${W:-1h}
 case $W in *d) R=1d; N=${W%d};; *) R=$W; N=1;; esac
-Q='sum by (namespace, app) (count_over_time({namespace=~".+", app!="coredns"} |~ "(?i)(error|fatal|panic|warn)" != "\"error\":null" != "error=null" !~ "level=info|\"(GET|POST) |HTTP/[12]" ['"$R"']))'
+Q='sum by (namespace, app) (count_over_time({namespace=~".+", app!="coredns"} |~ "(?i)(error|fatal|panic|warn)" != "\"error\":null" != "error=null" !~ "level=info|\"(GET|POST) |HTTP/[12]|warnings.go|is deprecated|caller=metrics.go" ['"$R"']))'
 for i in $(seq 0 $((N-1))); do
   kubectl exec -n monitoring deploy/grafana -c grafana -- wget -qO- http://loki:3100/loki/api/v1/query \
     --post-data="query=$(printf %s "$Q" | jq -sRr @uri)&time=$(date -d "$i days ago" +%s)000000000" \
@@ -574,7 +586,7 @@ for i in $(seq 0 $((N-1))); do
 done | awk -F'\t' '{s[$(1)]+=$(2)} END{for(k in s) print s[k]"\t"k}' | sort -rn
 ```
 
-**One query over a multi-day window OOMKills Loki** (1Gi limit), which takes down the log
+**One query over a multi-day window OOMKills Loki**, which takes down the log
 store this section reads. coredns' query logging (~50k lines/h) is the bulk of what it would
 scan, so it is excluded at the stream selector, and a `d` window runs as sequential one-day
 slices.
@@ -741,6 +753,13 @@ line earns ✅ accept only when it is both benign *and* unfixable upstream.
   query logs — telemetry, not faults. coredns query logging is deliberately on, which is
   why Pass 1 excludes it at the selector.
 - `loki-canary` `tail max duration limit exceeded` — canary recycling its tail.
+- loki `could not determine query overlaps on tsdb vs non-tsdb schemas` with `start` and
+  `end` under a second apart on a quarter-hour — loki-canary's once-a-minute spot-check
+  queries of its own entries, a steady ~2/min that ranks loki near the top of Pass 1.
+- **droppedneedle** `slskd file not locatable on the downloads mount` — logged every poll
+  while a slskd transfer for that file is still in flight or failing; it names the file
+  slskd's own log shows retrying. The real harm in that area is orphans under
+  `/media/dl/music`, which make slskd write `_<ticks>` renames, not this line.
 - k8s API deprecation `Warning:` lines from longhorn-manager/controllers — upstream
   chatter. Covers `v1 Endpoints is deprecated` and the high-volume
   `metadata.finalizers: prefer a domain-qualified finalizer name` alike.
@@ -759,8 +778,6 @@ line earns ✅ accept only when it is both benign *and* unfixable upstream.
   every day at ~1 000/day on `qbt-se` and a few hundred on the other gluetuns, so
   "persistent" alone is not a trigger: flag it only if downloads stall or a pod's daily
   count jumps tenfold.
-- `csi-snapshotter` `could not find the requested resource (...VolumeSnapshot*)` — those
-  CRDs aren't installed; Longhorn backups use their own path.
 - longhorn-manager `Error syncing snapshot check task` … `is hashing snapshot` — a
   burst of thousands on the `snapshot-data-integrity-cronjob` days (`0 0 */7 * *`: the
   1st/8th/15th/22nd/29th, 00:00 UTC) as concurrent hash requests for one volume retry each
@@ -785,8 +802,9 @@ line earns ✅ accept only when it is both benign *and* unfixable upstream.
   component redeploy (an Ansible/Helm run reinstalling cert-manager or argocd reproduces it
   identically). Always the same set: cert-manager `ACME client for issuer not initialised`,
   longhorn-manager `mismatching disks`, the CSI sidecars' `dial unix /csi/csi.sock:
-  connect: connection refused`, promtail readiness-probe timeouts, qui `instance is in
-  backoff period` — each a controller reconciling ahead of its dependency, all
+  connect: connection refused`, promtail readiness-probe timeouts and `final error sending
+  batch` … `entry too far behind` (it re-sends days-old entries Loki already holds), qui
+  `instance is in backoff period` — each a controller reconciling ahead of its dependency, all
   self-clearing. **Accepted only when confined to the restart window**: establish that with
   §6's currency check, and confirm the end state with `kubectl get clusterissuer` +
   `kubectl get certificates -A` (all `Ready=True`) and `kubectl get nodes.longhorn.io -n

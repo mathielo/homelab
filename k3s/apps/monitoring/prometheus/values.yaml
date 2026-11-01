@@ -32,6 +32,11 @@ prometheus:
         resolve_timeout: 5m
       templates:
         - "/etc/alertmanager/*.tmpl"
+      # A pod's own OOM kill also bumps its node's kernel counter; the pod
+      # alert already names the culprit.
+      inhibit_rules:
+        - source_matchers: ['alertname="PodOOMKilled"']
+          target_matchers: ['alertname="NodeOOMKill"']
       route:
         receiver: default
         group_by: ["alertname", "namespace"]
@@ -145,13 +150,39 @@ prometheus:
               annotations:
                 summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }}) is in CrashLoopBackOff"
 
+            # Three pod-level paths: a restarted container, a restarted init
+            # container (native sidecars like gluetun and the in-pod databases
+            # are init containers), and a container that terminated without
+            # restarting (Job pods with restartPolicy: Never).
             - alert: PodOOMKilled
-              expr: increase(kube_pod_container_status_restarts_total[5m]) > 0 and on(namespace, pod, container) kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
+              expr: |
+                sum by (namespace, pod, container) (
+                    (increase(kube_pod_container_status_restarts_total[5m]) > 0
+                      and on(namespace, pod, container) kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1)
+                  or
+                    (increase(kube_pod_init_container_status_restarts_total[5m]) > 0
+                      and on(namespace, pod, container) kube_pod_init_container_status_last_terminated_reason{reason="OOMKilled"} == 1)
+                  or
+                    ((kube_pod_container_status_terminated_reason{reason="OOMKilled"} == 1)
+                      unless on(namespace, pod, container) (kube_pod_container_status_terminated_reason{reason="OOMKilled"} offset 5m == 1))
+                ) > 0
               for: 0m
               labels:
                 severity: critical
               annotations:
-                summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} was OOM killed"
+                summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }}) was OOM killed"
+
+            # Every kernel OOM kill on a host, including the ones no pod metric
+            # sees: a child process killed while its container survives (Plex
+            # transcoders), and host processes (k3s, pihole-FTL). cAdvisor's
+            # container_oom_events_total stays 0 under k3s, so it can't do this.
+            - alert: NodeOOMKill
+              expr: increase(node_vmstat_oom_kill[5m]) > 0
+              for: 0m
+              labels:
+                severity: critical
+              annotations:
+                summary: "Kernel OOM killer fired on {{ $labels.node }} ({{ $value | humanize }} kills in 5m) — journalctl -k names the process"
 
         # --- Covers Deployments, StatefulSets and DaemonSets, so the likes of
         #     Loki/Alertmanager/Promtail/node-exporter aren't blind spots. ---
