@@ -93,10 +93,16 @@ ansible-playbook k3s/install-k3s.yaml
 ansible-playbook k3s/metallb.yaml
 ```
 
-The install playbook has two plays:
+The install playbook runs these plays in order:
 
-1. **Server** (`k3s_server` group): installs k3s server, Helm, nginx-ingress, fetches kubeconfig
-2. **Agents** (`k3s_agents` group): joins agents to the cluster using the server's token
+1. **Host prep** (all nodes): sysctls, NFS/iSCSI packages, k3s `resolv.conf`
+2. **Remove swap** (`no_swap` group)
+3. **Server** (`k3s_server` group): installs k3s server, Helm, nginx-ingress, fetches kubeconfig
+4. **Agents** (`k3s_agents` group): joins agents to the cluster using the server's token
+5. **Kubelet config** (all nodes): graceful-shutdown and image-GC drop-ins
+6. **Node labels**
+
+Bumping `k3s_version` in `ansible/group_vars/all/k3s.yml` and re-running the playbook upgrades in place: the server first, then both agents in parallel.
 
 To use kubectl locally:
 
