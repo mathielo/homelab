@@ -120,7 +120,8 @@ MLO is off (§9 standing conditions), so `UDB Homelab` is a plain station on `vw
 A brief re-association leaves nothing in the controller's events; the UDB's own log has
 it as a `STA_ASSOC_TRACKER` entry on `vwiresta1`:
 `ssh -J UGCMax "$U@$UDB" 'logread | grep -E "STA_ASSOC_TRACKER.*vwiresta"'` (timestamps
-are local time).
+are local time). The buffer holds under a day, so an older re-association cannot be traced:
+report when it happened and move on.
 
 `mld0`'s output does not answer the MLO question: it returns an empty table with MLO off,
 and with MLO on it has listed the non-MLO Balcony while leaving out `UDB Homelab`. Decide
@@ -437,7 +438,7 @@ Two things decide whether to fire one:
 
 Poll `unifi_get_rf_scan_results` until every radio's `spectrum_table_time` is newer than
 the trigger — usually within two minutes, allow ten. **The cached table is the
-controller's nightly scan at ~01:00 UTC**, so a daytime read is hours old by
+controller's nightly scan at 03:00 local**, so a daytime read is hours old by
 construction. Two situations still call for restraint: don't trigger a scan *while*
 measuring a live throughput fault — it perturbs the airtime you are trying to read — and
 don't fire one when the cached table is already fresh enough to answer the question.
@@ -580,7 +581,10 @@ those two
 exact `event_type` query each through `unifi_batch`; an empty result is trustworthy
 (`DEVICE_UNREACHABLE` returns its event as a positive control). An invalid `event_type`
 can come back as a bare HTTP 400 instead of the enum (`NETWORK_LOOP_DETECTED_BY_SWITCH`
-did). Treat a 400 as a wrong key, never as "no events".
+and `_BY_GATEWAY` both did, so the loop row has no verified key: report it as unchecked, not
+clear). Treat a 400 as a wrong key, never as "no events". `AUDIT` is outside the default set,
+so an exact `AUDIT` key also needs `categories: ["AUDIT"]`; without it
+`MADE_CHANGES_ONE_GLOBAL_SETTING` returned empty with the event present.
 
 The unfiltered page is for ranking churn only. ⚠️ **`limit: 200` overflows the tool
 output budget** — the result is written to a file; aggregate from it rather than
@@ -615,7 +619,7 @@ almost never is. Then check these explicitly, because they are quiet and importa
 | `NEGOTIATED_LOW_UPLINK_PORT_SPEED`                               | The silent half-speed link §4 hunts for                                             |
 | `ROGUE_DHCP_SERVER_DETECTED`, `NETWORK_LOOP_DETECTED_BY_*`       | In scope whatever caused them — both break the network for every device on it       |
 | `ISP_PACKET_LOSS*`, `ISP_HIGH_LATENCY*`, `NETWORK_WAN_FAILED*`   | Upstream, and the only WAN there is                                                 |
-| `POE_BUDGET_EXCEEDED*`, `POE_PORT_BUDGET_EXCEEDED*`              | Two APs and two Pi-class devices draw PoE from one switch                           |
+| `POE_BUDGET_EXCEEDED*`, `POE_PORT_BUDGET_EXCEEDED*`              | Two APs, pihole-02 and the SuperLink draw PoE from one switch                       |
 | `MAC_TABLE_APPROACHING`, `MAC_TABLE_FULL`, `PORT_*_STORM`        | Forwarding-plane trouble that looks like generic slowness                           |
 | `FIRMWARE_UPDATE_AVAILABLE*`, `BULK_FIRMWARE_UPDATE_AVAILABLE`   | Cross-check against §5                                                              |
 | `AFC_*`                                                          | XG 6 GHz is LPI (raw `radio_table`: `afc_done: 0`); an AFC event means it moved     |
