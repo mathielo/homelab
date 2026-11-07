@@ -27,7 +27,7 @@ Download flow:
 
 DNS/indexer flow:
   Prowlarr → DrunkenSlug / NZBFinder (NZB search)
-  SABnzbd  → xsnews.nl (primary) / news.eweka.nl (secondary)
+  SABnzbd  → reader.xsnews.nl / news.eweka.nl (equal priority)
 ```
 
 ## Services
@@ -65,10 +65,10 @@ DNS/indexer flow:
 
 ### Usenet Providers (configured in SABnzbd)
 
-| Provider | Server          | Port | SSL | Role      |
-| -------- | --------------- | ---- | --- | --------- |
-| XS News  | `xsnews.nl`     | 563  | Yes | Primary   |
-| Eweka    | `news.eweka.nl` | 563  | Yes | Secondary |
+| Provider | Server             | Port | SSL | Priority |
+| -------- | ------------------ | ---- | --- | -------- |
+| XS News  | `reader.xsnews.nl` | 563  | Yes | 0        |
+| Eweka    | `news.eweka.nl`    | 563  | Yes | 0        |
 
 ### Indexers (configured in Prowlarr)
 
