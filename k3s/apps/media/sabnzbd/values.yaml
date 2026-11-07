@@ -16,6 +16,10 @@ app-template:
     sabnzbd:
       strategy: Recreate
       pod:
+        # The chart sorts containers by name, which would put article-check first
+        # and make it kubectl's default.
+        annotations:
+          kubectl.kubernetes.io/default-container: sabnzbd
         # Override k8s DNS to fix resolution inside Gluetun VPN.
         # Default dnsPolicy (ClusterFirst) injects ndots:5 + search domains,
         # which causes musl's resolver to exhaust search suffixes through
@@ -40,6 +44,8 @@ app-template:
         # Runs once before gluetun/sabnzbd start. Seeds sabnzbd.ini with the
         # host whitelist so the UI is accessible via the ingress hostname on
         # first boot. Skipped on subsequent starts (file already exists).
+        # The article-check subPath is created here because kubelet would create
+        # it root-owned, which that container's uid 1000 cannot write to.
         config-init:
           image:
             repository: busybox
@@ -51,6 +57,8 @@ app-template:
               if [ ! -f /config/sabnzbd.ini ]; then
                 printf '[misc]\nhost_whitelist = sabnzbd.m6o.dev\n' > /config/sabnzbd.ini
               fi
+              mkdir -p /config/article-check
+              chown 1000:1000 /config/article-check
 
         # Gluetun VPN kill-switch as a native k8s sidecar (k8s >= 1.29).
         # restartPolicy: Always promotes this initContainer to a sidecar:
@@ -170,6 +178,88 @@ app-template:
             limits:
               memory: 6Gi
 
+        # Shares Gluetun's network namespace, so NNTP and API traffic stay in the
+        # tunnel. Same image as SABnzbd because it already carries bash, curl, jq
+        # and unzip, and is musl-based, hence the musl penne build.
+        article-check:
+          image:
+            repository: ghcr.io/hotio/sabnzbd
+            tag: release-5.1.3
+          command:
+            - /bin/bash
+            - /scripts/article-check.sh
+          env:
+            HOME: /tmp
+            # The image points these at /config, which this container can't write to.
+            XDG_CONFIG_HOME: /tmp/.config
+            XDG_CACHE_HOME: /tmp/.cache
+            # Renovate bumps the version only: update PENNE_SHA256 in the same PR.
+            PENNE_VERSION: "0.7.0"
+            PENNE_SHA256: 463a6bc1acf7b9d17962eb068136b3ef660478154d5fd9a6574f86ba5bc106be
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+
+  secrets:
+    article-check:
+      enabled: true
+      # Out of the pod checksum so a sops edit doesn't restart SABnzbd.
+      includeInChecksum: false
+      # stringData (script-url, script-sha256, api-key, config.toml) supplied by
+      # values.sops.yaml
+      stringData: {}
+
+  configMaps:
+    article-check:
+      data:
+        article-check.sh: |
+          #!/bin/bash
+          # Runs one cycle every 10 min while /state/enabled exists. The sleep sits
+          # between whole cycles so disabling never abandons one in flight. A cycle's
+          # failure is not fatal here: a dead container takes the pod out of Ready,
+          # and SABnzbd's Service with it. Secret values are read as files on every
+          # cycle so a sops edit applies without a restart. The client script is only
+          # downloaded when the local copy doesn't match the pinned hash.
+          export PATH="/tmp/bin:$PATH"
+          umask 077
+          trap 'exit 0' TERM
+          mkdir -p /tmp/bin "$HOME/.config/penne"
+          ln -sf /secret/config.toml "$HOME/.config/penne/config.toml"
+
+          while true; do
+            if [ -f /state/enabled ]; then
+              if [ ! -x /tmp/bin/penne ]; then
+                curl -fsSL --max-time 300 -o /tmp/penne.download \
+                  "https://github.com/franzopl/pesto/releases/download/penne-v${PENNE_VERSION}/penne-linux-x86_64-musl" \
+                  && echo "${PENNE_SHA256}  /tmp/penne.download" | sha256sum -c - \
+                  && chmod +x /tmp/penne.download \
+                  && mv /tmp/penne.download /tmp/bin/penne
+              fi
+              pin="$(cat /secret/script-sha256)  /tmp/remote-check.download"
+              echo "$pin" | sha256sum -c --status - 2>/dev/null \
+                || curl -fsSL --max-time 60 -o /tmp/remote-check.download "$(cat /secret/script-url)"
+              if echo "$pin" | sha256sum -c - \
+                && sed -E "s|^([A-Z_]+_API_KEY)=\"YOUR_API_KEY\"\$|\1=\"$(cat /secret/api-key)\"|" \
+                  /tmp/remote-check.download > /tmp/remote-check.sh; then
+                bash /tmp/remote-check.sh &
+                wait $!
+              fi
+            fi
+            sleep 600 &
+            wait $!
+          done
+
   service:
     sabnzbd:
       controller: sabnzbd
@@ -194,21 +284,54 @@ app-template:
             - sabnzbd.m6o.dev
           secretName: sabnzbd-tls
 
+  # advancedMounts rather than globalMounts, which reach every container: only
+  # SABnzbd gets sabnzbd.ini and the library, and article-check gets only its own
+  # subPath of the config volume.
   persistence:
     config:
       existingClaim: sabnzbd-config-lh
-      globalMounts:
-        - path: /config
+      advancedMounts:
+        sabnzbd:
+          config-init:
+            - path: /config
+          sabnzbd:
+            - path: /config
+          article-check:
+            - path: /state
+              subPath: article-check
     # Local SSD storage for in-progress downloads. SABnzbd writes here at full
     # speed, then moves completed files to the NFS-backed /media mount.
     incomplete:
       type: hostPath
       hostPath: /mnt/ssd/local/sab
       hostPathType: DirectoryOrCreate
-      globalMounts:
-        - path: /incomplete
+      advancedMounts:
+        sabnzbd:
+          sabnzbd:
+            - path: /incomplete
     media:
       type: persistentVolumeClaim
       existingClaim: media-data
-      globalMounts:
-        - path: /media
+      advancedMounts:
+        sabnzbd:
+          sabnzbd:
+            - path: /media
+    article-check-script:
+      type: configMap
+      identifier: article-check
+      defaultMode: 0555
+      advancedMounts:
+        sabnzbd:
+          article-check:
+            - path: /scripts
+              readOnly: true
+    # Mounted as a directory because subPath mounts don't receive Secret updates.
+    article-check-secret:
+      type: secret
+      identifier: article-check
+      defaultMode: 0444
+      advancedMounts:
+        sabnzbd:
+          article-check:
+            - path: /secret
+              readOnly: true

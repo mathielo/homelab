@@ -143,6 +143,21 @@ SABnzbd, qBittorrent and slskd all run behind a Gluetun VPN sidecar for privacy:
 
 Credentials (`WIREGUARD_PRIVATE_KEY`, `WIREGUARD_ADDRESSES`) are encrypted per instance in `values.sops.yaml`.
 
+### SABnzbd article check
+
+The SABnzbd pod runs an `article-check` container that shares Gluetun's tunnel. Every 10 minutes, while `/state/enabled` exists, it runs one cycle of the client script against the Usenet providers using `penne check` (`STAT` only, 5 connections per provider). The flag file lives on the config PVC, so the setting survives restarts, and it starts disabled.
+
+The client script is downloaded on the first enabled cycle after a container start, and again only if the local copy stops matching the pinned SHA-256. It never runs unless the hash matches. The `article-check` Secret, supplied by `k3s/apps/media/sabnzbd/values.sops.yaml`, holds:
+
+- `script-url`: where the client script is downloaded from
+- `script-sha256`: the pinned hash of that script
+- `api-key`: written into the script's API key placeholder (it can't contain `|`, `&` or `\`)
+- `config.toml`: the penne `[[servers]]` list
+
+The Secret is mounted as a directory, so editing any of these needs no pod restart. When the script changes upstream, the running container keeps its verified copy, but the next container start can't download a matching one, so cycles stop until `script-sha256` is updated. Updating the hash fetches the new script on the next cycle. A `penne` version bump does restart the pod, and its PR must also update `PENNE_SHA256`, or the download fails verification and cycles stop.
+
+Toggle it with `make article-check-enable` and `make article-check-disable`, and read its state with `make article-check-status`.
+
 ### Restarting a qBittorrent instance
 
 A `preStop` hook stops every torrent (`hashes=all`) before the pod terminates, so libtorrent flushes fastresume to disk instead of losing progress. The matching resume on startup is **deliberately not wired up** — a bulk `torrents/start` re-announces the whole library at once — so **torrents come back stopped and resuming them is a manual step**. On `qbt-mam` that is ~2000 torrents reading `stoppedUP` with 0 leechers, which looks like a failed rollout and is not one.

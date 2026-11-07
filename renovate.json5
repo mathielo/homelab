@@ -134,6 +134,19 @@
     {
       customType: 'regex',
       managerFilePatterns: [
+        '/k3s/apps/media/sabnzbd/values\\.yaml$/',
+      ],
+      matchStrings: [
+        'PENNE_VERSION:\\s*"(?<currentValue>[\\d.]+)"',
+      ],
+      depNameTemplate: 'franzopl/pesto',
+      datasourceTemplate: 'github-releases',
+      // The repo also releases pesto-v* and parmesan-v*; this keeps only penne-v*.
+      extractVersionTemplate: '^penne-v(?<version>.*)$',
+    },
+    {
+      customType: 'regex',
+      managerFilePatterns: [
         '/ansible/glances\\.yaml$/',
       ],
       matchStrings: [
