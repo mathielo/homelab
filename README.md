@@ -35,13 +35,8 @@ All of them are in [`.config/etc.fstab`](.config/etc.fstab): NFS entries for the
 shares and k3s-node-02's DAS array at `/mnt/n02r0`, plus the workstation's own local
 RAID 0 at `/mnt/r0` (which is why the node's array cannot use that path). The NFS
 entries need the workstation's VLAN 50 leg — see
-[`workstation/README.md`](workstation/README.md#network).
-
-```bash
-sudo mkdir -p /mnt/nas/{backups,media,roms} /mnt/n02r0 /mnt/r0
-# copy the entries into /etc/fstab, then
-sudo systemctl daemon-reload
-```
+[`workstation/README.md`](workstation/README.md#network). The [install script](#prerequisites)
+creates the mount points and adds the entries to `/etc/fstab`.
 
 The DAS export is created by [`ansible/das-raid.yaml`](ansible/das-raid.yaml)
 (`--tags nfs`) and carries the `mp` option, so it exists only while the array is
@@ -50,8 +45,10 @@ actually mounted on the node.
 # Prerequisites
 
 The workstation toolchain — Ansible, sshpass, kubectl, Helm, k9s, Argo CD CLI, age, sops,
-mikefarah's yq, the GitHub CLI, the NFS client and Docker + compose — comes from the Arch
-repos via the install script:
+mikefarah's yq, the GitHub CLI, the NFS client, mdadm, xfsprogs and Docker + compose —
+comes from the Arch repos via the install script, which also links the SSH hosts, adds the
+shell additions and the `docker` group, and sets up the mounts. Run it after the
+[dotfiles](https://github.com/mathielo/dotfiles) install:
 
 ```bash
 ./scripts/install.sh
