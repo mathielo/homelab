@@ -90,26 +90,22 @@ them.
 
 Each step depends on the one before it.
 
-1. **Clone homelab and link its SSH hosts.** Then add GitHub's CLI and the homelab shell
-   additions:
+1. **Clone homelab:**
 
    ```bash
    git clone git@github.com:mathielo/homelab.git ~/src/homelab
-   ln -sf ~/src/homelab/.config/ssh.config ~/.ssh/config.d/homelab
-   echo 'source "$HOME/src/homelab/.config/bashrc"' >> ~/.bashrc
    ```
 
-2. **Toolchain:** `./scripts/install.sh`, then `gh auth login`. The script doesn't add you
-   to the `docker` group: `sudo usermod -aG docker "$USER"` and log in again for sudoless
-   Docker.
+2. **Toolchain:** `./scripts/install.sh`, then `gh auth login`. The script also links the
+   SSH hosts, adds the shell additions and the `docker` group, and writes the fstab entries.
 
 3. **VLAN 50 leg:** the [playbook](#network). Run it from the **repo root**: inside
    `ansible/`, `ansible.cfg` turns on the sops vars plugin, which fails without the AGE
    key. Confirm `ip route get 10.10.50.4` goes out `enp4s0.50` and `ip route get 1.1.1.1`
    out `enp4s0`.
 
-4. **Mounts:** assemble the [local array](#local-raid-0), then the fstab entries per the
-   [README](../README.md#workstation-mounts). `sudo pacman -S --needed xfsprogs` too.
+4. **Mounts:** assemble the [local array](#local-raid-0), then reboot. That brings up the
+   fstab mounts and the `docker` group membership.
 
 5. **Restore.** If Claude Code already ran on the new install, back up its fresh
    `~/.claude/settings.json` and `history.jsonl` first and merge rather than overwrite:
