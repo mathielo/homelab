@@ -63,7 +63,7 @@
         --namespace argocd
         --create-namespace
         --values /tmp/argocd.values.yaml
-        --version 10.15.0
+        --version 10.18.0
         --wait --timeout 10m
 
     - name: Clean up ArgoCD values file
