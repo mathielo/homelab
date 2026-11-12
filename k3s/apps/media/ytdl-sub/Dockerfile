@@ -7,7 +7,7 @@
 # Build + push (tag must match the base ytdl-sub version so values.yaml lines up):
 #   docker build -t ghcr.io/mathielo/ytdl-sub-vaapi:2026.07.17 k3s/apps/media/ytdl-sub
 #   docker push ghcr.io/mathielo/ytdl-sub-vaapi:2026.07.17
-FROM ghcr.io/jmbannon/ytdl-sub:2026.11.01
+FROM ghcr.io/jmbannon/ytdl-sub:2026.11.12
 
 USER root
 RUN apk add --no-cache \
