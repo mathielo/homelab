@@ -23,7 +23,7 @@ sudo mdadm --detail --scan | sudo tee -a /etc/mdadm.conf
 ```
 
 The array's metadata name is `spacedora:0`, so on another hostname it assembles as
-`/dev/md127` rather than `md0`. The fstab entry mounts it by filesystem UUID, so the
+`/dev/md127` until its `ARRAY` line is in `/etc/mdadm.conf`. The fstab entry mounts it by filesystem UUID, so the
 device name doesn't matter.
 
 The mount is the `/mnt/r0` entry in [`.config/etc.fstab`](../.config/etc.fstab).
@@ -110,17 +110,25 @@ Each step depends on the one before it.
 5. **Restore.** If Claude Code already ran on the new install, back up its fresh
    `~/.claude/settings.json` and `history.jsonl` first and merge rather than overwrite:
 
+   Run it with Claude closed, since a running session rewrites `.claude.json` and
+   `history.jsonl`. The excluded `.claude` dirs are the old install's runtime state:
+
    ```bash
    B="/mnt/nas/backups/<date> workstation"
    cp ~/.claude/settings.json /tmp/settings.new.json; cp ~/.claude/history.jsonl /tmp/history.new.jsonl
-   rsync -rlptH --info=progress2 --exclude=dot-config.tar.gz "$B/" ~/
+   rsync -rlptH --info=progress2 \
+     --exclude=/dot-config.tar.gz \
+     --exclude=/.claude/sessions --exclude=/.claude/daemon --exclude=/.claude/daemon.log \
+     --exclude=/.claude/jobs --exclude=/.claude/session-env --exclude=/.claude/shell-snapshots \
+     "$B/" ~/
    jq -s '.[0] * .[1]' "$B/.claude/settings.json" /tmp/settings.new.json > ~/.claude/settings.json
    cat "$B/.claude/history.jsonl" /tmp/history.new.jsonl > ~/.claude/history.jsonl
+   chmod 600 ~/.claude.json ~/.claude/history.jsonl
    ```
 
-   The memory directories land under the same project slugs as long as the username and
-   repo paths are unchanged. Check `kubectl get nodes` works with the restored kubeconfig;
-   if it's missing, refetch it:
+   The backup copies are group-readable, hence the `chmod`. The memory directories land
+   under the same project slugs as long as the username and repo paths are unchanged. The
+   backup carries no kubeconfig, so fetch it:
 
    ```bash
    mkdir -p -m 700 ~/.kube
@@ -128,9 +136,9 @@ Each step depends on the one before it.
    chmod 600 ~/.kube/config-k3s
    ```
 
-6. **UniFi plugins.** They start with `uvx`, so install `uv` first, then the plugins, and
-   recreate the password file. The restored `settings.json` already enables them and points
-   at that file:
+6. **UniFi plugins.** The restore brings them back installed and enabled, with
+   `settings.json` pointing at a password file that isn't in the backup. They start with
+   `uvx`, so `uv` must be on the `PATH` too:
 
    ```bash
    mise use -g uv
@@ -138,10 +146,8 @@ Each step depends on the one before it.
    op read "op://Private/<m8hl login>/password" > ~/.config/unifi/password && chmod 600 ~/.config/unifi/password
    ```
 
-   In Claude: `/plugin install unifi-network@unifi-plugins` and
-   `/plugin install unifi-protect@unifi-plugins`, then restart Claude so it picks up `uvx`
-   on its `PATH`. A server that failed to start is cached as failed for 15 minutes, even
-   across restarts: `/mcp` → the server → Reconnect retries at once.
+   Then restart Claude. A server that failed to start is cached as failed for 15 minutes,
+   even across restarts: `/mcp` → the server → Reconnect retries at once.
 
 7. **Later:** delete the NAS backup after a few weeks.
 
