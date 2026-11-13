@@ -220,10 +220,14 @@ app-template:
     # minutes, so a completed file still here after a day is an orphan of a
     # failed or retried attempt — and a stale copy makes slskd save the next
     # download of that name as `<name>_<ticks>.<ext>`, which DroppedNeedle can't find.
+    # slskd keeps searches forever by default, and every DroppedNeedle search
+    # stores every responding peer's file list in search.db on the 1 GiB /app
+    # volume; DroppedNeedle reads results within minutes of searching.
     slskd-config:
       data:
         slskd.yml: |
           retention:
+            search: 1440
             files:
               complete: 1440
     gluetun-auth:
