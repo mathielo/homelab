@@ -13,7 +13,7 @@ app-template:
         droppedneedle:
           image:
             repository: droppedneedle/droppedneedle
-            tag: v2.15.0
+            tag: v3.0.0
           env:
             PUID: "1000"
             PGID: "1000"
@@ -22,6 +22,9 @@ app-template:
             PORT: "8688"
             # DroppedNeedle's view of slskd's completed directory.
             SLSKD_DOWNLOADS_PATH: /media/dl/music
+            # ingress-nginx pods: UI saves answer 403 "Origin not allowed" unless the
+            # proxy's X-Forwarded-Proto is trusted.
+            TRUSTED_PROXY_IPS: 10.42.0.0/16
           probes:
             # The first boot after an upgrade validates and backs up the database
             # before serving; upstream allows it 10 minutes.
@@ -98,7 +101,3 @@ app-template:
       existingClaim: media-data
       globalMounts:
         - path: /media
-        # Held-for-review downloads are full audio files that accumulate until
-        # resolved, so they live on the NAS rather than the Longhorn volume.
-        - path: /app/cache/held
-          subPath: dl/held

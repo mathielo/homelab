@@ -96,7 +96,6 @@ All services share the `media-data` PVC (NFS-backed from UNAS-4, mounted at `/me
 │   ├── shows/                   ← qBittorrent "nas/shows" category → Sonarr imports from here
 │   ├── books/                   ← qBittorrent "nas/books" category → Shelfarr imports from here
 │   ├── music/                   ← slskd completed downloads → DroppedNeedle imports from here
-│   ├── held/                    ← DroppedNeedle downloads held for review (its /app/cache/held)
 │   ├── parked/                  ← qBittorrent "nas/parked" category
 │   ├── seeding/                 ← qBittorrent "nas/seeding" category
 │   └── usenet/                  ← SABnzbd download root
