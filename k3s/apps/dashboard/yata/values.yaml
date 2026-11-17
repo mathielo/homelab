@@ -7,7 +7,7 @@ app-template:
             repository: ghcr.io/yata-dash/yata-dash
             # Upstream publishes no release tags — only `main`, `dev` and
             # per-commit SHAs. The digest is what pins this; Renovate bumps it.
-            tag: main@sha256:c9f1718958c90d4bb3eb96918ba9f841198ff540ef43e3306b3a2f8654b9e26f
+            tag: main@sha256:d36595445a60596440adcb427b28bece094ee8f877c41dc9c38b10e488cd57c0
           env:
             TZ: Europe/Stockholm
             # Yata rejects Host headers it wasn't told about (DNS-rebinding
