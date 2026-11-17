@@ -5,7 +5,7 @@ app-template:
         radarr:
           image:
             repository: ghcr.io/hotio/radarr
-            tag: release-6.4.4.10685
+            tag: release-7.0.3.10918
           env:
             PUID: "1000"
             PGID: "1000"
