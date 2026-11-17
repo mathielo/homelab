@@ -122,6 +122,7 @@ for h in $(kubectl get nodes -o name | cut -d/ -f2); do echo "### $h"; ssh -o Co
    echo "dstate=$(ps -eo stat= | grep -c "^D") up=$(awk "{print int(\$(1)/86400)}" /proc/uptime)d";
    echo "aa_signal_denied_1h=$(journalctl -k -q --since -1h --grep "apparmor=\"DENIED\" operation=\"signal\"" | wc -l)";
    grep " nfs " /proc/mounts | awk "{print \$(2)}" | grep -v kubelet;
+   echo "failed_units=$(systemctl --failed --no-legend --plain | awk "{print \$(1)}" | tr "\n" " ")";
    test -e /var/run/reboot-required.pkgs && echo "reboot_pending=$(tr "\n" " " < /var/run/reboot-required.pkgs)" || echo "reboot_pending=none";
    df -h -x tmpfs -x devtmpfs -x overlay -x efivarfs --output=target,size,used,pcent | tail -n +2 | grep -vE "/boot/efi"'; echo; done
 ```
@@ -147,6 +148,7 @@ say one thing. Change one, change both:
 | `dstate_procs`        | —         | >0 *persisting across a resample* | —                                       |
 | Disk use              | ≥85%      | ≥90%                              | `NodeDiskPressure` / `NodeDiskCritical` |
 | `aa_signal_denied_1h` | >0        | —                                 | —                                       |
+| `failed_units`        | —         | any                               | —                                       |
 
 - **`/mnt/r0` (k3s-node-02) is always ⚪** — never 🟡/🔴, never carried to §8. It is a bulk
   media array whose working state is full; the disk rules exclude it by
@@ -164,6 +166,10 @@ say one thing. Change one, change both:
   `ansible/k3s/install-k3s.yaml` missing or not yet applied to running pods). Name the
   senders with `journalctl -k --since -1h --grep 'operation="signal"'`; comms with spaces,
   like .NET's thread names, are hex-encoded in the audit record.
+
+- **`failed_units`** — read the reason with `systemctl status <unit>` on that node. A
+  failed oneshot like `nfs-server` doesn't come back by itself and nothing alerts on it;
+  on k3s-node-02 it means the workstation's `/mnt/n02r0` automount times out.
 
 **Wedged `hard` NFS mount** — `dstate_procs` > 0 with `/mnt/nas/media` present is
 *possibly* this. Uninterruptible processes survive `kill -9`; symptoms are node-wide

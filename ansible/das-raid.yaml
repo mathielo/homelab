@@ -250,6 +250,27 @@
         state: present
       tags: nfs
 
+    - name: Create nfs-server drop-in directory
+      file:
+        path: /etc/systemd/system/nfs-server.service.d
+        state: directory
+        mode: "0755"
+      tags: nfs
+
+    # needrestart restarts nfs-server after libc upgrades, and rpc.nfsd can fail
+    # that restart transiently (ENOMEM starting threads). The unit is a oneshot,
+    # so without a retry it stays failed with every export withdrawn.
+    - name: Retry nfs-server on failure
+      copy:
+        dest: /etc/systemd/system/nfs-server.service.d/restart.conf
+        content: |
+          [Service]
+          Restart=on-failure
+          RestartSec=30s
+        mode: "0644"
+      notify: Reload systemd
+      tags: nfs
+
     # mp: export only while {{ mount_point }} is a live mountpoint. The fstab
     # entry is nofail and das-down takes the array away deliberately, so without
     # this the empty mount point on the rootfs would be exported in its place.
@@ -265,6 +286,11 @@
 
   handlers:
     # Tagged to match: handlers are filtered by --tags like any other task.
+    - name: Reload systemd
+      systemd:
+        daemon_reload: true
+      tags: nfs
+
     - name: Reload NFS exports
       command: exportfs -ra
       tags: nfs
