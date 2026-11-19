@@ -1,0 +1,27 @@
+---
+- name: Configure the Pi devbox
+  hosts: devbox
+  become: true
+  tasks:
+    - name: Disable WiFi and Bluetooth via boot firmware config
+      lineinfile:
+        path: /boot/firmware/config.txt
+        line: "{{ item }}"
+        state: present
+      loop:
+        - "dtoverlay=disable-wifi"
+        - "dtoverlay=disable-bt"
+      register: radios_disabled
+
+    # Nothing left to manage once the overlay removes the controller.
+    - name: Disable Bluetooth service
+      systemd:
+        name: bluetooth
+        enabled: false
+
+    # No automatic reboot: a reboot ends every running agent process, so the
+    # operator picks the moment.
+    - name: Flag pending reboot
+      debug:
+        msg: "Boot config changed. Reboot pi-devbox to apply: ssh pi-devbox sudo reboot"
+      when: radios_disabled.changed
