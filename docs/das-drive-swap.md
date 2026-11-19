@@ -1,8 +1,7 @@
 # DAS Drive Swap (k3s-node-02)
 
-Replacing the disks in the Cenmate 802U3-5G DAS behind `/mnt/r0`. Written for the
-2×4 TB → 2×24 TB swap, but the procedure is generic — the array is RAID 0, so any
-drive replacement is a destructive rebuild.
+Replacing the disks in the Cenmate 802U3-5G DAS behind `/mnt/r0`. The array is
+RAID 0, so any drive replacement is a destructive rebuild.
 
 **The array holds no redundancy and no backup.** Everything on `/mnt/r0` is gone
 the moment the old disks come out. Handle the data before starting.

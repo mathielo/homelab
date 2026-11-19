@@ -5,8 +5,8 @@
 | Host        | Role   | IP          | Tailscale IP  |
 | ----------- | ------ | ----------- | ------------- |
 | k3s-server  | Server | 10.10.50.10 | 100.100.50.10 |
-| k3s-node-01 | Agent  | 10.10.50.11 | 100.100.50.11 |
-| k3s-node-02 | Agent  | 10.10.50.12 | 100.100.50.12 |
+| k3s-node-01 | Agent  | 10.10.50.11 | -             |
+| k3s-node-02 | Agent  | 10.10.50.12 | -             |
 
 MetalLB VIP: `10.10.50.3` (ingress, DNS wildcard target)
 
@@ -57,7 +57,7 @@ Installs Tailscale on the k3s node for private network access — no ports expos
 
 ### Prerequisites
 
-Generate a reusable auth key at [login.tailscale.com/admin/settings/keys](https://login.tailscale.com/admin/settings/keys) and add it to `ansible/group_vars/all/secrets.sops.yaml`.
+Generate a reusable auth key at [login.tailscale.com/admin/settings/keys](https://login.tailscale.com/admin/settings/keys) and add it to `ansible/tailscale.sops.yaml`.
 
 ### Deploy
 
@@ -132,13 +132,12 @@ All PVCs are on Longhorn, so the pods reschedule freely across nodes.
 
 Both Prometheus and Loki datasources are pre-configured — no manual setup needed.
 
-#### Recommended community dashboards to import
+#### Community dashboards imported by `gnetId`
 
-| Dashboard                   | ID      |
-| --------------------------- | ------- |
-| Node Exporter Full          | `1860`  |
-| Kubernetes cluster overview | `6417`  |
-| Loki log explorer           | `13639` |
+| Dashboard          | ID      |
+| ------------------ | ------- |
+| Node Exporter Full | `1860`  |
+| Loki log explorer  | `13639` |
 
 ### Configuration
 

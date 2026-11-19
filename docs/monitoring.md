@@ -9,10 +9,10 @@ Prometheus, Alertmanager, Loki, Promtail, Grafana and smartctl-exporter are depl
 `kubernetes-pods`, `kubernetes-service-endpoints` (node-exporter + kube-state-metrics),
 plus two explicit jobs in `prometheus/values.yaml`:
 
-| Job       | Target                                     | Why it needs an explicit job                            |
-| --------- | ------------------------------------------ | ------------------------------------------------------- |
-| `longhorn`| `longhorn-backend` endpoints, `manager` port| Annotation-based discovery doesn't pick the manager up   |
-| `pihole`  | `10.10.53.51:9100`, `10.10.53.52:9100`      | The Pis are standalone hosts, not cluster nodes          |
+| Job        | Target                                       | Why it needs an explicit job                           |
+| ---------- | -------------------------------------------- | ------------------------------------------------------ |
+| `longhorn` | `longhorn-backend` endpoints, `manager` port | Annotation-based discovery doesn't pick the manager up |
+| `pihole`   | `10.10.53.51:9100`, `10.10.53.52:9100`       | The Pis are standalone hosts, not cluster nodes        |
 
 `kubernetes-pods` picks up two in-cluster exporters from pod annotations, with no
 job of their own: smartctl-exporter on `:9633` and qui on `:9074`. qui's exporter
@@ -93,12 +93,12 @@ Custom dashboards are plain JSON under `k3s/apps/monitoring/grafana/dashboards/`
 removing a file needs no `values.yaml` change.** The upstream grafana chart is a
 `.tgz` dependency, which is why the JSON can't live inside it.
 
-| Dashboard          | UID                | Purpose                                                             |
-| ------------------ | ------------------ | ------------------------------------------------------------------- |
-| Homelab Overview   | `homelab-overview` | Full-detail cluster + Pi-hole view for a desktop browser             |
-| Rack Kiosk         | `rack-kiosk`       | 1280×400 layout for the rack touchscreen                             |
-| Pi-hole HA         | `pihole-ha`        | VIP ownership, resolver health, keepalived state                     |
-| qui / qBittorrent  | `qui-overview`     | Per-instance qBt connection, transfer rate and per-tracker totals    |
+| Dashboard         | UID                | Purpose                                                           |
+| ----------------- | ------------------ | ----------------------------------------------------------------- |
+| Homelab Overview  | `homelab-overview` | Full-detail cluster + Pi-hole view for a desktop browser          |
+| Rack Kiosk        | `rack-kiosk`       | 1280×400 layout for the rack touchscreen                          |
+| Pi-hole HA        | `pihole-ha`        | VIP ownership, resolver health, keepalived state                  |
+| qui / qBittorrent | `qui-overview`     | Per-instance qBt connection, transfer rate and per-tracker totals |
 
 Community dashboards (node-exporter Full `1860`, Loki Log Explorer `13639`) are
 still pulled by `gnetId` under the separate `default` provider.
@@ -207,9 +207,9 @@ ansible-playbook -i ansible/inventory.ini ansible/kiosk.yaml
 Each takes the panel down into a restart loop, because `swaymsg exit` correctly
 ends the session when the browser dies. All three were tried on this panel.
 
-| Setting | Failure |
-| --- | --- |
-| `lockdown disable-arbitrary-url` | gates *all* URL loading, including the address on the command line — `URL loading is locked down.`, then exit |
+| Setting                                     | Failure                                                                                                                     |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `lockdown disable-arbitrary-url`            | gates *all* URL loading, including the address on the command line — `URL loading is locked down.`, then exit               |
 | `homepage-url` + `lockdown disable-history` | Epiphany never creates its window — `gtk_window_fullscreen: assertion 'GTK_IS_WINDOW (window)' failed`, then a clean exit 0 |
 
 `restore-session-policy='crashed'` is the subtlest of the three and was the most

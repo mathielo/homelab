@@ -135,10 +135,10 @@ qBittorrent downloads land on the NVMe scratch (`/local/_incomplete`) and only *
 SABnzbd, qBittorrent and slskd all run behind a Gluetun VPN sidecar for privacy:
 
 - **VPN provider:** ProtonVPN (WireGuard)
-- **Server locations:** Sweden (`qbt-se`, SABnzbd, slskd), Brazil (`qbt-br`), and a fixed single-ASN set of Sweden servers (`qbt-mam`) — one WireGuard profile per exit
+- **Server locations:** Sweden (SABnzbd, slskd) and Brazil (`qbt-br`). `qbt-se` and `qbt-mam` are pinned to `SE#178`, `SE#221`, `SE#274`, `SE#321`, `SE#378`. One WireGuard profile per exit.
 - **Port forwarding:** qBittorrent and slskd get a ProtonVPN NAT-PMP port. Gluetun pushes it to qBittorrent's API; slskd polls Gluetun's control server itself and disconnects from Soulseek while the tunnel is down
 - **Kill-switch:** If the VPN tunnel drops, all download traffic is blocked (Gluetun firewall)
-- **Bypass subnets:** `10.42.0.0/16` and `10.43.0.0/16` (k3s pod/service CIDRs) so in-cluster communication still works
+- **Bypass subnets:** SABnzbd's `FIREWALL_OUTBOUND_SUBNETS` is `10.42.0.0/16`, `10.43.0.0/16`, `10.10.50.3/32`
 
 Credentials (`WIREGUARD_PRIVATE_KEY`, `WIREGUARD_ADDRESSES`) are encrypted per instance in `values.sops.yaml`.
 

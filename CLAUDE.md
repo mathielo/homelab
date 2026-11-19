@@ -100,7 +100,7 @@ This repository is **public**. When making changes:
 
 ## Runbooks
 
-- **DAS drive swap** on k3s-node-02 (`/mnt/r0`) → read [`docs/das-drive-swap.md`](docs/das-drive-swap.md) first. RAID 0 with no backup; five workloads mount it and two use strict hostPaths that block scheduling when it's absent.
+- **DAS drive swap** on k3s-node-02 (`/mnt/r0`) → read [`docs/das-drive-swap.md`](docs/das-drive-swap.md) first. RAID 0 with no backup; five workloads mount it. The three `qbt-*` instances and autobrr use strict hostPaths that block scheduling when it's absent.
 - **DAS power cycle** (relocating the enclosure, reseating cables, airflow work — array survives) → read [`docs/das-power-cycle.md`](docs/das-power-cycle.md) first. Same quiesce steps as the swap, but the bring-up is `das-up`; running the `das-raid.yaml` playbook here would wipe the array.
 - **PVC operations** (scaling apps down/up, stopping pods, restoring from Longhorn backup or host tarball) → read [`docs/pvc-maintenance.md`](docs/pvc-maintenance.md) first. PVCs and Deployments are owned by different Argo apps (`*-infra` vs per-service) and the root `media-apps` reconciles patches — naive `kubectl scale` or `selfHeal: false` will get reverted.
 - **WiFi / mesh backhaul** (any "X is slow" report involving the k3s nodes, NAS or workstation) → read [`docs/wifi-mesh.md`](docs/wifi-mesh.md) first. Both UDBs reach the network over wireless mesh, and the controller's per-station MLO data actively lies — measure with the parent AP's `vwireap*` counters, never `uplink` / `downlink_table` / `STATE`.
@@ -155,7 +155,7 @@ Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
   - NFS share `Backups` exported to k3s nodes at `/var/nfs/shared/Backups`
   - NFS share `k3s` exported to k3s nodes at `/var/nfs/shared/k3s` — dedicated Longhorn backup target
   - `media-data` PVC mounts the full `Media` share; `dl/` and `lib/` are top-level subdirs — same mount enables hardlinks between download clients and ARR library moves
-- **k3s cluster**: Multi-node Kubernetes (server + 2 agents) running Prometheus, Grafana, Loki, Promtail
+- **k3s cluster**: Multi-node Kubernetes (server + 2 agents) running Prometheus, Alertmanager, Grafana, Loki, Promtail, smartctl-exporter
   - Server: `k3s-server` (M75q-1) at `10.10.50.10`
   - Agent: `k3s-node-01` (M715Q) at `10.10.50.11`
   - Agent: `k3s-node-02` (M70q Gen 5) at `10.10.50.12`
