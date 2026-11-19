@@ -13,7 +13,9 @@
     '**/*.sops.yaml',
     '.sops.yaml',
   ],
-  dependencyDashboard: true,
+  dependencyDashboard: {
+    enabled: true,
+  },
   customManagers: [
     {
       customType: 'regex',
