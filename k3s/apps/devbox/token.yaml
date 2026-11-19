@@ -1,0 +1,11 @@
+---
+# Long-lived token for devbox-reader. The token controller fills in `token` and
+# `ca.crt`; both go into ansible/devbox/devbox.sops.yaml (see ansible/devbox.md).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: devbox-reader-token
+  namespace: devbox
+  annotations:
+    kubernetes.io/service-account.name: devbox-reader
+type: kubernetes.io/service-account-token

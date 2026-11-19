@@ -1,0 +1,51 @@
+---
+# Read-only cluster identity for pi-devbox (ansible/devbox.yaml writes its
+# kubeconfig). The built-in `view` role covers namespaced workloads and
+# excludes Secrets; devbox-reader adds the cluster-scoped kinds and CRD groups
+# `view` leaves out. No write verbs anywhere.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: devbox-reader
+  namespace: devbox
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: devbox-reader
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "persistentvolumes", "namespaces"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["argoproj.io", "longhorn.io", "cert-manager.io", "acme.cert-manager.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: devbox-reader-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: devbox-reader
+    namespace: devbox
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: devbox-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: devbox-reader
+subjects:
+  - kind: ServiceAccount
+    name: devbox-reader
+    namespace: devbox

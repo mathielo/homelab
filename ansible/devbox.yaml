@@ -1,8 +1,39 @@
 ---
+# Provisions pi-devbox as a headless agent host: a Herdr server running as a
+# system unit, Claude Code and the Grok CLI inside its panes, and read-only
+# cluster tooling. Target host is the [devbox] group in inventory.ini.
+#
+# Secrets come from devbox/devbox.sops.yaml (see devbox.md for its keys).
+# Run from repo root:  ansible-playbook -i ansible/inventory.ini ansible/devbox.yaml
 - name: Configure the Pi devbox
   hosts: devbox
   become: true
+  vars:
+    devbox_home: "/home/{{ ansible_user }}"
+
+    herdr_version: "0.9.5"
+    # The release publishes no checksum file, so a herdr_version bump needs this
+    # updated too: the sha256 of herdr-linux-aarch64 from the release's assets.
+    herdr_sha256: "17d7536f2da50859523680ef279dffcac8e4a235f4e46fe8da6c2ec44141897c"
+    grok_version: "1.0.89"
+    helm_version: "4.3.2"
+    k9s_version: "0.51.0"
+    # kubectl follows the cluster's minor through the pkgs.k8s.io repo path.
+    kubectl_minor: "{{ k3s_version | regex_replace('^v(\\d+\\.\\d+)\\..*$', '\\1') }}"
+
+    # Anthropic's Claude Code release signing key, per code.claude.com/docs/en/setup.
+    claude_code_key_fingerprint: "31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE"
+
+    kube_api_server: "https://{{ hostvars[groups['k3s_server'][0]]['ansible_host'] }}:6443"
+
   tasks:
+    - name: Load devbox secrets
+      community.sops.load_vars:
+        file: devbox/devbox.sops.yaml
+      no_log: true
+
+    # --- Boot config ---
+
     - name: Disable WiFi and Bluetooth via boot firmware config
       lineinfile:
         path: /boot/firmware/config.txt
@@ -19,9 +50,300 @@
         name: bluetooth
         enabled: false
 
-    # No automatic reboot: a reboot ends every running agent process, so the
-    # operator picks the moment.
+    # --- Housekeeping ---
+
+    # Raspberry Pi OS ships /usr/lib/systemd/journald.conf.d/40-rpi-volatile-storage.conf
+    # (Storage=volatile), which keeps the journal in /run and drops it on every
+    # boot even though /var/log/journal exists. Drop-ins apply in filename order
+    # across directories, so storage.conf lands after it. bootstrap.yaml's
+    # size.conf caps the persistent journal.
+    - name: Keep the journal across boots
+      copy:
+        dest: /etc/systemd/journald.conf.d/storage.conf
+        content: |
+          [Journal]
+          Storage=persistent
+        mode: "0644"
+      notify: Restart journald
+
+    # netplan warns on every run while its YAML is readable by others.
+    - name: Find netplan configs
+      find:
+        paths: /etc/netplan
+        patterns: "*.yaml"
+      register: netplan_configs
+
+    - name: Restrict netplan configs to root
+      file:
+        path: "{{ item.path }}"
+        mode: "0600"
+      loop: "{{ netplan_configs.files }}"
+      loop_control:
+        label: "{{ item.path }}"
+
+    # --- Packages ---
+
+    - name: Install base packages
+      apt:
+        name:
+          - acl # become_user to an unprivileged user needs setfacl for module tmp files
+          - git
+          - gnupg
+        state: present
+        update_cache: true
+
+    - name: Ensure apt keyrings directory exists
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Download Claude Code signing key
+      get_url:
+        url: https://downloads.claude.ai/keys/claude-code.asc
+        dest: /etc/apt/keyrings/claude-code.asc
+        mode: "0644"
+
+    # The keyring must hold exactly one primary key, Anthropic's, before apt
+    # trusts it. The first fpr record is the primary key's; later ones are subkeys.
+    - name: Read Claude Code signing key fingerprint
+      command: gpg --show-keys --with-colons /etc/apt/keyrings/claude-code.asc
+      register: claude_code_key
+      changed_when: false
+
+    - name: Verify Claude Code signing key fingerprint
+      assert:
+        that:
+          - claude_code_key.stdout_lines | select('match', '^pub:') | list | length == 1
+          - claude_code_fprs | first == claude_code_key_fingerprint
+        fail_msg: "Unexpected Claude Code signing key: {{ claude_code_fprs }}"
+      vars:
+        claude_code_fprs: >-
+          {{ claude_code_key.stdout_lines
+             | select('match', '^fpr:') | map('split', ':') | map(attribute=9) | list }}
+
+    - name: Add Claude Code apt repository
+      deb822_repository:
+        name: claude-code
+        uris: https://downloads.claude.ai/claude-code/apt/stable
+        suites: stable
+        components: main
+        signed_by: /etc/apt/keyrings/claude-code.asc
+
+    - name: Add Kubernetes apt repository
+      deb822_repository:
+        name: kubernetes
+        uris: "https://pkgs.k8s.io/core:/stable:/v{{ kubectl_minor }}/deb/"
+        suites: /
+        signed_by: "https://pkgs.k8s.io/core:/stable:/v{{ kubectl_minor }}/deb/Release.key"
+
+    - name: Install Claude Code and kubectl
+      apt:
+        name:
+          - claude-code
+          - kubectl
+        state: present
+        update_cache: true
+
+    - name: Download k9s package
+      get_url:
+        url: "https://github.com/derailed/k9s/releases/download/v{{ k9s_version }}/k9s_linux_arm64.deb"
+        dest: "/tmp/k9s_{{ k9s_version }}_linux_arm64.deb"
+        checksum: "sha256:https://github.com/derailed/k9s/releases/download/v{{ k9s_version }}/checksums.sha256"
+        mode: "0644"
+
+    - name: Install k9s
+      apt:
+        deb: "/tmp/k9s_{{ k9s_version }}_linux_arm64.deb"
+
+    - name: Download Helm release tarball
+      get_url:
+        url: "https://get.helm.sh/helm-v{{ helm_version }}-linux-arm64.tar.gz"
+        dest: "/tmp/helm-v{{ helm_version }}-linux-arm64.tar.gz"
+        checksum: "sha256:https://get.helm.sh/helm-v{{ helm_version }}-linux-arm64.tar.gz.sha256sum"
+        mode: "0644"
+
+    - name: Install Helm binary
+      unarchive:
+        src: "/tmp/helm-v{{ helm_version }}-linux-arm64.tar.gz"
+        dest: /usr/local/bin
+        remote_src: true
+        include:
+          - linux-arm64/helm
+        extra_opts:
+          - --strip-components=1
+        mode: "0755"
+
+    - name: Install Herdr binary
+      get_url:
+        url: "https://github.com/herdrdev/herdr/releases/download/v{{ herdr_version }}/herdr-linux-aarch64"
+        dest: /usr/local/bin/herdr
+        checksum: "sha256:{{ herdr_sha256 }}"
+        owner: root
+        group: root
+        mode: "0755"
+      register: herdr_binary
+
+    # The installer links ~/.grok/bin/grok to an unversioned download, so the
+    # running version is the only thing to compare against.
+    - name: Check installed Grok CLI version
+      become_user: "{{ ansible_user }}"
+      command: "{{ devbox_home }}/.grok/bin/grok --version"
+      register: grok_installed
+      changed_when: false
+      failed_when: false
+
+    # pipefail + curl -f: without them a failed download feeds bash an empty
+    # script, which exits 0 and installs nothing.
+    - name: Install Grok CLI
+      become_user: "{{ ansible_user }}"
+      shell:
+        cmd: set -o pipefail && curl -fsSL https://x.ai/cli/install.sh | bash -s {{ grok_version }}
+        executable: /bin/bash
+      when: grok_version not in grok_installed.stdout | default('')
+
+    # Ansible owns the version; the CLI's launch-time self-update would drift it.
+    - name: Disable Grok CLI self-update
+      community.general.ini_file:
+        path: "{{ devbox_home }}/.grok/config.toml"
+        section: cli
+        option: auto_update
+        value: "false"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0600"
+
+    # --- Cluster access ---
+
+    - name: Ensure .kube directory exists
+      file:
+        path: "{{ devbox_home }}/.kube"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0700"
+
+    - name: Deploy kubeconfig for the devbox-reader ServiceAccount
+      template:
+        src: devbox/files/kubeconfig.j2
+        dest: "{{ devbox_home }}/.kube/config"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0600"
+      no_log: true
+
+    # Read-only: anonymous HTTPS has no push credentials. Never updated here so
+    # a converge run can't fail on, or clobber, a working tree in use.
+    - name: Clone the homelab repo
+      become_user: "{{ ansible_user }}"
+      git:
+        repo: https://github.com/mathielo/homelab.git
+        dest: "{{ devbox_home }}/src/homelab"
+        version: main
+        update: false
+
+    # --- Herdr ---
+
+    - name: Ensure Herdr and agent config directories exist
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0700"
+      loop:
+        - "{{ devbox_home }}/.config/herdr"
+        - "{{ devbox_home }}/.claude"
+        - "{{ devbox_home }}/.grok"
+
+    # Top-level keys, so they land above the first [table]. version_check is off
+    # because herdr_version pins the binary.
+    - name: Configure Herdr
+      community.general.ini_file:
+        path: "{{ devbox_home }}/.config/herdr/config.toml"
+        section: "{{ item.section }}"
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0600"
+      loop:
+        - { section: null, option: onboarding, value: "false" }
+        - { section: update, option: version_check, value: "false" }
+      register: herdr_config
+
+    - name: Check installed Herdr agent integrations
+      stat:
+        path: "{{ item.hook }}"
+      loop:
+        - { name: claude, hook: "{{ devbox_home }}/.claude/hooks/herdr-agent-state.sh" }
+        - { name: grok, hook: "{{ devbox_home }}/.grok/hooks/herdr.json" }
+      loop_control:
+        label: "{{ item.name }}"
+      register: herdr_integrations
+
+    # Reinstalled after every Herdr upgrade: session restore needs the
+    # integration version that release expects.
+    - name: Install Herdr agent integrations
+      become_user: "{{ ansible_user }}"
+      command: "/usr/local/bin/herdr integration install {{ item.item.name }}"
+      loop: "{{ herdr_integrations.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+      when: herdr_binary.changed or not item.stat.exists
+
+    - name: Ensure /etc/herdr directory exists
+      file:
+        path: /etc/herdr
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Deploy agent API keys env file
+      template:
+        src: devbox/files/herdr.env.j2
+        dest: /etc/herdr/herdr.env
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0600"
+      no_log: true
+      register: herdr_env
+
+    - name: Deploy Herdr systemd unit
+      template:
+        src: devbox/files/herdr.service.j2
+        dest: /etc/systemd/system/herdr.service
+        owner: root
+        group: root
+        mode: "0644"
+      register: herdr_unit
+
+    - name: Enable and start Herdr
+      systemd:
+        name: herdr
+        enabled: true
+        state: started
+        daemon_reload: true
+      register: herdr_service
+
+    # No automatic restarts or reboots: either ends every running agent
+    # process, so the operator picks the moment. A server started by this run
+    # already has the new state.
+    - name: Flag pending Herdr restart
+      debug:
+        msg: "Herdr binary, config, env or unit changed. Restart it when no agents are running: ssh pi-devbox sudo systemctl restart herdr"
+      when:
+        - herdr_binary.changed or herdr_config.changed or herdr_env.changed or herdr_unit.changed
+        - not herdr_service.changed
+
     - name: Flag pending reboot
       debug:
         msg: "Boot config changed. Reboot pi-devbox to apply: ssh pi-devbox sudo reboot"
       when: radios_disabled.changed
+
+  handlers:
+    - name: Restart journald
+      systemd:
+        name: systemd-journald
+        state: restarted

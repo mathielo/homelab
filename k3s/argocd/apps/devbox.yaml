@@ -1,0 +1,24 @@
+---
+# Read-only ServiceAccount, RBAC and token for pi-devbox.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: devbox
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:mathielo/homelab.git
+    targetRevision: main
+    path: k3s/apps/devbox
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: devbox
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
