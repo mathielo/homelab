@@ -2,8 +2,7 @@
 # ---------------------------------------------------------------------------
 # AMD GPU Device Plugin
 #
-# Exposes amd.com/gpu resources to Kubernetes so pods can request GPU access
-# for hardware transcoding (e.g. Plex, Jellyfin).
+# Exposes amd.com/gpu resources to Kubernetes on nodes labeled amd.com/gpu=true.
 #
 # Upstream: https://github.com/ROCm/k8s-device-plugin
 # ---------------------------------------------------------------------------

@@ -63,10 +63,7 @@ sudo nmcli connection up "netplan-eth0"
 - Networks → VLAN → Edit → IPv6 → Advanced → Manual
 - Uncheck **Auto DNS Server**, set DNS Server to `2001:2042:37b0:1c35::53`
 
-**WAN — update DNS servers:**
-
-- Settings → Internet → WAN1 → IPv4: Primary `10.10.53.53`, Secondary `9.9.9.9`
-- Settings → Internet → WAN1 → IPv6: Primary `2001:2042:37b0:1c35::53`, Secondary `2620:fe::fe`
+**WAN DNS** is Quad9 on the gateway, not the Pi-hole VIP. See [WAN DNS Settings](../docs/network.md#wan-dns-settings).
 
 ## Bootstrap
 

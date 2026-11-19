@@ -17,13 +17,13 @@ All physical devices in the homelab.
 ### Workload pinning
 
 - **k3s-server** — no pinned workloads.
-- **k3s-node-01** — SABnzbd (incomplete downloads on local SATA), RomM, slskd and Syncthing. Also drives the DeskPi 7.84" rack touchscreen off DP-2 as an OS-level kiosk (`ansible/kiosk.yaml`, sandboxed systemd service — does not affect scheduled workloads).
-- **k3s-node-02** — qBittorrent clients (incomplete downloads on local NVMe) and Plex, pinned together by `nodeSelector`. Has an Intel UHD Graphics 770 iGPU exposed via the Intel device plugin (`gpu.intel.com/i915`), which is what Plex transcodes on.
+- **k3s-node-01** — SABnzbd and slskd (incomplete downloads on local SATA), RomM and Syncthing. Also drives the DeskPi 7.84" rack touchscreen off DP-2 as an OS-level kiosk (`ansible/kiosk.yaml`, sandboxed systemd service — does not affect scheduled workloads).
+- **k3s-node-02** — qBittorrent clients (incomplete downloads on local NVMe), Plex and ytdl-sub (Intel UHD Graphics 770 via `gpu.intel.com/i915`), qui and autobrr (`/mnt/r0`).
 - Everything else is free to schedule anywhere.
 
 ### k3s disk layout
 
-**k3s-server** and **k3s-node-01** each have a 256 GB NVMe (rootfs + Longhorn) and a 1 TB Kingston SATA SSD (node-specific local hostPath).
+**k3s-server** and **k3s-node-01** each have a 256 GB NVMe (rootfs + Longhorn) and a 1 TB Kingston SATA SSD.
 
 NVMe layout (identical on both nodes):
 
@@ -38,20 +38,20 @@ SATA SSD layout (node-specific purpose):
 
 | Node        | Partition   | Size     | Mount            | Purpose                      |
 | ----------- | ----------- | -------- | ---------------- | ---------------------------- |
-| k3s-server  | `/dev/sda1` | ~931 GiB | `/mnt/ssd/local` | Plex transcode hostPath      |
-| k3s-node-01 | `/dev/sda1` | ~931 GiB | `/mnt/ssd/local` | SABnzbd incomplete downloads |
+| k3s-server  | `/dev/sda1` | ~931 GiB | `/mnt/ssd/local` | no pinned hostPath           |
+| k3s-node-01 | `/dev/sda1` | ~931 GiB | `/mnt/ssd/local` | SABnzbd and slskd incomplete |
 
 **k3s-node-02** has a single 2 TB Samsung 990 Pro NVMe with no SATA SSD. Partitioning:
 
-| Partition        | Size     | FS   | Mount                | Purpose                                 |
-| ---------------- | -------- | ---- | -------------------- | --------------------------------------- |
-| `/dev/nvme0n1p1` | 1 GiB    | vfat | `/boot/efi`          | Ubuntu boot                             |
-| `/dev/nvme0n1p2` | 2 GiB    | ext4 | `/boot`              | Kernel/initramfs                        |
-| `/dev/nvme0n1p3` | 80 GiB   | ext4 | `/`                  | Ubuntu + k3s + container image cache    |
-| `/dev/nvme0n1p4` | ~195 GiB | ext4 | `/mnt/nvme/longhorn` | Longhorn distributed block data         |
-| `/dev/nvme0n1p5` | ~1.6 TiB | ext4 | `/mnt/nvme/local`    | qBittorrent clients' incomplete/staging |
+| Partition        | Size     | FS   | Mount                | Purpose                                  |
+| ---------------- | -------- | ---- | -------------------- | ---------------------------------------- |
+| `/dev/nvme0n1p1` | 1 GiB    | vfat | `/boot/efi`          | Ubuntu boot                              |
+| `/dev/nvme0n1p2` | 2 GiB    | ext4 | `/boot`              | Kernel/initramfs                         |
+| `/dev/nvme0n1p3` | 80 GiB   | ext4 | `/`                  | Ubuntu + k3s + container image cache     |
+| `/dev/nvme0n1p4` | ~195 GiB | ext4 | `/mnt/nvme/longhorn` | Longhorn distributed block data          |
+| `/dev/nvme0n1p5` | ~1.6 TiB | ext4 | `/mnt/nvme/local`    | qBt incomplete, Plex transcode, ytdl-sub |
 
-Longhorn is sized to match the other two nodes once they migrate — replicas stay symmetric. Remaining NVMe space backs the qBt incomplete dirs.
+Longhorn is sized to match the other two nodes once they migrate — replicas stay symmetric. Remaining NVMe space backs the qBt incomplete dirs, the Plex transcode dir and ytdl-sub scratch.
 
 **Swap:** k3s-server and k3s-node-01 run swapless — Ubuntu's default 8 GiB `/swap.img` is removed by the `[no_swap]` inventory group in [`ansible/k3s/install-k3s.yaml`](../ansible/k3s/install-k3s.yaml).
 

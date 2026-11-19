@@ -5,8 +5,8 @@
 | Host        | Role   | IP          | Tailscale IP  |
 | ----------- | ------ | ----------- | ------------- |
 | k3s-server  | Server | 10.10.50.10 | 100.100.50.10 |
-| k3s-node-01 | Agent  | 10.10.50.11 | 100.100.50.11 |
-| k3s-node-02 | Agent  | 10.10.50.12 | 100.100.50.12 |
+| k3s-node-01 | Agent  | 10.10.50.11 | -             |
+| k3s-node-02 | Agent  | 10.10.50.12 | -             |
 
 MetalLB VIP: `10.10.50.3` (ingress, DNS wildcard target)
 
@@ -20,17 +20,17 @@ MetalLB VIP: `10.10.50.3` (ingress, DNS wildcard target)
 
 ## Namespaces
 
-| Namespace         | Purpose                                          | Services                                                                                                                                                                 |
-| ----------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `kube-extra`      | Cluster ingress                                  | nginx-ingress                                                                                                                                                            |
-| `monitoring`      | Observability stack (managed by ArgoCD)          | Prometheus, Alertmanager, Grafana, Loki, Promtail                                                                                                                        |
-| `metallb-system`  | Load balancer                                    | MetalLB (L2 mode, VIP 10.10.50.3)                                                                                                                                        |
-| `media`           | Media stack (ARR + streaming, managed by ArgoCD) | Plex, Sonarr, Radarr, Prowlarr, Bazarr, Profilarr, SABnzbd, qBt-{se,br,mam}, qui, Prismarr, Pulsarr, Searcharr, AutoBrr, DroppedNeedle, slskd, RomM, Syncthing, ytdl-sub |
-| `dashboard`       | User-facing dashboards and portals               | Homepage, Uptime Kuma, Kiosk, Yata                                                                                                                                       |
-| `tools`           | Misc self-hosted apps (managed by ArgoCD)        | SearXNG, Miniflux                                                                                                                                                        |
-| `argocd`          | GitOps controller                                | ArgoCD                                                                                                                                                                   |
-| `cert-manager`    | TLS certificate management                       | cert-manager                                                                                                                                                             |
-| `longhorn-system` | Distributed k8s PVC storage                      | Longhorn detaches PVC from local nodes allowing for HA + pods moving freely between nodes                                                                                |
+| Namespace         | Purpose                                          | Services                                                                                                                                                                                           |
+| ----------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kube-extra`      | Cluster ingress                                  | nginx-ingress                                                                                                                                                                                      |
+| `monitoring`      | Observability stack (managed by ArgoCD)          | Prometheus, Alertmanager, Grafana, Loki, Promtail, smartctl-exporter                                                                                                                               |
+| `metallb-system`  | Load balancer                                    | MetalLB (L2 mode, VIP 10.10.50.3)                                                                                                                                                                  |
+| `media`           | Media stack (ARR + streaming, managed by ArgoCD) | Plex, Sonarr, Radarr, Prowlarr, Bazarr, Profilarr, SABnzbd, qBt-{se,br,mam}, qui, Prismarr, Pulsarr, Searcharr, AutoBrr, DroppedNeedle, Shelfarr, Audiobookshelf, slskd, RomM, Syncthing, ytdl-sub |
+| `dashboard`       | User-facing dashboards and portals               | Homepage, Uptime Kuma, Kiosk, Yata                                                                                                                                                                 |
+| `tools`           | Misc self-hosted apps (managed by ArgoCD)        | SearXNG, Miniflux                                                                                                                                                                                  |
+| `argocd`          | GitOps controller                                | ArgoCD                                                                                                                                                                                             |
+| `cert-manager`    | TLS certificate management                       | cert-manager                                                                                                                                                                                       |
+| `longhorn-system` | Distributed k8s PVC storage                      | Longhorn detaches PVC from local nodes allowing for HA + pods moving freely between nodes                                                                                                          |
 
 ## Bootstrap
 
@@ -57,7 +57,7 @@ Installs Tailscale on the k3s node for private network access — no ports expos
 
 ### Prerequisites
 
-Generate a reusable auth key at [login.tailscale.com/admin/settings/keys](https://login.tailscale.com/admin/settings/keys) and add it to `ansible/group_vars/all/secrets.sops.yaml`.
+Generate a reusable auth key at [login.tailscale.com/admin/settings/keys](https://login.tailscale.com/admin/settings/keys) and add it to `ansible/tailscale.sops.yaml`.
 
 ### Deploy
 
@@ -111,27 +111,18 @@ export KUBECONFIG=~/.kube/config-k3s
 kubectl get nodes
 ```
 
-## Host I/O tuning
-
-Applies kernel, udev, and mount tunings to keep slow remote I/O (NFS to UNAS-4) from cascading into node-wide stalls, and to deepen block-layer queues on the IOPS-limited Kingston SSD in `k3s-node-01`.
-
-```bash
-ansible-playbook host-tuning.yaml
-```
-
-Idempotent — safe to re-run. See [docs/storage-tuning.md](../docs/storage-tuning.md) for what gets applied and why.
-
 ## Monitoring Stack
 
 A lean observability stack runs in the `monitoring` namespace, deployed by
 **ArgoCD** from `k3s/apps/monitoring/` — one umbrella chart per component:
 
-| Component  | Chart                             | Role                                |
-| ---------- | --------------------------------- | ----------------------------------- |
-| Prometheus | `prometheus-community/prometheus` | Metrics + Alertmanager              |
-| Grafana    | `grafana/grafana`                 | Dashboards for metrics and logs     |
-| Loki       | `grafana/loki`                    | Log storage and query engine        |
-| Promtail   | `grafana/promtail`                | Ships pod logs from nodes into Loki |
+| Component         | Chart                                               | Role                                |
+| ----------------- | --------------------------------------------------- | ----------------------------------- |
+| Prometheus        | `prometheus-community/prometheus`                   | Metrics + Alertmanager              |
+| Grafana           | `grafana/grafana`                                   | Dashboards for metrics and logs     |
+| Loki              | `grafana/loki`                                      | Log storage and query engine        |
+| Promtail          | `grafana/promtail`                                  | Ships pod logs from nodes into Loki |
+| smartctl-exporter | `prometheus-community/prometheus-smartctl-exporter` | SMART disk health                   |
 
 All PVCs are on Longhorn, so the pods reschedule freely across nodes.
 
@@ -141,24 +132,23 @@ All PVCs are on Longhorn, so the pods reschedule freely across nodes.
 
 Both Prometheus and Loki datasources are pre-configured — no manual setup needed.
 
-#### Recommended community dashboards to import
+#### Community dashboards imported by `gnetId`
 
-| Dashboard                   | ID      |
-| --------------------------- | ------- |
-| Node Exporter Full          | `1860`  |
-| Kubernetes cluster overview | `6417`  |
-| Loki log explorer           | `13639` |
+| Dashboard          | ID      |
+| ------------------ | ------- |
+| Node Exporter Full | `1860`  |
+| Loki log explorer  | `13639` |
 
 ### Configuration
 
 Helm values live beside each chart in `k3s/apps/monitoring/<component>/values.yaml`
-(`prometheus`, `loki`, `promtail`, `grafana`). Secrets are in per-component
+(`prometheus`, `loki`, `promtail`, `grafana`, `smartctl-exporter`). Secrets are in per-component
 `values.sops.yaml` (Grafana admin, Alertmanager receivers), decrypted by
 ArgoCD's helm-secrets plugin.
 
 Key settings:
 
-- **Retention:** 30 days for both Prometheus and Loki
+- **Retention:** Prometheus 15 days or 7GB, whichever hits first; Loki 30 days
 - **Storage:** Longhorn PVCs (10Gi Prometheus, 10Gi Loki, 2Gi Grafana, 1Gi Alertmanager)
 - **Resources:** Sized for a Mini PC/NUC
 - **Alerting:** Alertmanager → Telegram + Pagera; rules in `prometheus/values.yaml` under `serverFiles.alerting_rules.yml`

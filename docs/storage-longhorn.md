@@ -6,26 +6,28 @@ Longhorn stores each app config/data volume as 2 replicas across the three k3s n
 
 These apps keep their config on Longhorn but use a node-local `hostPath` for hot/scratch data:
 
-| App         | Pinned to     | Local path                                       |
-| ----------- | ------------- | ------------------------------------------------ |
-| **qbt-br**  | `k3s-node-02` | `/mnt/nvme/local/qbt-br` → `/local`              |
-| **qbt-se**  | `k3s-node-02` | `/mnt/nvme/local/qbt-se` → `/local`              |
-| **SABnzbd** | `k3s-node-01` | `/mnt/ssd/local/sabnzbd-incomplete` (incomplete) |
-| **Plex**    | `k3s-server`  | `/mnt/ssd/local/plex` (transcode; AMD GPU)       |
+| App          | Pinned to     | Local path                                         |
+| ------------ | ------------- | -------------------------------------------------- |
+| **qbt-br**   | `k3s-node-02` | `/mnt/nvme/local/qbt-br` → `/local`                |
+| **qbt-se**   | `k3s-node-02` | `/mnt/nvme/local/qbt-se` → `/local`                |
+| **qbt-mam**  | `k3s-node-02` | `/mnt/nvme/local/qbt-mam` → `/local`               |
+| **ytdl-sub** | `k3s-node-02` | `/mnt/nvme/local/ytdl-sub` → `/working`            |
+| **Plex**     | `k3s-node-02` | `/mnt/nvme/local/plex` → `/transcode` (Intel i915) |
+| **SABnzbd**  | `k3s-node-01` | `/mnt/ssd/local/sab` → `/incomplete`               |
+| **slskd**    | `k3s-node-01` | `/mnt/ssd/local/slskd` → `/incomplete`             |
 
 ## Disk layout
 
 Longhorn data lives on each node's NVMe at `/mnt/nvme/longhorn`. A separate local partition holds the pinned workloads above.
 
-| Node        | Mount                | Purpose                           |
-| ----------- | -------------------- | --------------------------------- |
-| k3s-server  | `/mnt/nvme/longhorn` | Longhorn data (~195 GiB)          |
-| k3s-server  | `/mnt/ssd/local`     | Plex transcode (~931 GiB)         |
-| k3s-node-01 | `/mnt/nvme/longhorn` | Longhorn data (~195 GiB)          |
-| k3s-node-01 | `/mnt/ssd/local`     | SABnzbd incomplete (~931 GiB)     |
-| k3s-node-02 | `/mnt/nvme/longhorn` | Longhorn data (~195 GiB)          |
-| k3s-node-02 | `/mnt/nvme/local`    | qBt incomplete/staging (~1.6 TiB) |
-| k3s-node-02 | `/mnt/r0`            | 2×24 TB HDD RAID 0 (DAS)          |
+| Node        | Mount                | Purpose                                  |
+| ----------- | -------------------- | ---------------------------------------- |
+| k3s-server  | `/mnt/nvme/longhorn` | Longhorn data (~195 GiB)                 |
+| k3s-node-01 | `/mnt/nvme/longhorn` | Longhorn data (~195 GiB)                 |
+| k3s-node-01 | `/mnt/ssd/local`     | SABnzbd and slskd incomplete (~931 GiB)  |
+| k3s-node-02 | `/mnt/nvme/longhorn` | Longhorn data (~195 GiB)                 |
+| k3s-node-02 | `/mnt/nvme/local`    | qBt, Plex transcode, ytdl-sub (~1.6 TiB) |
+| k3s-node-02 | `/mnt/r0`            | 2×24 TB HDD RAID 0 (DAS)                 |
 
 Partitions are set at OS install. See [Hardware](hardware.md) for the full table.
 
@@ -49,16 +51,16 @@ Argo installs the Kubernetes `VolumeSnapshot` CRDs (`k3s/argocd/apps/volume-snap
 
 ## hostPath prep (after first boot, per node)
 
-`hostPathType: DirectoryOrCreate` auto-creates dirs as `root:root`, which the `1000:1000` containers can't write to — the `chown` is mandatory:
+`hostPathType: DirectoryOrCreate` auto-creates dirs as `root:root`, which the `1000:1000` containers can't write to — the `chown` is mandatory for the dirs below:
 
 ```bash
-# k3s-server
-sudo mkdir -p /mnt/ssd/local/plex && sudo chown 1000:1000 /mnt/ssd/local/plex
 # k3s-node-01
-sudo mkdir -p /mnt/ssd/local/sabnzbd-incomplete && sudo chown 1000:1000 /mnt/ssd/local/sabnzbd-incomplete
+sudo mkdir -p /mnt/ssd/local/sab && sudo chown 1000:1000 /mnt/ssd/local/sab
 # k3s-node-02
-sudo mkdir -p /mnt/nvme/local/qbt-br /mnt/nvme/local/qbt-se && sudo chown 1000:1000 /mnt/nvme/local/qbt-*
+sudo mkdir -p /mnt/nvme/local/qbt-br /mnt/nvme/local/qbt-se /mnt/nvme/local/qbt-mam && sudo chown 1000:1000 /mnt/nvme/local/qbt-*
 ```
+
+Plex (`/mnt/nvme/local/plex`), ytdl-sub (`/mnt/nvme/local/ytdl-sub`) and slskd (`/mnt/ssd/local/slskd`) chown their hostPath in an initContainer.
 
 # Backups
 
