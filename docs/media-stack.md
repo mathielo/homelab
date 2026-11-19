@@ -184,13 +184,13 @@ Complete the setup wizard, then configure:
 
 **Config → Servers** — add both providers:
 
-| Setting     | XS News (primary) | Eweka (secondary) |
-| ----------- | ----------------- | ----------------- |
-| Host        | `xsnews.nl`       | `news.eweka.nl`   |
-| Port        | `563`             | `563`             |
-| SSL         | Yes               | Yes               |
-| Connections | `50`              | `25`              |
-| Priority    | `0`               | `1`               |
+| Setting     | XS News            | Eweka           |
+| ----------- | ------------------ | --------------- |
+| Host        | `reader.xsnews.nl` | `news.eweka.nl` |
+| Port        | `563`              | `563`           |
+| SSL         | Yes                | Yes             |
+| Connections | `50`               | `25`            |
+| Priority    | `0`                | `0`             |
 
 **Config → Folders:**
 

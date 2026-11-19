@@ -124,7 +124,7 @@ Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
 - Gateway at .1 in each VLAN (e.g. `10.10.10.1` for VLAN 10)
 - Only Trusted (VLAN 10) can access Servers, IoT, and Protect; all others isolated
 - All VLANs can reach Pi-hole (`10.10.53.53`) on port 53 for DNS
-- Guest, Protect, Servers, DNS, and IoT have no IPv6 (simpler, more secure)
+- Guest, Protect, Servers, and IoT have no IPv6 (simpler, more secure)
 - DNS fallback: Quad9 (9.9.9.9, 149.112.112.112)
 - VLAN 10's IPv6 comes from the ISP prefix delegation (`ipv6_interface_type: pd`), so its
   `/64` can change; VLAN 53's is statically configured. Never key config on a VLAN 10 IPv6

@@ -1,6 +1,6 @@
 # Monitoring & Dashboards
 
-Prometheus, Alertmanager, Loki, Promtail and Grafana are deployed by ArgoCD from
+Prometheus, Alertmanager, Loki, Promtail, Grafana and smartctl-exporter are deployed by ArgoCD from
 `k3s/apps/monitoring/`. Grafana is at [`grafana.m6o.dev`](https://grafana.m6o.dev).
 
 ## Scrape jobs
