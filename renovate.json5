@@ -13,7 +13,9 @@
     '**/*.sops.yaml',
     '.sops.yaml',
   ],
-  dependencyDashboard: true,
+  dependencyDashboard: {
+    enabled: true,
+  },
   customManagers: [
     {
       customType: 'regex',
@@ -104,7 +106,6 @@
       ],
       depNameTemplate: 'kubernetes-csi/external-snapshotter',
       datasourceTemplate: 'github-releases',
-      // The repo also tags client/vX.Y.Z; this keeps only the plain vX.Y.Z tags.
       versioningTemplate: 'regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$',
     },
     {
@@ -141,7 +142,6 @@
       ],
       depNameTemplate: 'franzopl/pesto',
       datasourceTemplate: 'github-releases',
-      // The repo also releases pesto-v* and parmesan-v*; this keeps only penne-v*.
       extractVersionTemplate: '^penne-v(?<version>.*)$',
     },
     {
@@ -156,17 +156,11 @@
       datasourceTemplate: 'pypi',
     },
   ],
-  // Also pick up split values files (e.g. values-common.yaml, values-br.yaml)
-  // alongside the default values.yaml — qbt-* instances keep their image pins
-  // in values-common.yaml so they were otherwise invisible to Renovate.
   'helm-values': {
     managerFilePatterns: [
       '/(^|/)values(-[a-z]+)?\\.ya?ml$/',
     ],
   },
-  // Enable kubernetes manager only for shared infra manifests (GPU device
-  // plugins, etc.) — bare image: pins in DaemonSet/Deployment YAMLs aren't
-  // detected by helm-values.
   kubernetes: {
     managerFilePatterns: [
       '/k3s/apps/.*/_infra/.*\\.ya?ml$/',
@@ -197,7 +191,6 @@
       ],
     },
     {
-      // Tracker client whitelists lag qBittorrent releases, so its bumps merge on their own.
       description: 'qBittorrent in its own PR',
       matchDatasources: [
         'docker',
@@ -246,9 +239,6 @@
       groupName: 'media-bots',
     },
     {
-      // The Mend-hosted app's Docker Hub tag cache periodically "invents"
-      // lakker/pulsarr 1.x versions that exist in no registry (see #87 and #107).
-      // Release tags are v-prefixed and the Docker tags are not, hence extractVersion.
       description: 'Pulsarr: resolve versions from upstream releases, not Docker Hub',
       matchDatasources: [
         'docker',
@@ -261,8 +251,6 @@
       extractVersion: '^v(?<version>.*)$',
     },
     {
-      // ytdl-sub is consumed only as the FROM base of our VA-API Dockerfile
-      // (Alpine variant): 2026.06.12 (rarely .postN). Excludes ubuntu-*/latest.
       description: 'ytdl-sub date-versioned tags',
       matchDatasources: [
         'docker',
@@ -274,8 +262,6 @@
       groupName: 'ytdl-sub',
     },
     {
-      // Our derived VA-API image lives in our own registry and is built by hand
-      // from the Dockerfile above; track the base (jmbannon/ytdl-sub), not this.
       description: 'Ignore the hand-built ytdl-sub VA-API image',
       matchDatasources: [
         'docker',
@@ -309,8 +295,6 @@
       groupName: 'music',
     },
     {
-      // slskd also pushes per-commit builds as 0.26.0.65534-<sha>, which default
-      // docker versioning ranks above the 0.26.0 release.
       description: 'slskd: stable x.y.z releases only',
       matchDatasources: [
         'docker',
@@ -332,8 +316,6 @@
       groupName: 'books',
     },
     {
-      // Shelfarr also pushes a tag per commit short SHA; an all-digit SHA would
-      // outrank the YYYY.MM.DD.N releases under default docker versioning.
       description: 'Shelfarr: dated releases only',
       matchDatasources: [
         'docker',
@@ -409,7 +391,6 @@
       groupName: 'tools',
     },
     {
-      // SearXNG tags are date-stamped with a commit suffix: 2026.6.14-b3e08f2a4
       description: 'SearXNG date-versioned tags',
       matchPackageNames: [
         'searxng/searxng',
