@@ -165,6 +165,7 @@ Scheme: `10.10.<VLAN_ID>.x` — VLAN ID doubles as the subnet's third octet.
   - Tailnet: `qilin-goby.ts.net`
   - k3s server: `100.100.50.10` (mirrors local `10.10.50.10`)
   - Pi-hole: `100.100.53.53` (mirrors local `10.10.53.53`)
+  - pi-devbox: `100.100.50.100` (mirrors local `10.10.50.100`)
   - Pi-hole split-DNS records: `<app>.m6o.dev → 10.10.50.3` (MetalLB VIP, via `/etc/dnsmasq.d/20-k3s.conf`)
   - k3s server advertises `10.10.50.0/24` as a Tailscale subnet route so remote tailnet devices can reach LAN IPs
 

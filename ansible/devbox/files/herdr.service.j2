@@ -1,0 +1,23 @@
+# Managed by ansible/devbox.yaml — do not edit on the host.
+[Unit]
+Description=Herdr server (agent terminal multiplexer)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User={{ ansible_user }}
+Group={{ ansible_user }}
+WorkingDirectory=~
+# Every pane inherits this environment: the API keys and the agent CLIs' PATH.
+EnvironmentFile=/etc/herdr/herdr.env
+Environment=PATH={{ devbox_home }}/.grok/bin:{{ devbox_home }}/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/usr/local/bin/herdr server
+# SIGTERM goes to the server alone so it saves the session layout and stops its
+# panes itself; whatever is left after it exits is killed.
+KillMode=mixed
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
