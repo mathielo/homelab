@@ -19,7 +19,7 @@ app-template:
           restartPolicy: Always
           image:
             repository: postgres
-            tag: "18.7-alpine"
+            tag: "19.0-alpine"
           env:
             POSTGRES_USER: miniflux
             POSTGRES_DB: miniflux
@@ -42,7 +42,7 @@ app-template:
           dependsOn: postgres
           image:
             repository: postgres
-            tag: "18.7-alpine"
+            tag: "19.0-alpine"
           command:
             - sh
             - -c
