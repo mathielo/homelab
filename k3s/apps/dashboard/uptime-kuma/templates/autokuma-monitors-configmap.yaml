@@ -147,10 +147,3 @@ data:
       "url": "http://searxng.tools.svc.cluster.local:8080",
       "parent_name": "tools"
     }
-  miniflux.json: |
-    {
-      "type": "http",
-      "name": "Miniflux",
-      "url": "http://miniflux.tools.svc.cluster.local:8080/healthcheck",
-      "parent_name": "tools"
-    }

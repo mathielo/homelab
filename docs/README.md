@@ -8,7 +8,7 @@
 - [Monitoring & Dashboards](monitoring.md) — Prometheus scrape jobs, label gotchas, the custom Grafana dashboards, and the rack touchscreen kiosk
 - [Media Stack](media-stack.md) — ARR + Usenet services setup and configuration
 - [ROM Library & Steam Deck Sync](roms.md) — RomM ROM manager, Syncthing delivery to EmuDeck, and the Deck-side setup
-- [Tools](tools.md) — Catch-all namespace for misc self-hosted apps (SearXNG, Miniflux)
+- [Tools](tools.md) — Catch-all namespace for misc self-hosted apps (SearXNG)
 - [Longhorn Storage](storage-longhorn.md) — Distributed block storage: disk prep, install, PVC migration runbook, operational notes
 - [PVC Maintenance](pvc-maintenance.md) — Runbook for PVC operations (scaling apps down/up, stopping pods, restoring from Longhorn backup or host tarball)
 - [DAS Drive Swap](das-drive-swap.md) — Runbook for replacing the disks behind `/mnt/r0` on k3s-node-02 (quiesce, teardown, RAID 0 rebuild)

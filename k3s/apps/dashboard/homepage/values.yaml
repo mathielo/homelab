@@ -142,7 +142,7 @@ app-template:
             Quick links:
               tab: Home
               style: row
-              columns: 6
+              columns: 5
               iconsOnly: true
             Health:
               tab: Home
@@ -247,9 +247,6 @@ app-template:
               - SearXNG:
                   icon: searxng.png
                   href: https://srx.m6o.dev
-              - Miniflux:
-                  icon: miniflux.png
-                  href: https://miniflux.m6o.dev
 
           - Health:
               - Grafana:
@@ -483,14 +480,6 @@ app-template:
                   description: Metasearch · dashboard search bar
                   icon: searxng.png
                   siteMonitor: http://searxng.tools.svc.cluster.local:8080
-              - Miniflux:
-                  href: https://miniflux.m6o.dev
-                  description: RSS reader
-                  icon: miniflux.png
-                  widget:
-                    type: miniflux
-                    url: http://miniflux.tools.svc.cluster.local:8080
-                    key: "{{ "{{HOMEPAGE_VAR_MINIFLUX_KEY}}" }}"
 
           # Root-filesystem headroom only. Everything else glances can report
           # (CPU, memory, load, sensors) is in the Grafana homelab-overview

@@ -399,14 +399,12 @@
       groupName: 'monitoring-infra',
     },
     {
-      description: 'tools namespace images (SearXNG, Miniflux + their datastores)',
+      description: 'tools namespace images (SearXNG)',
       matchDatasources: [
         'docker',
       ],
       matchPackageNames: [
         'searxng/searxng',
-        'miniflux/miniflux',
-        'postgres',
       ],
       groupName: 'tools',
     },

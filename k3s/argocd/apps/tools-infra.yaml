@@ -1,5 +1,5 @@
 ---
-# Manages the tools namespace and its Longhorn PVCs.
+# Manages the tools namespace.
 # Must sync before any tools app — ArgoCD respects sync-wave ordering.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
