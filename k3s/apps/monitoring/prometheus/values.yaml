@@ -294,7 +294,7 @@ prometheus:
         - name: storage-health
           rules:
             - alert: PVCAlmostFull
-              expr: kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes > 0.80
+              expr: max by (namespace, persistentvolumeclaim) (kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) > 0.80
               for: 15m
               labels:
                 severity: warning
@@ -302,7 +302,7 @@ prometheus:
                 summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} usage above 80%"
 
             - alert: PVCCritical
-              expr: kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes > 0.90
+              expr: max by (namespace, persistentvolumeclaim) (kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) > 0.90
               for: 5m
               labels:
                 severity: critical
