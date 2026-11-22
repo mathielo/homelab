@@ -51,8 +51,9 @@ as findings of the run itself:
   be promoted to that command's accept-list; the same fix proposed run after run and
   never applied should escalate, not repeat verbatim.
 
-End such a run with the proposed edit as a concrete diff. "Nothing to change" is a
-valid conclusion; not looking is not. The user applies and commits it, per the git
+End such a run with the edit: one line naming it when it was applied (the user reads
+`git diff`), the concrete diff when it is only proposed. "Nothing to change" is a valid
+conclusion and needs no mention; not looking is not. The user commits it, per the git
 policy above.
 
 Durable facts a run uncovers (a real threshold, a failure mode, a fix) belong in
