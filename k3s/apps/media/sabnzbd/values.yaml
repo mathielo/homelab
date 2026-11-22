@@ -193,9 +193,10 @@ app-template:
             # The image points these at /config, which this container can't write to.
             XDG_CONFIG_HOME: /tmp/.config
             XDG_CACHE_HOME: /tmp/.cache
-            # Renovate bumps the version only: update PENNE_SHA256 in the same PR.
-            PENNE_VERSION: "0.7.1"
-            PENNE_SHA256: 463a6bc1acf7b9d17962eb068136b3ef660478154d5fd9a6574f86ba5bc106be
+            # Renovate updates the tag and the hash together, and its regex expects these two
+            # lines adjacent and in this order.
+            PENNE_TAG: "penne-v0.7.1"
+            PENNE_SHA256: f751338516560a524d6a578052b8e1929e1a3f9dc901bbca1bb802808a38dc12
           securityContext:
             runAsUser: 1000
             runAsGroup: 1000
@@ -241,7 +242,7 @@ app-template:
             if [ -f /state/enabled ]; then
               if [ ! -x /tmp/bin/penne ]; then
                 curl -fsSL --max-time 300 -o /tmp/penne.download \
-                  "https://github.com/franzopl/pesto/releases/download/penne-v${PENNE_VERSION}/penne-linux-x86_64-musl" \
+                  "https://github.com/franzopl/pesto/releases/download/${PENNE_TAG}/penne-linux-x86_64-musl" \
                   && echo "${PENNE_SHA256}  /tmp/penne.download" | sha256sum -c - \
                   && chmod +x /tmp/penne.download \
                   && mv /tmp/penne.download /tmp/bin/penne

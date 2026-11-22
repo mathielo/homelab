@@ -153,7 +153,7 @@ The client script is downloaded on the first enabled cycle after a container sta
 - `api-key`: written into the script's API key placeholder (it can't contain `|`, `&` or `\`)
 - `config.toml`: the penne `[[servers]]` list
 
-The Secret is mounted as a directory, so editing any of these needs no pod restart. When the script changes upstream, the running container keeps its verified copy, but the next container start can't download a matching one, so cycles stop until `script-sha256` is updated. Updating the hash fetches the new script on the next cycle. A `penne` version bump does restart the pod, and its PR must also update `PENNE_SHA256`, or the download fails verification and cycles stop.
+The Secret is mounted as a directory, so editing any of these needs no pod restart. When the script changes upstream, the running container keeps its verified copy, but the next container start can't download a matching one, so cycles stop until `script-sha256` is updated. Updating the hash fetches the new script on the next cycle. A `penne` version bump restarts the pod; Renovate's PR updates `PENNE_TAG` and `PENNE_SHA256` together, since a hash that doesn't match the downloaded binary fails verification and stops cycles.
 
 Toggle it with `make article-check-enable` and `make article-check-disable`, and read its state with `make article-check-status`.
 

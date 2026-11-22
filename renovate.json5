@@ -139,12 +139,14 @@
         '/k3s/apps/media/sabnzbd/values\\.yaml$/',
       ],
       matchStrings: [
-        'PENNE_VERSION:\\s*"(?<currentValue>[\\d.]+)"',
+        'PENNE_TAG:\\s*"(?<currentValue>[^"]+)"\\s+PENNE_SHA256:\\s*(?<currentDigest>[a-f0-9]{64})',
       ],
       depNameTemplate: 'franzopl/pesto',
-      datasourceTemplate: 'github-releases',
-      // The repo also releases pesto-v* and parmesan-v*; this keeps only penne-v*.
-      extractVersionTemplate: '^penne-v(?<version>.*)$',
+      // Hashes the new release's asset so PENNE_SHA256 moves with the tag. It looks releases up
+      // by the raw tag, so the value is the full tag; the versioning parses penne-v* and drops
+      // the repo's pesto-v* and parmesan-v* tags.
+      datasourceTemplate: 'github-release-attachments',
+      versioningTemplate: 'regex:^penne-v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$',
     },
     {
       customType: 'regex',
