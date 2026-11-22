@@ -43,7 +43,23 @@
         state: directory
         mode: "0755"
 
+    # setupVars.conf only seeds the unattended install. Once pihole.toml exists it must
+    # not: the installer treats its presence as "still on v5", so the next `pihole -up`
+    # re-runs the v6 migration, which rebuilds pihole.toml from defaults plus this file
+    # and drops the upstreams, password, revServers and etc_dnsmasq_d.
+    - name: Check whether Pi-hole v6 is already configured
+      stat:
+        path: /etc/pihole/pihole.toml
+      register: pihole_toml
+
+    - name: Remove setupVars.conf from a configured node
+      file:
+        path: /etc/pihole/setupVars.conf
+        state: absent
+      when: pihole_toml.stat.exists
+
     - name: Write Pi-hole setup configuration for unattended installation
+      when: not pihole_toml.stat.exists
       copy:
         dest: /etc/pihole/setupVars.conf
         content: |
@@ -94,8 +110,11 @@
         executable: /bin/bash
         creates: /usr/local/bin/pihole
 
+    # setpassword can't tell whether the hash changed, so it would report "changed" on
+    # every run.
     - name: Set Pi-hole admin password
       command: pihole setpassword {{ pihole_password }}
+      changed_when: false
       no_log: true
 
     # --- NTP ---
@@ -205,9 +224,12 @@
       apt:
         name:
           - keepalived
-          - dnsutils
+          # The real package: Debian 13's dnsutils is a virtual name, which the apt module
+          # never sees as installed and so reinstalls on every run.
+          - bind9-dnsutils
         state: present
         update_cache: true
+        cache_valid_time: 86400
 
     - name: Deploy Pi-hole health check for keepalived
       copy:
@@ -240,13 +262,13 @@
     - name: Download nebula-sync release tarball
       get_url:
         url: "https://github.com/lovelaze/nebula-sync/releases/download/v{{ nebula_sync_version }}/nebula-sync_{{ nebula_sync_version }}_linux_arm64.tar.gz"
-        dest: "/tmp/nebula-sync_{{ nebula_sync_version }}.tar.gz"
+        dest: "/var/cache/nebula-sync_{{ nebula_sync_version }}.tar.gz"
         mode: "0644"
       when: nebula_sync_host | default(false)
 
     - name: Install nebula-sync binary
       unarchive:
-        src: "/tmp/nebula-sync_{{ nebula_sync_version }}.tar.gz"
+        src: "/var/cache/nebula-sync_{{ nebula_sync_version }}.tar.gz"
         dest: /usr/local/bin
         remote_src: true
         include:

@@ -25,6 +25,11 @@ die() { log "ERROR: $*"; exit 1; }
 
 # --- Pre-flight checks ---
 
+# The installer reads a present setupVars.conf as "still on v5" and re-runs the v6
+# migration, which rebuilds pihole.toml from defaults plus that file.
+[[ ! -f /etc/pihole/setupVars.conf ]] \
+    || die "/etc/pihole/setupVars.conf exists — pihole -up would reset pihole.toml; run the Ansible playbook (it removes the file) first"
+
 log "Checking Unbound is running..."
 dig @"$UNBOUND_ADDR" -p "$UNBOUND_PORT" github.com +short +time=3 >/dev/null 2>&1 \
     || die "Unbound is not resolving on $UNBOUND_ADDR:$UNBOUND_PORT — fix Unbound first"

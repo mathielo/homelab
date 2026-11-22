@@ -94,7 +94,7 @@ ansible-playbook pihole/pihole.yaml
 
 This will, on **both** nodes:
 
-- Write `/etc/pihole/setupVars.conf` with the network and DNS configuration
+- Write `/etc/pihole/setupVars.conf` with the network and DNS configuration for the unattended install (only before Pi-hole is installed; on a configured node the playbook removes it, since a present `setupVars.conf` makes `pihole -up` re-run the v6 migration and rebuild `pihole.toml` from defaults)
 - Install Pi-hole (query logging enabled)
 - Set the admin password from the secrets file
 - Configure a static IPv6 address on `eth0` via NetworkManager (`::51` on pihole-01, `::52` on pihole-02) plus the `127.0.0.1,10.10.53.53` resolver pair; `::53` floats as the IPv6 VIP via keepalived
@@ -142,7 +142,7 @@ The script handles a circular DNS dependency: Tailscale manages `/etc/resolv.con
 
 The script:
 
-1. Verifies Unbound is healthy
+1. Refuses to run while `/etc/pihole/setupVars.conf` exists, and verifies Unbound is healthy
 2. Stops Tailscale (breaks the circular dependency)
 3. Sets a temporary DNS fallback (`9.9.9.9`)
 4. Runs `pihole -up`
