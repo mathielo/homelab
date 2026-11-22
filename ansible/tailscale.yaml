@@ -43,6 +43,13 @@
         tailscale_status.rc != 0 or
         (tailscale_status.stdout | from_json).BackendState != 'Running'
 
+    # The nodes resolve through the LAN Pi-hole VIP, which fails over between both Pi-holes.
+    # Tailscale DNS has only pihole-01 behind it, so with it on, every image pull stops when
+    # pihole-01 is down.
+    - name: Keep the system resolver off Tailscale DNS
+      command: tailscale set --accept-dns=false
+      when: "'k3s_nodes' in group_names"
+
     - name: Advertise Servers subnet via Tailscale (subnet routing)
       command: tailscale set --advertise-routes=10.10.50.0/24
       when: "'k3s_server' in group_names"

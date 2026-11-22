@@ -44,6 +44,10 @@ Remote tailnet device
   → MetalLB routes to nginx ingress → backend pod
 ```
 
+The k3s nodes are LAN devices for DNS: the playbook sets `--accept-dns=false` on them, so
+they use the Pi-hole VIP, which fails over to pihole-02. Only pihole-01 is on the tailnet,
+so Tailscale DNS has no failover.
+
 The result: `https://grafana.m6o.dev` works identically whether you're at home or on the other side of the world.
 
 ## Direct Connections (NAT Traversal)
