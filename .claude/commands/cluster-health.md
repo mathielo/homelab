@@ -159,7 +159,9 @@ say one thing. Change one, change both:
   §8 warning on `Load÷core` alone. On node-02 the load is real.
 - **`/` trends high** on every node (containerd image cache in `/var/lib/k3s/agent`). Note
   ≥85%, but kubelet image-GC self-prunes at 85%/80% (`ansible/k3s/install-k3s.yaml`), so
-  high-but-stable is not a finding; `NodeRootDiskFillingUp` catches a real trend.
+  high-but-stable is not a finding; `NodeRootDiskFillingUp` catches a real trend. A climb
+  that ends in a ~10-point drop with `image_gc_manager` "Removing image" lines in
+  `journalctl -u k3s` is that self-prune working, and the climb before it is not an item.
 
 - **`aa_signal_denied_1h` > 0** — containers are carrying the stacked AppArmor label and
   can't signal their own processes (`99-apparmor-containers.conf` in
@@ -813,6 +815,10 @@ goes on the benign list below so the next run doesn't re-derive it.
   "^<date>T<HH:MM>" /var/log/daemon.log*'`: repeated `udhcpc: sending renew` on the WAN
   interface with no reply). The ISP side is out of reach; the gluetun container restarts it
   leaves (`Completed`, exit 0) are not churn.
+- loki `failed mapping AST` … `context canceled` whose `query=` is one of this check's own
+  §6 drill-downs — the check's sharded queries being cut off; it tracks health-check runs.
+- romm `SyntaxWarning: "\*" is an invalid escape sequence` from its bundled `mariadb`
+  package — an upstream Python warning with no fix on our side.
 - kubelet `FreeDiskSpaceFailed` (`Failed to free sufficient space by deleting unused
   images`) during an image-pull wave — image GC lands just above its 80% low threshold
   because the rest is in-use images. Benign while `/` holds its 14-day band (§1's

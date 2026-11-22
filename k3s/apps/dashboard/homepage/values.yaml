@@ -195,6 +195,9 @@ app-template:
 
         kubernetes.yaml: |
           mode: cluster
+          # No service is discovered from Ingress annotations, and the ClusterRole
+          # doesn't grant listing them.
+          ingress: false
 
         widgets.yaml: |
           # Cluster totals only — per-node CPU/memory lives in the Grafana
