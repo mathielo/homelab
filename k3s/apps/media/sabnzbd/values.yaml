@@ -194,7 +194,7 @@ app-template:
             XDG_CONFIG_HOME: /tmp/.config
             XDG_CACHE_HOME: /tmp/.cache
             # Renovate bumps the version only: update PENNE_SHA256 in the same PR.
-            PENNE_VERSION: "0.7.0"
+            PENNE_VERSION: "0.7.1"
             PENNE_SHA256: 463a6bc1acf7b9d17962eb068136b3ef660478154d5fd9a6574f86ba5bc106be
           securityContext:
             runAsUser: 1000
