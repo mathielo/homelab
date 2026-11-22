@@ -120,6 +120,7 @@ for h in $(kubectl get nodes -o name | cut -d/ -f2); do echo "### $h"; ssh -o Co
    echo "psi_cpu=$(awk "/some/{print \$(3)}" /proc/pressure/cpu) psi_io=$(awk "/some/{print \$(3)}" /proc/pressure/io) psi_mem=$(awk "/some/{print \$(3)}" /proc/pressure/memory)";
    echo "dstate=$(ps -eo stat= | grep -c "^D") up=$(awk "{print int(\$(1)/86400)}" /proc/uptime)d";
    echo "aa_signal_denied_1h=$(journalctl -k -q --since -1h --grep "apparmor=\"DENIED\" operation=\"signal\"" | wc -l)";
+   echo "node_dns=$(timeout 5 getent hosts registry-1.docker.io >/dev/null && echo ok || echo FAIL) pause_image=$(sudo /usr/local/bin/k3s ctr -a /run/k3s/containerd/containerd.sock -n k8s.io images ls -q 2>/dev/null | grep -c mirrored-pause)";
    grep " nfs " /proc/mounts | awk "{print \$(2)}" | grep -v kubelet;
    echo "failed_units=$(systemctl --failed --no-legend --plain | awk "{print \$(1)}" | tr "\n" " ")";
    test -e /var/run/reboot-required.pkgs && echo "reboot_pending=$(tr "\n" " " < /var/run/reboot-required.pkgs)" || echo "reboot_pending=none";
@@ -138,7 +139,7 @@ worst breached metric:
 Thresholds **mirror the alert rules** deliberately, so the check and the always-on rule
 say one thing. Change one, change both:
 
-| Metric                | 🟡        | 🔴                                | Alert rule                              |
+| Metric                | 🟡         | 🔴                                 | Alert rule                              |
 | --------------------- | --------- | --------------------------------- | --------------------------------------- |
 | `Load÷core`           | >1.0      | >2.0                              | — (none; see k3s-server caveat)         |
 | `CPU busy`            | >85%      | —                                 | `NodeHighCPU` (>85%, 15m)               |
@@ -149,6 +150,8 @@ say one thing. Change one, change both:
 | Disk use              | ≥85%      | ≥90%                              | `NodeDiskPressure` / `NodeDiskCritical` |
 | `aa_signal_denied_1h` | >0        | —                                 | —                                       |
 | `failed_units`        | —         | any                               | —                                       |
+| `node_dns`            | —         | FAIL                              | —                                       |
+| `pause_image`         | 0         | —                                 | —                                       |
 
 - **`/mnt/r0` (k3s-node-02) is always ⚪** — never 🟡/🔴, never reported. It is a bulk
   media array whose working state is full; the disk rules exclude it by
@@ -168,6 +171,16 @@ say one thing. Change one, change both:
   `ansible/k3s/install-k3s.yaml` missing or not yet applied to running pods). Name the
   senders with `journalctl -k --since -1h --grep 'operation="signal"'`; comms with spaces,
   like .NET's thread names, are hex-encoded in the audit record.
+
+- **`node_dns` FAIL** — the node itself cannot resolve outside names, so no image pull
+  works there: every new pod on it sticks in `ContainerCreating`, while running pods (which
+  resolve through CoreDNS) look fine. `resolvectl status` shows which link owns the lookup;
+  a `tailscale0` link with domain `~.` means Tailscale DNS took over the node, which the
+  `accept-dns=false` task in `ansible/tailscale.yaml` prevents.
+
+- **`pause_image` 0** — the node has lost its pod sandbox image, so even a pod whose own
+  image is cached needs a registry pull before it can start. Harmless while `node_dns` is
+  ok; together with a DNS or registry outage it blocks every new pod on that node.
 
 - **`failed_units`** — read the reason with `systemctl status <unit>` on that node. A
   failed oneshot like `nfs-server` doesn't come back by itself and nothing alerts on it;
@@ -368,7 +381,10 @@ comparable across containers. Above ~15% is real. Two traps:
 - **A container younger than the window reads as throttled.** A `[6h]` rate over a pod two
   minutes old is almost all its own startup and ranks at 20–25% with nothing wrong. Check
   pod age (§2) before believing a top-`k` entry, and use `PQR` on that one container to
-  confirm a steady pattern rather than a single spike.
+  confirm a steady pattern rather than a single spike. A mostly idle container (a sidecar,
+  a small web UI) counts so few CFS periods that its startup burst dominates the ratio for
+  hours: if CPU use is a few millicores, read `cpu.stat` in the container's cgroup on the
+  node twice a few seconds apart — `nr_throttled` not growing means the ratio is history.
 
 Judge on **snapshot _and_ history** (a container idling at 200 Mi that peaked at 8 Gi is
 not over-provisioned). 🔴 near-limit and 🟡 under-request are fixed under the gate below;
@@ -823,6 +839,9 @@ goes on the benign list below so the next run doesn't re-derive it.
   images`) during an image-pull wave — image GC lands just above its 80% low threshold
   because the rest is in-use images. Benign while `/` holds its 14-day band (§1's
   `NodeRootDiskFillingUp` catches a real trend).
+- radarr/sonarr `Couldn't add release` … `Invalid NZB: Contains indexer error` … `NZB file
+  not found` — the indexer took that NZB down but its RSS feed still lists it, so every RSS
+  sync re-offers it until it leaves the feed. Nothing on our side can stop it.
 - **qui** orphan-scan `failed` on `qbt-br` — cosmetic: qui has no `/local` mount and br
   always has active downloads, and qui marks any run with walk errors and zero orphans as
   failed. Not fixable via Ignore Paths; never mount `/local` into qui.
@@ -837,7 +856,9 @@ goes on the benign list below so the next run doesn't re-derive it.
   longhorn-manager `mismatching disks`, the CSI sidecars' `dial unix /csi/csi.sock:
   connect: connection refused`, promtail readiness-probe timeouts and `final error sending
   batch` … `entry too far behind` (it re-sends days-old entries Loki already holds), qui
-  `instance is in backoff period` — each a controller reconciling ahead of its dependency, all
+  `instance is in backoff period`, and single-instance Loki's `Failed to resolve
+  loki-memberlist`, `failed to fast-join the memberlist cluster` and `empty ring` while it
+  finds no peers — each a controller reconciling ahead of its dependency, all
   self-clearing. **Accepted only when confined to the restart window**: establish that with
   §6's currency check, and confirm the end state with `kubectl get clusterissuer` +
   `kubectl get certificates -A` (all `Ready=True`) and `kubectl get nodes.longhorn.io -n
@@ -879,21 +900,21 @@ One table, the same rows in the same order every run so runs compare at a glance
 or by-design. **See** is empty when 🟢, otherwise the item it points to (`→ 2a`, `→ 3b`) or
 `standing` for ⚪. No descriptions. Rows:
 
-| Area              | Section | Status comes from                                                               |
-| ----------------- | ------- | ------------------------------------------------------------------------------- |
-| Alerts            | §0      | firing alerts and scrape health                                                 |
-| Nodes             | §1, §2  | Ready, pressure conditions, CPU/mem/PSI/iowait, D-state, failed units, AppArmor |
-| Disk space        | §1      | every mount except `/mnt/r0`                                                    |
-| NFS mounts        | §1      | `/mnt/nas/media` alive, no wedge                                                |
-| DAS drives        | §8      | standing row — ⚪ until its re-open trigger fires                                |
-| Pods              | §2      | not Running, not ready, restarts, silent failures                               |
-| VPN port-forwards | §2      | gluetun forwarded port = qBittorrent listen port                                |
-| Resources         | §3      | near-limit, under-requested, OOM kills                                          |
-| ArgoCD            | §4      | every app Synced + Healthy                                                      |
-| Longhorn volumes  | §5      | state, robustness, fsck, stuck expansion                                        |
-| Backups           | §5      | schedules complete, backup age, daily gaps                                      |
-| Pi-hole DNS       | §7      | VIPs, FTL answering, nebula-sync                                                |
-| Logs              | §6      | 🟢 quiet · 🟡 cleanable warnings in section 3 · 🔴 a fault that is in section 2    |
+| Area              | Section | Status comes from                                                                           |
+| ----------------- | ------- | ------------------------------------------------------------------------------------------- |
+| Alerts            | §0      | firing alerts and scrape health                                                             |
+| Nodes             | §1, §2  | Ready, pressure, CPU/mem/PSI/iowait, D-state, failed units, AppArmor, node DNS, pause image |
+| Disk space        | §1      | every mount except `/mnt/r0`                                                                |
+| NFS mounts        | §1      | `/mnt/nas/media` alive, no wedge                                                            |
+| DAS drives        | §8      | standing row — ⚪ until its re-open trigger fires                                            |
+| Pods              | §2      | not Running, not ready, restarts, silent failures                                           |
+| VPN port-forwards | §2      | gluetun forwarded port = qBittorrent listen port                                            |
+| Resources         | §3      | near-limit, under-requested, OOM kills                                                      |
+| ArgoCD            | §4      | every app Synced + Healthy                                                                  |
+| Longhorn volumes  | §5      | state, robustness, fsck, stuck expansion                                                    |
+| Backups           | §5      | schedules complete, backup age, daily gaps                                                  |
+| Pi-hole DNS       | §7      | VIPs, FTL answering, nebula-sync                                                            |
+| Logs              | §6      | 🟢 quiet · 🟡 cleanable warnings in section 3 · 🔴 a fault that is in section 2                |
 
 Transients that self-healed with nothing left degraded (network blips, WAN outages, restart
 bursts, alerts that fired and cleared) leave their row 🟢 and appear nowhere else. Check the
