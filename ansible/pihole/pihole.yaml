@@ -98,14 +98,17 @@
       command: pihole setpassword {{ pihole_password }}
       no_log: true
 
-    # --- NTP (use router as time source to avoid DNS dependency) ---
+    # --- NTP ---
+    # IP literals because neither Pi keeps time while powered off: a clock days stale fails
+    # Unbound's DNSSEC checks, so a time source that needs DNS could never correct it. These
+    # are time.cloudflare.com; the gateway serves no NTP.
 
-    - name: Configure NTP to use VLAN gateway instead of external servers
+    - name: Configure NTP with servers that need no DNS lookup
       copy:
         dest: /etc/systemd/timesyncd.conf
         content: |
           [Time]
-          NTP=10.10.53.1
+          NTP=162.159.200.1 162.159.200.123
         mode: "0644"
       notify: Restart timesyncd
 
