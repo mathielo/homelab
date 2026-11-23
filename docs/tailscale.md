@@ -12,10 +12,11 @@ The homelab is only accessible from the LAN by default — all services live beh
 
 Tailscale IPs mirror the LAN IP scheme for easy mental mapping:
 
-| Host       | LAN IP      | Tailscale IP  | Mnemonic            |
-| ---------- | ----------- | ------------- | ------------------- |
-| k3s-server | 10.10.50.10 | 100.100.50.10 | `10.10` → `100.100` |
-| pihole     | 10.10.53.53 | 100.100.53.53 | `10.10` → `100.100` |
+| Host       | LAN IP       | Tailscale IP   | Mnemonic            |
+| ---------- | ------------ | -------------- | ------------------- |
+| k3s-server | 10.10.50.10  | 100.100.50.10  | `10.10` → `100.100` |
+| pihole     | 10.10.53.53  | 100.100.53.53  | `10.10` → `100.100` |
+| pi-devbox  | 10.10.50.100 | 100.100.50.100 | `10.10` → `100.100` |
 
 These are **static Tailscale IPs**, manually assigned in the Tailscale admin console (Machine settings → Addresses) so they never change. The convention is `100.100.<VLAN>.<host>`, matching the LAN scheme `10.10.<VLAN>.<host>`.
 
@@ -91,3 +92,4 @@ The playbook uses a reusable auth key from `ansible/tailscale.sops.yaml`. For ho
 
 - [Pi-hole Tailscale setup](../ansible/pihole.md#tailscale)
 - [k3s Tailscale setup](../ansible/k3s.md#tailscale)
+- [Devbox setup](../ansible/devbox.md#setup)

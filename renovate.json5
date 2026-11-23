@@ -159,7 +159,64 @@
       depNameTemplate: 'glances',
       datasourceTemplate: 'pypi',
     },
+    {
+      customType: 'regex',
+      managerFilePatterns: [
+        '/ansible/devbox\\.yaml$/',
+      ],
+      matchStrings: [
+        'herdr_version:\\s*"(?<currentValue>[\\d.]+)"',
+      ],
+      depNameTemplate: 'herdrdev/herdr',
+      datasourceTemplate: 'github-releases',
+      // Keeps only vX.Y.Z, skipping the preview-* tags. The release has no
+      // checksum file, so a bump PR also needs herdr_sha256 updated by hand.
+      extractVersionTemplate: '^v(?<version>\\d+\\.\\d+\\.\\d+)$',
+    },
+    {
+      customType: 'regex',
+      managerFilePatterns: [
+        '/ansible/devbox\\.yaml$/',
+      ],
+      matchStrings: [
+        'helm_version:\\s*"(?<currentValue>[\\d.]+)"',
+      ],
+      depNameTemplate: 'helm/helm',
+      datasourceTemplate: 'github-releases',
+      extractVersionTemplate: '^v(?<version>.*)$',
+    },
+    {
+      customType: 'regex',
+      managerFilePatterns: [
+        '/ansible/devbox\\.yaml$/',
+      ],
+      matchStrings: [
+        'k9s_version:\\s*"(?<currentValue>[\\d.]+)"',
+      ],
+      depNameTemplate: 'derailed/k9s',
+      datasourceTemplate: 'github-releases',
+      extractVersionTemplate: '^v(?<version>.*)$',
+    },
+    {
+      customType: 'regex',
+      managerFilePatterns: [
+        '/ansible/devbox\\.yaml$/',
+      ],
+      matchStrings: [
+        'grok_version:\\s*"(?<currentValue>[\\d.]+)"',
+      ],
+      depNameTemplate: 'grok-cli',
+      datasourceTemplate: 'custom.grok-cli',
+    },
   ],
+  customDatasources: {
+    // The Grok CLI has no GitHub releases; its installer reads the current
+    // stable version from this plain-text pointer.
+    'grok-cli': {
+      defaultRegistryUrlTemplate: 'https://x.ai/cli/stable',
+      format: 'plain',
+    },
+  },
   // Also pick up split values files (e.g. values-common.yaml, values-br.yaml)
   // alongside the default values.yaml — qbt-* instances keep their image pins
   // in values-common.yaml so they were otherwise invisible to Renovate.
