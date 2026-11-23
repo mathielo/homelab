@@ -28,7 +28,7 @@ The Claude Code signing key must have fingerprint `31DDDE24DDFAB679F42D7BD2BAA92
 
 `herdr.service` runs `herdr server` as `m8hl` from boot, so no login session has to stay open. Its socket lives in `~/.config/herdr/`, where any `herdr` client running as `m8hl` finds it.
 
-- **Environment**: `/etc/herdr/herdr.env` (`m8hl`, `0600`) holds `ANTHROPIC_API_KEY` and `XAI_API_KEY`; the unit adds `~/.grok/bin` and `~/.local/bin` to `PATH`. Every pane inherits both.
+- **Environment**: `/etc/herdr/herdr.env` (`m8hl`, `0600`) holds `CLAUDE_CODE_OAUTH_TOKEN`; the unit adds `~/.grok/bin` and `~/.local/bin` to `PATH`. Every pane inherits both. No API key variables are set, since `ANTHROPIC_API_KEY` and `XAI_API_KEY` would override subscription auth.
 - **Stop**: `KillMode=mixed` sends SIGTERM to the server alone, which saves the session layout and stops its panes within `TimeoutStopSec=30`.
 - **Config**: `~/.config/herdr/config.toml` gets `onboarding = false` and `[update] version_check = false`; other keys are left as set.
 - **Integrations**: `herdr integration install claude` and `grok` write their `SessionStart` hooks into `~/.claude/hooks/` and `~/.grok/hooks/`, so agent panes resume their sessions after a server restart. The play reinstalls them whenever the Herdr binary changes.
@@ -56,12 +56,13 @@ The playbook never restarts Herdr or reboots the host, since both end every runn
 
 2. **Secrets**: create `ansible/devbox/devbox.sops.yaml` with these keys:
 
-   | Key                 | Value                                                |
-   | ------------------- | ---------------------------------------------------- |
-   | `anthropic_api_key` | Anthropic Console API key                            |
-   | `xai_api_key`       | xAI Console API key                                  |
-   | `devbox_kube_token` | decoded `token` from step 1                          |
-   | `devbox_kube_ca`    | `ca.crt` from step 1, left base64-encoded as printed |
+   | Key                       | Value                                                |
+   | ------------------------- | ---------------------------------------------------- |
+   | `claude_code_oauth_token` | output of `claude setup-token`, see below            |
+   | `devbox_kube_token`       | decoded `token` from step 1                          |
+   | `devbox_kube_ca`          | `ca.crt` from step 1, left base64-encoded as printed |
+
+   `claude setup-token` runs on any machine with a browser and Claude Code installed. It signs in with the Claude subscription and prints a token valid for one year; it is not stored anywhere else.
 
 3. **Playbooks**, from the repo root:
 
@@ -75,7 +76,13 @@ The playbook never restarts Herdr or reboots the host, since both end every runn
 
 4. **Reboot** once the playbook reports a boot config change: `ssh pi-devbox sudo reboot`.
 
-5. **Claude Code API key**: the first interactive `claude` run asks once whether to use `ANTHROPIC_API_KEY`. Accept it; the answer is stored in `~/.claude.json`.
+5. **Grok login**: sign the Grok CLI in to the X subscription once, completing the device code in any browser:
+
+   ```bash
+   ssh pi-devbox grok login --device-auth
+   ```
+
+   The CLI keeps `~/.grok/auth.json` and refreshes it itself, so the playbook does not manage that file.
 
 6. **Connect** from a Herdr client:
 
@@ -84,6 +91,13 @@ The playbook never restarts Herdr or reboots the host, since both end every runn
    ```
 
    `pi-devbox` is the alias in [`.config/ssh.config`](../.config/ssh.config).
+
+## Agent credentials
+
+Both agents run on subscriptions, so usage counts against the Claude and X subscription limits rather than API billing.
+
+- **Claude Code**: `CLAUDE_CODE_OAUTH_TOKEN` expires a year after `claude setup-token` created it. To rotate, run `claude setup-token` again, replace `claude_code_oauth_token` in `devbox.sops.yaml`, rerun the playbook and `sudo systemctl restart herdr`.
+- **Grok CLI**: if its refresh token stops working, the CLI asks to log in again; repeat `grok login --device-auth`.
 
 ## Host settings
 

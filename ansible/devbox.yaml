@@ -300,7 +300,7 @@
         group: root
         mode: "0755"
 
-    - name: Deploy agent API keys env file
+    - name: Deploy agent credentials env file
       template:
         src: devbox/files/herdr.env.j2
         dest: /etc/herdr/herdr.env

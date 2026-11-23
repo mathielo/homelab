@@ -8,7 +8,7 @@ Wants=network-online.target
 User={{ ansible_user }}
 Group={{ ansible_user }}
 WorkingDirectory=~
-# Every pane inherits this environment: the API keys and the agent CLIs' PATH.
+# Every pane inherits this environment: the Claude Code token and the agent CLIs' PATH.
 EnvironmentFile=/etc/herdr/herdr.env
 Environment=PATH={{ devbox_home }}/.grok/bin:{{ devbox_home }}/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ExecStart=/usr/local/bin/herdr server
