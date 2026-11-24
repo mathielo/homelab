@@ -21,6 +21,9 @@ data:
 
     general:
       instance_name: "SearXNG"
+      # The wikipedia, wikidata and openstreetmap engines refuse to load while this
+      # is empty. It is only appended to their outgoing User-Agent.
+      contact_url: "https://searxng.org/"
 
     server:
       base_url: "https://srx.m6o.dev/"
