@@ -62,7 +62,8 @@ PQR 'max_over_time(ALERTS{alertstate="firing"}[1h])' | jq -r ".data.result[]|\"\
 The `[1h]` window is load-bearing: a bare `ALERTS` range query samples one instant per
 hourly step, so an alert that fires and clears between two samples — a node reboot's
 `DeploymentNotAvailable`, a 10-minute `DiskTemperatureCritical` — never appears.
-`.values|length` then counts hours with any firing sample.
+`.values|length` then counts hours with any firing sample. `PQR`'s range defaults to 7
+days; pass the run's window as its second argument in `date -d` words (`'24 hours ago'`).
 
 An alert that fired and cleared is history, not a current fault, but it is the evidence
 §1–§7 are mostly blind to, and it is what evaluates a standing condition's re-open trigger.
@@ -517,6 +518,8 @@ comm -23 <(echo "$B"|awk -v d="$(date -d '2 days ago' +%F)" '$(1)==d{print $(2)}
 unbounded list is mostly single-digit historical days that make the recent dailies
 unreadable. Map a named volume back to its PVC with
 `kubectl get volumes.longhorn.io -n longhorn-system <vol> -o jsonpath='{.status.kubernetesStatus.pvcName}'`.
+A dropped volume that returns `NotFound` was deleted with its app, so its dip is a smaller
+volume set, not a skipped backup.
 A count that *matches* its neighbour is not proof the same volumes ran — the set can change
 while the size holds, which is why the diff is a separate step.
 
@@ -609,7 +612,7 @@ list, and returns the **count per app** that §8's Frequency column needs:
 ```
 W=$0; W=${W:-1h}
 case $W in *d) R=1d; N=${W%d};; *) R=$W; N=1;; esac
-Q='sum by (namespace, app) (count_over_time({namespace=~".+", app!="coredns"} |~ "(?i)(error|fatal|panic|warn)" != "\"error\":null" != "error=null" !~ "level=info|\"(GET|POST) |HTTP/[12]|warnings.go|is deprecated|caller=metrics.go" ['"$R"']))'
+Q='sum by (namespace, app) (count_over_time({namespace=~".+", app!="coredns"} |~ "(?i)(error|fatal|panic|warn)" != "\"error\":null" != "error=null" !~ "level=info| INF |\"(GET|POST) |HTTP/[12]|warnings.go|is deprecated|caller=metrics.go" ['"$R"']))'
 for i in $(seq 0 $((N-1))); do
   kubectl exec -n monitoring deploy/grafana -c grafana -- wget -qO- http://loki:3100/loki/api/v1/query \
     --post-data="query=$(printf %s "$Q" | jq -sRr @uri)&time=$(date -d "$i days ago" +%s)000000000" \
@@ -622,10 +625,11 @@ store this section reads. coredns' query logging (~50k lines/h) is the bulk of w
 scan, so it is excluded at the stream selector, and a `d` window runs as sequential one-day
 slices.
 
-The `!=`/`!~` filters mirror Pass 2's exclusions. Without them, three kinds of line inflate
+The `!=`/`!~` filters mirror Pass 2's exclusions. Without them, four kinds of line inflate
 the count: structured-log lines whose *success* payload contains the word (`"error":null`),
-ingress-nginx access lines whose URL contains it, and longhorn-manager's `level=info`
-relays of Warning-type k8s Events. An app then ranks near the top with nothing wrong and
+ingress-nginx access lines whose URL contains it, longhorn-manager's `level=info`
+relays of Warning-type k8s Events, and info-level lines carrying an `error=` field
+(syncthing's ` INF ` connection-closed lines). An app then ranks near the top with nothing wrong and
 drills down to zero. Any exclusion added to Pass 2
 belongs here too, or the ranking lies.
 
@@ -683,7 +687,7 @@ kubectl exec -n monitoring deploy/grafana -c grafana -- wget -qO- http://loki:31
   | jq -r '.data.result[].values[][1]' \
   | sed 's/\x1b\[[0-9;]*m//g' \
   | grep -iE '\b(error|fatal|panic|warn(ing)?)\b|level=(error|warn)|"level":"(error|warn|fatal)"|(^|[[:space:]])E[0-9]{4}[[:space:]]|\[(error|crit)\]' \
-  | grep -ivE '"error":null|error=null|level=info|caller=metrics\.go|warnings\.go|is deprecated|"GET |"POST |HTTP/[12]' \
+  | grep -ivE '"error":null|error=null|level=info| INF |caller=metrics\.go|warnings\.go|is deprecated|"GET |"POST |HTTP/[12]' \
   | sed -E 's/[0-9]{4}-[0-9-]*T?[0-9:.]*Z?//g; s/\b[EWIF][0-9]{4} [0-9:.]+ +[0-9]+\b//g; s/[0-9]{2}:[0-9]{2}:[0-9]{2}//g; s/[0-9]+/N/g' \
   | cut -c1-180 | sort | uniq -c | sort -rn | head -10
 ```
@@ -850,6 +854,19 @@ goes on the benign list below so the next run doesn't re-derive it.
   latency trips it; the 120-min full reconciliation is a separate path and always succeeds,
   so nothing is missed. Timeout and severity are hardcoded upstream. Escalate only if full
   reconciliation also starts failing.
+- **slskd** `Error resolving search response` / `Failed to resolve search response` … `The
+  wait timed out after 5000 milliseconds`, with `GetUserEndPointInternalAsync` in the stack
+  — the Soulseek server answering peer-address lookups slowly while slskd replies to *other
+  users'* searches. It arrives in server-side bursts (thousands in one hour, single digits
+  on quiet days) and has no setting. Escalate only if DroppedNeedle's own searches or
+  downloads fail in the same hours.
+- argocd-application-controller `DiffFromCache: cannot get managed resources for app <x>:
+  cache: key is missing` — once an hour per `ServerSideApply=true` app, as its app-state
+  cache entry expires.
+- longhorn-manager `Sync backup status canceled` … `context canceled` — one per volume
+  backup as its monitor stops on completion; tracks the backup schedule.
+- prowlarr `Invalid Release` … `No categories provided` — the indexer publishes releases
+  without a category and Prowlarr drops them; indexer-side.
 - **Startup churn in the minute after a restart** — a node reboot *or* a control-plane
   component redeploy (an Ansible/Helm run reinstalling cert-manager or argocd reproduces it
   identically). Always the same set: cert-manager `ACME client for issuer not initialised`,
