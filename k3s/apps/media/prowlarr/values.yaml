@@ -5,7 +5,7 @@ app-template:
         prowlarr:
           image:
             repository: ghcr.io/hotio/prowlarr
-            tag: release-3.0.2.5780
+            tag: release-3.1.0.5799
           env:
             PUID: "1000"
             PGID: "1000"
