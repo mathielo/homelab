@@ -4,9 +4,12 @@
 # distro driver + libva — no version skew between ffmpeg and the driver.
 # (intel-media-driver is the bulk of the added size; the base stays Alpine-light.)
 #
-# Build + push (tag must match the base ytdl-sub version so values.yaml lines up):
-#   docker build -t ghcr.io/mathielo/ytdl-sub-vaapi:2026.07.17 k3s/apps/media/ytdl-sub
-#   docker push ghcr.io/mathielo/ytdl-sub-vaapi:2026.07.17
+# Renovate bumps only the FROM line; nothing reaches the cluster until this image
+# is rebuilt and values.yaml's tag is moved to match. Build + push (tag = base version):
+#   TAG=$(sed -n 's/^FROM .*ytdl-sub://p' k3s/apps/media/ytdl-sub/Dockerfile)
+#   docker build -t ghcr.io/mathielo/ytdl-sub-vaapi:$TAG k3s/apps/media/ytdl-sub
+#   docker push ghcr.io/mathielo/ytdl-sub-vaapi:$TAG
+# then set image.tag in values.yaml to $TAG.
 FROM ghcr.io/jmbannon/ytdl-sub:2026.11.26
 
 USER root
